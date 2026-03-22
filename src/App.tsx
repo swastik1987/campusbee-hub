@@ -12,6 +12,10 @@ import Onboarding from "./pages/seeker/Onboarding";
 import SeekerHome from "./pages/seeker/SeekerHome";
 import Explore from "./pages/seeker/Explore";
 import MyClasses from "./pages/seeker/MyClasses";
+import ClassDetail from "./pages/seeker/ClassDetail";
+import ProviderProfilePage from "./pages/seeker/ProviderProfilePage";
+import EnrollFlow from "./pages/seeker/EnrollFlow";
+import EnrollmentDetail from "./pages/seeker/EnrollmentDetail";
 import Chat from "./pages/seeker/Chat";
 import Profile from "./pages/seeker/Profile";
 import ProviderDashboard from "./pages/provider/ProviderDashboard";
@@ -46,6 +50,10 @@ const App = () => (
             <Route path="/home" element={<AuthGuard><SeekerHome /></AuthGuard>} />
             <Route path="/explore" element={<AuthGuard><Explore /></AuthGuard>} />
             <Route path="/my-classes" element={<AuthGuard><MyClasses /></AuthGuard>} />
+            <Route path="/class/:classId" element={<AuthGuard><ClassDetail /></AuthGuard>} />
+            <Route path="/provider-profile/:providerId" element={<AuthGuard><ProviderProfilePage /></AuthGuard>} />
+            <Route path="/enroll/:batchId" element={<AuthGuard><EnrollFlow /></AuthGuard>} />
+            <Route path="/enrollment/:enrollmentId" element={<AuthGuard><EnrollmentDetail /></AuthGuard>} />
             <Route path="/chat" element={<AuthGuard><Chat /></AuthGuard>} />
             <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
 
