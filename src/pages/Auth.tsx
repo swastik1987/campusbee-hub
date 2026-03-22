@@ -44,22 +44,33 @@ const Auth = () => {
     }
   };
 
-  const handleOAuthLogin = async (provider: "google" | "apple") => {
-    setOauthLoading(provider);
+  const handleGoogleLogin = async () => {
+    setOauthLoading("google");
+    setError("");
+
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
+    });
+
+    if (result?.error) {
+      setError(result.error instanceof Error ? result.error.message : String(result.error));
+      setOauthLoading(null);
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    setOauthLoading("apple");
     setError("");
 
     const { error: authError } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: window.location.origin,
-      },
+      provider: "apple",
+      options: { redirectTo: window.location.origin },
     });
 
     if (authError) {
       setError(authError.message);
       setOauthLoading(null);
     }
-    // On success, the page redirects — no need to clear loading
   };
 
   return (
