@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable/index";
 import { useUser } from "@/contexts/UserContext";
 import { Mail, CheckCircle2, Loader2 } from "lucide-react";
 
@@ -43,22 +44,33 @@ const Auth = () => {
     }
   };
 
-  const handleOAuthLogin = async (provider: "google" | "apple") => {
-    setOauthLoading(provider);
+  const handleGoogleLogin = async () => {
+    setOauthLoading("google");
+    setError("");
+
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
+    });
+
+    if (result?.error) {
+      setError(result.error instanceof Error ? result.error.message : String(result.error));
+      setOauthLoading(null);
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    setOauthLoading("apple");
     setError("");
 
     const { error: authError } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: window.location.origin,
-      },
+      provider: "apple",
+      options: { redirectTo: window.location.origin },
     });
 
     if (authError) {
       setError(authError.message);
       setOauthLoading(null);
     }
-    // On success, the page redirects — no need to clear loading
   };
 
   return (
@@ -102,7 +114,7 @@ const Auth = () => {
             <div className="space-y-3">
               <Button
                 variant="outline"
-                onClick={() => handleOAuthLogin("google")}
+                onClick={handleGoogleLogin}
                 disabled={oauthLoading !== null}
                 className="w-full h-12 rounded-xl font-medium text-sm gap-3"
               >
@@ -133,7 +145,7 @@ const Auth = () => {
 
               <Button
                 variant="outline"
-                onClick={() => handleOAuthLogin("apple")}
+                onClick={handleAppleLogin}
                 disabled={oauthLoading !== null}
                 className="w-full h-12 rounded-xl font-medium text-sm gap-3"
               >
