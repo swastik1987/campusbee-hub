@@ -14,7 +14,126 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      apartment_complexes: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          city: string
+          created_at: string | null
+          full_address: string | null
+          id: string
+          is_active: boolean | null
+          locality: string
+          logo_url: string | null
+          name: string
+          pin_code: string | null
+          registered_by: string | null
+          status: string | null
+          total_units: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          city: string
+          created_at?: string | null
+          full_address?: string | null
+          id?: string
+          is_active?: boolean | null
+          locality: string
+          logo_url?: string | null
+          name: string
+          pin_code?: string | null
+          registered_by?: string | null
+          status?: string | null
+          total_units?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          city?: string
+          created_at?: string | null
+          full_address?: string | null
+          id?: string
+          is_active?: boolean | null
+          locality?: string
+          logo_url?: string | null
+          name?: string
+          pin_code?: string | null
+          registered_by?: string | null
+          status?: string | null
+          total_units?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apartment_complexes_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apartment_complexes_registered_by_fkey"
+            columns: ["registered_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          auth_id: string | null
+          avatar_url: string | null
+          created_at: string | null
+          email: string | null
+          full_name: string
+          id: string
+          is_active: boolean | null
+          is_apartment_admin: boolean | null
+          is_platform_admin: boolean | null
+          is_provider: boolean | null
+          is_verified: boolean | null
+          last_active_persona: string | null
+          mobile_number: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          auth_id?: string | null
+          avatar_url?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          is_active?: boolean | null
+          is_apartment_admin?: boolean | null
+          is_platform_admin?: boolean | null
+          is_provider?: boolean | null
+          is_verified?: boolean | null
+          last_active_persona?: string | null
+          mobile_number?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          auth_id?: string | null
+          avatar_url?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          is_active?: boolean | null
+          is_apartment_admin?: boolean | null
+          is_platform_admin?: boolean | null
+          is_provider?: boolean | null
+          is_verified?: boolean | null
+          last_active_persona?: string | null
+          mobile_number?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
