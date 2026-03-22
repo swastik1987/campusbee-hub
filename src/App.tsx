@@ -16,6 +16,11 @@ import Chat from "./pages/seeker/Chat";
 import Profile from "./pages/seeker/Profile";
 import ProviderDashboard from "./pages/provider/ProviderDashboard";
 import ProviderClasses from "./pages/provider/ProviderClasses";
+import ProviderClassDetail from "./pages/provider/ProviderClassDetail";
+import CreateClass from "./pages/provider/CreateClass";
+import CreateBatch from "./pages/provider/CreateBatch";
+import BecomeProvider from "./pages/provider/BecomeProvider";
+import TrainerManagement from "./pages/provider/TrainerManagement";
 import ProviderStudents from "./pages/provider/ProviderStudents";
 import ProviderPayments from "./pages/provider/ProviderPayments";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -45,8 +50,13 @@ const App = () => (
             <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
 
             {/* Protected provider routes */}
+            <Route path="/become-provider" element={<AuthGuard><BecomeProvider /></AuthGuard>} />
             <Route path="/provider/dashboard" element={<AuthGuard><ProviderDashboard /></AuthGuard>} />
             <Route path="/provider/classes" element={<AuthGuard><ProviderClasses /></AuthGuard>} />
+            <Route path="/provider/classes/new" element={<AuthGuard><CreateClass /></AuthGuard>} />
+            <Route path="/provider/classes/:classId" element={<AuthGuard><ProviderClassDetail /></AuthGuard>} />
+            <Route path="/provider/classes/:classId/batch/new" element={<AuthGuard><CreateBatch /></AuthGuard>} />
+            <Route path="/provider/trainers" element={<AuthGuard><TrainerManagement /></AuthGuard>} />
             <Route path="/provider/students" element={<AuthGuard><ProviderStudents /></AuthGuard>} />
             <Route path="/provider/payments" element={<AuthGuard><ProviderPayments /></AuthGuard>} />
 
