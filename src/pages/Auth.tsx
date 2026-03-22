@@ -145,7 +145,7 @@ const Auth = () => {
 
               <Button
                 variant="outline"
-                onClick={() => handleOAuthLogin("apple")}
+                onClick={handleAppleLogin}
                 disabled={oauthLoading !== null}
                 className="w-full h-12 rounded-xl font-medium text-sm gap-3"
               >
