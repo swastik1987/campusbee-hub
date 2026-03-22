@@ -114,7 +114,7 @@ const Auth = () => {
             <div className="space-y-3">
               <Button
                 variant="outline"
-                onClick={() => handleOAuthLogin("google")}
+                onClick={handleGoogleLogin}
                 disabled={oauthLoading !== null}
                 className="w-full h-12 rounded-xl font-medium text-sm gap-3"
               >
