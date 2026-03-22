@@ -1,4 +1,306 @@
-import PlaceholderPage from "@/components/PlaceholderPage";
-import { LayoutDashboard } from "lucide-react";
-const AdminDashboard = () => <PlaceholderPage title="Admin Dashboard" icon={LayoutDashboard} persona="admin" />;
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useUser } from "@/contexts/UserContext";
+import {
+  useAdminStats,
+  useAdminProviderRegistrations,
+  useTopClassesByEnrollment,
+  useApproveProvider,
+  useRejectProvider,
+} from "@/hooks/useAdmin";
+import Header from "@/components/layout/Header";
+import BottomNav from "@/components/BottomNav";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  BookOpen,
+  Check,
+  GraduationCap,
+  Loader2,
+  Users,
+  Home as HomeIcon,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+
+const STAT_COLORS = ["#F59E0B", "#6366F1", "#059669", "#EC4899"];
+
+const AdminDashboard = () => {
+  const navigate = useNavigate();
+  const { profile, currentApartment } = useUser();
+  const aptId = currentApartment?.id;
+
+  const { data: stats, isLoading: statsLoading } = useAdminStats(aptId);
+  const { data: pendingRegs } = useAdminProviderRegistrations(aptId, "pending");
+  const { data: topClasses } = useTopClassesByEnrollment(aptId);
+
+  const approveProvider = useApproveProvider();
+  const rejectProvider = useRejectProvider();
+
+  const [selectedReg, setSelectedReg] = useState<any>(null);
+  const [feeType, setFeeType] = useState("flat");
+  const [feeAmount, setFeeAmount] = useState("0");
+
+  const handleApprove = async () => {
+    if (!selectedReg || !profile) return;
+    try {
+      await approveProvider.mutateAsync({
+        registrationId: selectedReg.id,
+        approvedBy: profile.id,
+        feeType,
+        feeAmount: parseFloat(feeAmount) || 0,
+      });
+      toast.success("Provider approved");
+      setSelectedReg(null);
+    } catch {
+      toast.error("Failed to approve");
+    }
+  };
+
+  const handleReject = async (regId: string) => {
+    try {
+      await rejectProvider.mutateAsync(regId);
+      toast.success("Provider rejected");
+    } catch {
+      toast.error("Failed to reject");
+    }
+  };
+
+  const statCards = [
+    { label: "Families", value: stats?.families ?? 0, icon: HomeIcon },
+    { label: "Providers", value: stats?.providers ?? 0, icon: GraduationCap },
+    { label: "Classes", value: stats?.classes ?? 0, icon: BookOpen },
+    { label: "Enrollments", value: stats?.enrollments ?? 0, icon: Users },
+  ];
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background pb-20">
+      <Header />
+
+      <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-6">
+        <h2 className="text-lg font-bold">Admin Dashboard</h2>
+        {currentApartment && (
+          <p className="text-xs text-muted-foreground -mt-4">{currentApartment.name}</p>
+        )}
+
+        {/* Stats */}
+        {statsLoading ? (
+          <div className="grid grid-cols-2 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 rounded-xl" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {statCards.map((s, i) => (
+              <Card key={s.label} className="p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <div
+                    className="flex h-8 w-8 items-center justify-center rounded-lg"
+                    style={{ backgroundColor: STAT_COLORS[i] + "20" }}
+                  >
+                    <s.icon size={16} style={{ color: STAT_COLORS[i] }} />
+                  </div>
+                </div>
+                <p className="text-2xl font-bold">{s.value}</p>
+                <p className="text-xs text-muted-foreground">{s.label}</p>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Provider Approval Queue */}
+        {pendingRegs && pendingRegs.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold">Pending Approvals</h3>
+              <Badge variant="destructive" className="text-xs">{pendingRegs.length}</Badge>
+            </div>
+            <div className="space-y-2">
+              {pendingRegs.map((reg) => {
+                const prov = reg.service_providers as any;
+                const user = prov?.users;
+                return (
+                  <Card key={reg.id} className="p-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={user?.avatar_url} />
+                        <AvatarFallback className="bg-provider/10 text-provider text-xs">
+                          {user?.full_name?.[0]?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">
+                          {prov?.business_name || user?.full_name}
+                        </p>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Badge variant="secondary" className="text-[9px] capitalize">
+                            {prov?.provider_type}
+                          </Badge>
+                          {prov?.experience_years && <span>{prov.experience_years} yrs</span>}
+                        </div>
+                      </div>
+                    </div>
+                    {prov?.specializations?.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {prov.specializations.slice(0, 4).map((s: string) => (
+                          <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 text-xs text-destructive border-destructive"
+                        onClick={() => handleReject(reg.id)}
+                      >
+                        <X size={14} className="mr-1" /> Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={() => {
+                          setSelectedReg(reg);
+                          setFeeType("flat");
+                          setFeeAmount("0");
+                        }}
+                      >
+                        <Check size={14} className="mr-1" /> Approve
+                      </Button>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Popular Classes Chart */}
+        {topClasses && topClasses.length > 0 && (
+          <div>
+            <h3 className="text-sm font-bold mb-3">Top Classes by Enrollment</h3>
+            <Card className="p-4">
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={topClasses} layout="vertical" margin={{ left: 0, right: 10, top: 0, bottom: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis
+                    type="category"
+                    dataKey="title"
+                    width={100}
+                    tick={{ fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [`${value} students`, "Enrollments"]}
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  />
+                  <Bar dataKey="enrollments" radius={[0, 4, 4, 0]}>
+                    {topClasses.map((_: any, i: number) => (
+                      <Cell key={i} fill={STAT_COLORS[i % STAT_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </Card>
+          </div>
+        )}
+
+        {/* Quick links */}
+        <div className="grid grid-cols-2 gap-3">
+          <Card
+            className="p-4 cursor-pointer hover:shadow-md transition-all text-center"
+            onClick={() => navigate("/admin/providers")}
+          >
+            <Users size={20} className="mx-auto text-provider mb-1" />
+            <p className="text-xs font-semibold">Manage Providers</p>
+          </Card>
+          <Card
+            className="p-4 cursor-pointer hover:shadow-md transition-all text-center"
+            onClick={() => navigate("/admin/reports")}
+          >
+            <BookOpen size={20} className="mx-auto text-emerald-600 mb-1" />
+            <p className="text-xs font-semibold">Fee Reports</p>
+          </Card>
+        </div>
+      </div>
+
+      {/* Approve Sheet */}
+      <Sheet open={!!selectedReg} onOpenChange={() => setSelectedReg(null)}>
+        <SheetContent side="bottom" className="rounded-t-2xl">
+          <SheetHeader>
+            <SheetTitle>Set Commission Terms</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Set the commission fee for{" "}
+              <span className="font-semibold text-foreground">
+                {(selectedReg?.service_providers as any)?.business_name ||
+                  (selectedReg?.service_providers as any)?.users?.full_name}
+              </span>
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Fee Type</Label>
+                <Select value={feeType} onValueChange={setFeeType}>
+                  <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="flat">Flat (₹/month)</SelectItem>
+                    <SelectItem value="percentage">Percentage (%)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">
+                  {feeType === "flat" ? "Amount (₹)" : "Rate (%)"}
+                </Label>
+                <Input
+                  type="number"
+                  value={feeAmount}
+                  onChange={(e) => setFeeAmount(e.target.value)}
+                  placeholder={feeType === "flat" ? "500" : "10"}
+                  className="h-10 rounded-lg"
+                />
+              </div>
+            </div>
+            <Button
+              onClick={handleApprove}
+              disabled={approveProvider.isPending}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
+            >
+              {approveProvider.isPending ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                "Approve Provider"
+              )}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <BottomNav persona="admin" />
+    </div>
+  );
+};
+
 export default AdminDashboard;

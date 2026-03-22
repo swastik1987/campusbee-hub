@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, Search, BookOpen, MessageCircle, User, LayoutDashboard, Users, Wallet } from "lucide-react";
+import { Home, Search, BookOpen, MessageCircle, User, LayoutDashboard, Users, Wallet, FileBarChart, Shield } from "lucide-react";
 
-type Persona = "seeker" | "provider";
+type Persona = "seeker" | "provider" | "admin";
 
 const seekerTabs = [
   { path: "/home", icon: Home, label: "Home" },
@@ -19,10 +19,23 @@ const providerTabs = [
   { path: "/profile", icon: User, label: "Profile" },
 ];
 
+const adminTabs = [
+  { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { path: "/admin/providers", icon: Users, label: "Providers" },
+  { path: "/admin/reports", icon: FileBarChart, label: "Reports" },
+  { path: "/profile", icon: User, label: "Profile" },
+];
+
 const BottomNav = ({ persona = "seeker" }: { persona?: Persona }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const tabs = persona === "provider" ? providerTabs : seekerTabs;
+  const tabs = persona === "admin" ? adminTabs : persona === "provider" ? providerTabs : seekerTabs;
+
+  const accentColor = persona === "admin"
+    ? "hsl(160, 84%, 39%)"
+    : persona === "provider"
+    ? "hsl(239, 84%, 67%)"
+    : "hsl(var(--primary))";
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card safe-bottom">
@@ -37,12 +50,16 @@ const BottomNav = ({ persona = "seeker" }: { persona?: Persona }) => {
             >
               <tab.icon
                 size={22}
-                className={active ? "text-primary" : "text-muted-foreground"}
-                fill={active ? "hsl(var(--primary))" : "none"}
+                className={active ? "" : "text-muted-foreground"}
+                style={active ? { color: accentColor } : undefined}
+                fill={active ? accentColor : "none"}
                 strokeWidth={active ? 2.2 : 1.8}
               />
               {active && (
-                <span className="text-[10px] font-semibold text-primary leading-none">
+                <span
+                  className="text-[10px] font-semibold leading-none"
+                  style={{ color: accentColor }}
+                >
                   {tab.label}
                 </span>
               )}
