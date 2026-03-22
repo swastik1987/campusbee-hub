@@ -27,6 +27,8 @@ import BecomeProvider from "./pages/provider/BecomeProvider";
 import TrainerManagement from "./pages/provider/TrainerManagement";
 import ProviderStudents from "./pages/provider/ProviderStudents";
 import ProviderPayments from "./pages/provider/ProviderPayments";
+import TakeAttendance from "./pages/provider/TakeAttendance";
+import Announcements from "./pages/provider/Announcements";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProviders from "./pages/admin/AdminProviders";
 import AdminReports from "./pages/admin/AdminReports";
@@ -67,6 +69,8 @@ const App = () => (
             <Route path="/provider/trainers" element={<AuthGuard><TrainerManagement /></AuthGuard>} />
             <Route path="/provider/students" element={<AuthGuard><ProviderStudents /></AuthGuard>} />
             <Route path="/provider/payments" element={<AuthGuard><ProviderPayments /></AuthGuard>} />
+            <Route path="/provider/attendance/:batchId" element={<AuthGuard><TakeAttendance /></AuthGuard>} />
+            <Route path="/provider/announcements" element={<AuthGuard><Announcements /></AuthGuard>} />
 
             {/* Protected admin routes */}
             <Route path="/admin/dashboard" element={<AuthGuard><AdminDashboard /></AuthGuard>} />
