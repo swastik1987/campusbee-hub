@@ -1790,7 +1790,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_apartment_ids: { Args: { _auth_uid: string }; Returns: string[] }
       get_user_id: { Args: never; Returns: string }
+      is_apartment_admin_for_any: {
+        Args: { _auth_uid: string }
+        Returns: string[]
+      }
       is_platform_admin: { Args: never; Returns: boolean }
     }
     Enums: {
