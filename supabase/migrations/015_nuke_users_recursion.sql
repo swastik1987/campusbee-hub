@@ -56,7 +56,7 @@ BEGIN
   END IF;
 
   RETURN QUERY
-  SELECT u.id, u.full_name, u.email, u.mobile_number, u.avatar_url
+  SELECT u.id, u.full_name::text, u.email::text, u.mobile_number::text, u.avatar_url::text
   FROM public.users u
   WHERE u.full_name ILIKE '%' || search_query || '%'
      OR u.email ILIKE '%' || search_query || '%'
@@ -142,7 +142,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
   RETURN QUERY
-  SELECT u.id, u.full_name, u.email, u.mobile_number, u.avatar_url
+  SELECT u.id, u.full_name::text, u.email::text, u.mobile_number::text, u.avatar_url::text
   FROM public.users u
   WHERE u.id IN (
     SELECT f.primary_user_id FROM public.families f WHERE f.apartment_id = apt_id
