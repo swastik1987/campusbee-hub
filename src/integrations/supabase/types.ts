@@ -987,6 +987,160 @@ export type Database = {
           },
         ]
       }
+      family_invites: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          claimed_member_id: string | null
+          created_at: string | null
+          expires_at: string | null
+          family_id: string
+          id: string
+          invite_code: string
+          invite_type: string | null
+          invited_by: string
+          invited_email: string | null
+          invited_phone: string | null
+          invited_user_id: string | null
+          message: string | null
+          status: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          claimed_member_id?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          family_id: string
+          id?: string
+          invite_code: string
+          invite_type?: string | null
+          invited_by: string
+          invited_email?: string | null
+          invited_phone?: string | null
+          invited_user_id?: string | null
+          message?: string | null
+          status?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          claimed_member_id?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          family_id?: string
+          id?: string
+          invite_code?: string
+          invite_type?: string | null
+          invited_by?: string
+          invited_email?: string | null
+          invited_phone?: string | null
+          invited_user_id?: string | null
+          message?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_invites_accepted_by_fkey"
+            columns: ["accepted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_invites_claimed_member_id_fkey"
+            columns: ["claimed_member_id"]
+            isOneToOne: false
+            referencedRelation: "family_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_invites_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_invites_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_invites_invited_user_id_fkey"
+            columns: ["invited_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      family_links: {
+        Row: {
+          created_at: string | null
+          family_id: string
+          id: string
+          linked_at: string | null
+          linked_via: string | null
+          role: string | null
+          status: string | null
+          unlink_reason: string | null
+          unlinked_at: string | null
+          unlinked_by: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          family_id: string
+          id?: string
+          linked_at?: string | null
+          linked_via?: string | null
+          role?: string | null
+          status?: string | null
+          unlink_reason?: string | null
+          unlinked_at?: string | null
+          unlinked_by?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          family_id?: string
+          id?: string
+          linked_at?: string | null
+          linked_via?: string | null
+          role?: string | null
+          status?: string | null
+          unlink_reason?: string | null
+          unlinked_at?: string | null
+          unlinked_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_links_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_links_unlinked_by_fkey"
+            columns: ["unlinked_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_links_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       family_members: {
         Row: {
           age_group: string | null
