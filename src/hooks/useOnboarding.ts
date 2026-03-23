@@ -75,6 +75,18 @@ export function useCreateFamily() {
         .select("id")
         .single();
       if (error) throw error;
+
+      // Also create the family_links row so RLS policies work immediately
+      await supabase
+        .from("family_links")
+        .insert({
+          family_id: data.id,
+          user_id: userId,
+          role: "primary",
+          status: "active",
+          linked_via: "creation",
+        });
+
       return data;
     },
   });
