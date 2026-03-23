@@ -7,17 +7,17 @@ export function usePlatformStats() {
   return useQuery({
     queryKey: ["platform-stats"],
     queryFn: async () => {
-      const [apartments, providers, seekers, enrollments] = await Promise.all([
+      const [apartments, providers, userCount, enrollments] = await Promise.all([
         supabase.from("apartment_complexes").select("id", { count: "exact", head: true }),
         supabase.from("service_providers").select("id", { count: "exact", head: true }),
-        supabase.from("users").select("id", { count: "exact", head: true }),
+        supabase.rpc("admin_get_user_count"),
         supabase.from("enrollments").select("id", { count: "exact", head: true }).eq("status", "active"),
       ]);
 
       return {
         totalApartments: apartments.count ?? 0,
         totalProviders: providers.count ?? 0,
-        totalSeekers: seekers.count ?? 0,
+        totalSeekers: (userCount.data as number) ?? 0,
         totalEnrollments: enrollments.count ?? 0,
       };
     },
@@ -104,15 +104,11 @@ export function useSearchUsers(searchTerm: string) {
     queryKey: ["search-users", searchTerm],
     enabled: searchTerm.length >= 2,
     queryFn: async () => {
-      const safe = searchTerm.replace(/%/g, "\\%").replace(/_/g, "\\_");
-      const { data, error } = await supabase
-        .from("users")
-        .select("id, full_name, email, mobile_number, avatar_url")
-        .or(`full_name.ilike.%${safe}%,email.ilike.%${safe}%,mobile_number.ilike.%${safe}%`)
-        .order("full_name")
-        .limit(15);
+      const { data, error } = await supabase.rpc("admin_search_users", {
+        search_query: searchTerm,
+      });
       if (error) throw error;
-      return data;
+      return data as { id: string; full_name: string; email: string; mobile_number: string; avatar_url: string }[];
     },
   });
 }
@@ -127,11 +123,11 @@ export function useAssignAdmin() {
         .insert({ user_id: userId, apartment_id: apartmentId });
       if (adminErr) throw adminErr;
 
-      // Mark user as admin
-      const { error: userErr } = await supabase
-        .from("users")
-        .update({ is_apartment_admin: true })
-        .eq("id", userId);
+      // Mark user as admin via RPC (bypasses users RLS)
+      const { error: userErr } = await supabase.rpc("admin_update_user", {
+        target_user_id: userId,
+        set_apartment_admin: true,
+      });
       if (userErr) throw userErr;
     },
     onSuccess: () => {
@@ -158,10 +154,10 @@ export function useUnassignAdmin() {
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId);
       if ((count ?? 0) === 0) {
-        await supabase
-          .from("users")
-          .update({ is_apartment_admin: false })
-          .eq("id", userId);
+        await supabase.rpc("admin_update_user", {
+          target_user_id: userId,
+          set_apartment_admin: false,
+        });
       }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-apartments"] }),
@@ -241,10 +237,7 @@ export function usePlatformGrowth(months: number = 6) {
   return useQuery({
     queryKey: ["platform-growth", months],
     queryFn: async () => {
-      const { data: users } = await supabase
-        .from("users")
-        .select("id, created_at")
-        .order("created_at");
+      const { data: users } = await supabase.rpc("admin_get_users_growth");
 
       const { data: enrollments } = await supabase
         .from("enrollments")
