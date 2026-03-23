@@ -131,7 +131,8 @@ export function useExploreClasses(filters: {
         .eq("provider_apartment_registrations.status", "approved");
 
       if (filters.search) {
-        query = query.or(`title.ilike.%${filters.search}%,short_description.ilike.%${filters.search}%`);
+        const safe = filters.search.replace(/%/g, "\\%").replace(/_/g, "\\_");
+        query = query.or(`title.ilike.%${safe}%,short_description.ilike.%${safe}%`);
       }
 
       if (filters.categorySlug) {

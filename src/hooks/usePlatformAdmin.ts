@@ -102,13 +102,15 @@ export function useRejectApartment() {
 export function useSearchUsers(searchTerm: string) {
   return useQuery({
     queryKey: ["search-users", searchTerm],
-    enabled: searchTerm.length >= 3,
+    enabled: searchTerm.length >= 2,
     queryFn: async () => {
+      const safe = searchTerm.replace(/%/g, "\\%").replace(/_/g, "\\_");
       const { data, error } = await supabase
         .from("users")
         .select("id, full_name, email, mobile_number, avatar_url")
-        .or(`email.ilike.%${searchTerm}%,mobile_number.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`)
-        .limit(10);
+        .or(`full_name.ilike.%${safe}%,email.ilike.%${safe}%,mobile_number.ilike.%${safe}%`)
+        .order("full_name")
+        .limit(15);
       if (error) throw error;
       return data;
     },

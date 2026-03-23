@@ -327,6 +327,8 @@ export function useSearchApartmentUsers(apartmentId: string | undefined, searchT
     queryKey: ["apartment-users-search", apartmentId, searchTerm],
     enabled: !!apartmentId && searchTerm.length >= 2,
     queryFn: async () => {
+      const safe = searchTerm.replace(/%/g, "\\%").replace(/_/g, "\\_");
+
       // Find users who have a family in this apartment
       const { data: families } = await supabase
         .from("families")
@@ -340,8 +342,9 @@ export function useSearchApartmentUsers(apartmentId: string | undefined, searchT
         .from("users")
         .select("id, full_name, email, mobile_number, avatar_url")
         .in("id", userIds)
-        .ilike("full_name", `%${searchTerm}%`)
-        .limit(10);
+        .or(`full_name.ilike.%${safe}%,email.ilike.%${safe}%,mobile_number.ilike.%${safe}%`)
+        .order("full_name")
+        .limit(15);
       if (error) throw error;
       return data;
     },

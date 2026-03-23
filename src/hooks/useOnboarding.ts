@@ -13,7 +13,8 @@ export function useApartments(search: string) {
         .order("name");
 
       if (search.trim()) {
-        query = query.ilike("name", `%${search.trim()}%`);
+        const safe = search.trim().replace(/%/g, "\\%").replace(/_/g, "\\_");
+        query = query.or(`name.ilike.%${safe}%,city.ilike.%${safe}%,locality.ilike.%${safe}%`);
       }
 
       const { data, error } = await query.limit(20);
