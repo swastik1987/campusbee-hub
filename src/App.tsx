@@ -18,6 +18,8 @@ import EnrollFlow from "./pages/seeker/EnrollFlow";
 import EnrollmentDetail from "./pages/seeker/EnrollmentDetail";
 import Chat from "./pages/seeker/Chat";
 import Profile from "./pages/seeker/Profile";
+import FamilyManagement from "./pages/seeker/FamilyManagement";
+import InviteAccept from "./pages/seeker/InviteAccept";
 import ProviderDashboard from "./pages/provider/ProviderDashboard";
 import ProviderClasses from "./pages/provider/ProviderClasses";
 import ProviderClassDetail from "./pages/provider/ProviderClassDetail";
@@ -68,6 +70,8 @@ const App = () => (
             <Route path="/enrollment/:enrollmentId" element={<AuthGuard><EnrollmentDetail /></AuthGuard>} />
             <Route path="/chat" element={<AuthGuard><Chat /></AuthGuard>} />
             <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
+            <Route path="/family" element={<AuthGuard><FamilyManagement /></AuthGuard>} />
+            <Route path="/invite/:inviteCode" element={<InviteAccept />} />
 
             {/* Protected provider routes */}
             <Route path="/become-provider" element={<AuthGuard><BecomeProvider /></AuthGuard>} />

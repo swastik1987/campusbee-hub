@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useFeaturedClasses, useNewClasses, usePopularClasses } from "@/hooks/useSeeker";
+import { useIncomingInvites } from "@/hooks/useFamilyLinking";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import ClassCard from "@/components/shared/ClassCard";
@@ -21,6 +22,7 @@ import {
   Globe,
   BookOpen,
   ChevronRight,
+  Users,
 } from "lucide-react";
 
 const CATEGORY_ICONS: Record<string, typeof Trophy> = {
@@ -29,8 +31,10 @@ const CATEGORY_ICONS: Record<string, typeof Trophy> = {
 
 const SeekerHome = () => {
   const navigate = useNavigate();
-  const { currentApartment } = useUser();
+  const { profile, currentApartment } = useUser();
   const aptId = currentApartment?.id;
+  const { data: incomingInvites } = useIncomingInvites(profile?.id, profile?.email ?? null, profile?.mobile_number ?? null);
+  const pendingInviteCount = incomingInvites?.length ?? 0;
 
   const { data: categories, isLoading: catLoading } = useQuery({
     queryKey: ["categories-parent"],
@@ -55,6 +59,25 @@ const SeekerHome = () => {
       <Header />
 
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-6">
+        {/* Incoming invite banner */}
+        {pendingInviteCount > 0 && (
+          <button
+            onClick={() => navigate("/family")}
+            className="flex w-full items-center gap-3 rounded-xl bg-primary/10 p-3.5 text-left transition-colors hover:bg-primary/15"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20">
+              <Users size={18} className="text-primary" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-primary">
+                {pendingInviteCount} family invite{pendingInviteCount > 1 ? "s" : ""} pending
+              </p>
+              <p className="text-xs text-muted-foreground">Tap to view and accept</p>
+            </div>
+            <ChevronRight size={16} className="text-primary" />
+          </button>
+        )}
+
         {/* Search bar */}
         <div className="relative cursor-pointer" onClick={() => navigate("/explore")}>
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />

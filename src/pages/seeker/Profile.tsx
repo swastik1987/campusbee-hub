@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
+import { useIncomingInvites } from "@/hooks/useFamilyLinking";
 import {
   User,
   Building2,
@@ -16,12 +17,16 @@ import {
   ChevronRight,
   MapPin,
   Home as HomeIcon,
+  Link2,
+  Shield,
 } from "lucide-react";
 import { toast } from "sonner";
 
 const Profile = () => {
-  const { profile, family, familyMembers, currentApartment, activePersona } = useUser();
+  const { profile, family, familyMembers, currentApartment, activePersona, familyRole } = useUser();
   const navigate = useNavigate();
+  const { data: incomingInvites } = useIncomingInvites(profile?.id, profile?.email ?? null, profile?.mobile_number ?? null);
+  const pendingInviteCount = incomingInvites?.length ?? 0;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -120,6 +125,46 @@ const Profile = () => {
               ))}
             </div>
           </Card>
+        )}
+
+        {/* Family management link */}
+        {family && (
+          <button
+            onClick={() => navigate("/family")}
+            className="flex w-full items-center gap-3 rounded-xl p-4 text-left transition-colors hover:bg-accent"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+              <Link2 size={18} className="text-primary" />
+            </div>
+            <div className="flex-1">
+              <span className="text-sm font-medium">Manage Family</span>
+              {familyRole && (
+                <p className="text-[10px] text-muted-foreground capitalize">{familyRole} account</p>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              {pendingInviteCount > 0 && (
+                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-white">
+                  {pendingInviteCount}
+                </span>
+              )}
+              <ChevronRight size={16} className="text-muted-foreground" />
+            </div>
+          </button>
+        )}
+
+        {/* Platform admin link */}
+        {profile?.is_platform_admin && (
+          <button
+            onClick={() => navigate("/platform")}
+            className="flex w-full items-center gap-3 rounded-xl p-4 text-left transition-colors hover:bg-accent"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+              <Shield size={18} className="text-emerald-600" />
+            </div>
+            <span className="flex-1 text-sm font-medium">Platform Admin</span>
+            <ChevronRight size={16} className="text-muted-foreground" />
+          </button>
         )}
 
         {/* Actions */}
