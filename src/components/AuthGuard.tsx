@@ -1,8 +1,11 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 
+// Routes that platform/apartment admins can access without completing onboarding
+const ADMIN_BYPASS_ROUTES = ["/profile", "/platform", "/admin", "/notifications"];
+
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
-  const { session, loading, isNewUser, family } = useUser();
+  const { session, loading, isNewUser, family, profile } = useUser();
   const location = useLocation();
 
   if (loading) {
@@ -20,9 +23,13 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/auth" replace />;
   }
 
+  // Allow admins to bypass onboarding for admin-specific routes
+  const isAdmin = profile?.is_platform_admin || profile?.is_apartment_admin;
+  const isAdminRoute = ADMIN_BYPASS_ROUTES.some((r) => location.pathname.startsWith(r));
+
   // Redirect new users or users without a family to onboarding
-  // (unless they're already on the onboarding page)
-  if ((isNewUser || !family) && location.pathname !== "/onboarding") {
+  // (unless they're already on the onboarding page or they're an admin accessing admin routes)
+  if ((isNewUser || !family) && location.pathname !== "/onboarding" && !(isAdmin && isAdminRoute)) {
     return <Navigate to="/onboarding" replace />;
   }
 
