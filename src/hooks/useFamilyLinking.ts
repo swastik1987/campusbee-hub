@@ -18,24 +18,32 @@ export function useFamilyLinks(userId: string | undefined) {
       if (linkErr) throw linkErr;
       if (!myLink) return { myLink: null, allLinks: [], linkedUsers: [] };
 
-      // Get all active links for this family
-      const { data: allLinks, error: allErr } = await supabase
-        .from("family_links")
-        .select("id, family_id, user_id, role, status, linked_at, linked_via, users(id, full_name, email, avatar_url)")
-        .eq("family_id", myLink.family_id)
-        .eq("status", "active");
+      // Get all links for this family via RPC (bypasses RLS recursion)
+      const { data: allLinks, error: allErr } = await supabase.rpc("get_family_co_links", {
+        for_family_id: myLink.family_id,
+      });
       if (allErr) throw allErr;
 
-      const linkedUsers = (allLinks ?? [])
-        .filter((l) => l.user_id !== userId)
-        .map((l) => ({
-          linkId: l.id,
-          userId: l.user_id,
-          role: l.role,
-          linkedAt: l.linked_at,
-          linkedVia: l.linked_via,
-          user: l.users as any,
-        }));
+      const otherLinks = (allLinks ?? []).filter((l: any) => l.user_id !== userId);
+
+      // Fetch user details for linked users (their own profile is accessible via auth)
+      const linkedUsers = await Promise.all(
+        otherLinks.map(async (l: any) => {
+          const { data: userData } = await supabase
+            .from("users")
+            .select("id, full_name, email, avatar_url")
+            .eq("id", l.user_id)
+            .maybeSingle();
+          return {
+            linkId: l.id,
+            userId: l.user_id,
+            role: l.role,
+            linkedAt: l.linked_at,
+            linkedVia: l.linked_via,
+            user: userData,
+          };
+        })
+      );
 
       return { myLink, allLinks: allLinks ?? [], linkedUsers };
     },
@@ -277,19 +285,11 @@ export function useTransferPrimary() {
       currentPrimaryLinkId: string;
       newPrimaryLinkId: string;
     }) => {
-      // Demote current primary
-      const { error: err1 } = await supabase
-        .from("family_links")
-        .update({ role: "member" })
-        .eq("id", input.currentPrimaryLinkId);
-      if (err1) throw err1;
-
-      // Promote new primary
-      const { error: err2 } = await supabase
-        .from("family_links")
-        .update({ role: "primary" })
-        .eq("id", input.newPrimaryLinkId);
-      if (err2) throw err2;
+      const { error } = await supabase.rpc("transfer_family_primary", {
+        current_primary_link_id: input.currentPrimaryLinkId,
+        new_primary_link_id: input.newPrimaryLinkId,
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["family-links"] });
