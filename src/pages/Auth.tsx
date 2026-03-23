@@ -71,20 +71,6 @@ const Auth = () => {
     }
   };
 
-  const handleAppleLogin = async () => {
-    setOauthLoading("apple");
-    setError("");
-
-    const { error: authError } = await supabase.auth.signInWithOAuth({
-      provider: "apple",
-      options: { redirectTo: window.location.origin },
-    });
-
-    if (authError) {
-      setError(authError.message);
-      setOauthLoading(null);
-    }
-  };
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
