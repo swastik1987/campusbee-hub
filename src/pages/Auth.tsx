@@ -61,13 +61,31 @@ const Auth = () => {
     setOauthLoading("google");
     setError("");
 
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
+    try {
+      // Try Lovable's OAuth integration first (works in Lovable-hosted preview)
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
 
-    if (result?.error) {
-      setError(result.error instanceof Error ? result.error.message : String(result.error));
-      setOauthLoading(null);
+      if (result?.error) {
+        throw result.error instanceof Error ? result.error : new Error(String(result.error));
+      }
+    } catch (lovableErr) {
+      // Fallback to standard Supabase OAuth (works in production/custom domains)
+      try {
+        const { error: authError } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: window.location.origin },
+        });
+
+        if (authError) {
+          setError(authError.message);
+          setOauthLoading(null);
+        }
+      } catch {
+        setError(lovableErr instanceof Error ? lovableErr.message : "Google sign-in failed. Please try email login.");
+        setOauthLoading(null);
+      }
     }
   };
 

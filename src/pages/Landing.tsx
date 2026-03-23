@@ -505,9 +505,11 @@ const GuestLanding = () => {
 // ─── MAIN LANDING COMPONENT ──────────────────────────────────────
 
 const Landing = () => {
-  const { session, loading } = useUser();
+  const { session, profile, loading } = useUser();
 
-  if (loading) {
+  // Show loading while auth state is being determined, or when session exists
+  // but profile hasn't been fetched yet (e.g., returning from OAuth redirect)
+  if (loading || (session && !profile)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
