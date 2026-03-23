@@ -154,7 +154,7 @@ const InviteAccept = () => {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-4">
         <div className="flex justify-center">
-          <img src="/logo-full.png" alt="CampusBee" className="h-10 object-contain" />
+          <img src="/logo-full.png" alt="CampusBee" className="h-14 object-contain" />
         </div>
 
         <Card className="p-6 space-y-4">

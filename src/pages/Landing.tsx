@@ -29,7 +29,7 @@ const Landing = () => {
       <div className="flex flex-1 flex-col items-center px-6 pt-16 pb-8">
         {/* Logo */}
         <div className="mb-4 animate-fade-up" style={{ animationDelay: "0ms" }}>
-          <img src="/logo-full.png" alt="CampusBee" className="h-14 object-contain" />
+          <img src="/logo-full.png" alt="CampusBee" className="h-20 object-contain" />
         </div>
         <p
           className="mb-8 max-w-xs text-center text-muted-foreground animate-fade-up"
