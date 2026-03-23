@@ -505,18 +505,38 @@ const GuestLanding = () => {
 
 // ─── MAIN LANDING COMPONENT ──────────────────────────────────────
 
+const ROLE_STORAGE_KEY = "campusbee_intended_role";
+
 const Landing = () => {
   const { session, profile, loading } = useUser();
+  const navigate = useNavigate();
   const [profileTimeout, setProfileTimeout] = useState(false);
 
-  // Give profile fetch up to 3 seconds before showing the page anyway
+  // Give profile fetch up to 5 seconds before showing the page anyway
   useEffect(() => {
     if (session && !profile && !loading) {
-      const timer = setTimeout(() => setProfileTimeout(true), 3000);
+      const timer = setTimeout(() => setProfileTimeout(true), 5000);
       return () => clearTimeout(timer);
     }
     if (profile) setProfileTimeout(false);
   }, [session, profile, loading]);
+
+  // After OAuth callback lands on "/", check if there's a pending admin
+  // role redirect stored before the OAuth flow began
+  useEffect(() => {
+    if (!session || !profile) return;
+    const pendingRole = localStorage.getItem(ROLE_STORAGE_KEY);
+    if (!pendingRole) return;
+
+    localStorage.removeItem(ROLE_STORAGE_KEY);
+
+    if (pendingRole === "platform_admin" && profile.is_platform_admin) {
+      navigate("/platform", { replace: true });
+    } else if (pendingRole === "apartment_admin" && profile.is_apartment_admin) {
+      navigate("/admin/dashboard", { replace: true });
+    }
+    // If role doesn't match, just stay on landing (normal logged-in view)
+  }, [session, profile, navigate]);
 
   // Show loading only during initial auth check
   if (loading) {
@@ -530,7 +550,7 @@ const Landing = () => {
     );
   }
 
-  // Brief wait for profile after OAuth return (max 3s, then show guest page)
+  // Brief wait for profile after OAuth return (max 5s, then show guest page)
   if (session && !profile && !profileTimeout) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
