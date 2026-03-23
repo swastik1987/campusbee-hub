@@ -51,7 +51,7 @@ const PERSONA_CONFIG: Record<
     icon: Shield,
     color: "text-admin",
     bgColor: "bg-admin/10",
-    homePath: "/admin/dashboard",
+    homePath: "/platform",
   },
 };
 

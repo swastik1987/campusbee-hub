@@ -16,29 +16,25 @@ const Auth = () => {
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { session, profile, isNewUser, family } = useUser();
+  const { session, profile } = useUser();
   const intendedRole = searchParams.get("role"); // platform_admin | apartment_admin | null
 
   useEffect(() => {
     if (!session || !profile) return;
 
-    // Smart redirect based on admin roles
-    if (profile.is_platform_admin && (!family || intendedRole === "platform_admin")) {
+    // Smart redirect based on intended role from landing page
+    if (intendedRole === "platform_admin" && profile.is_platform_admin) {
       navigate("/platform", { replace: true });
       return;
     }
-    if (profile.is_apartment_admin && (!family || intendedRole === "apartment_admin")) {
+    if (intendedRole === "apartment_admin" && profile.is_apartment_admin) {
       navigate("/admin/dashboard", { replace: true });
       return;
     }
 
-    // Regular user flow
-    if (isNewUser || !family) {
-      navigate("/onboarding", { replace: true });
-    } else {
-      navigate("/home", { replace: true });
-    }
-  }, [session, profile, isNewUser, family, intendedRole, navigate]);
+    // Default: go to landing hub which shows contextual options for all users
+    navigate("/", { replace: true });
+  }, [session, profile, intendedRole, navigate]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

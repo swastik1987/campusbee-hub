@@ -1,11 +1,22 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 
-// Routes that platform/apartment admins can access without completing onboarding
-const ADMIN_BYPASS_ROUTES = ["/profile", "/platform", "/admin", "/notifications"];
+// Routes accessible without completing onboarding (any authenticated user)
+const ONBOARDING_EXEMPT_ROUTES = ["/onboarding", "/profile", "/notifications"];
+
+// Routes that specifically require admin roles (but not family/onboarding)
+const ADMIN_ROUTES = ["/platform", "/admin"];
+
+// Routes that require a completed onboarding (family setup)
+// i.e., seeker/provider routes that depend on apartment context
+const REQUIRES_FAMILY_PREFIXES = [
+  "/home", "/explore", "/my-classes", "/class/", "/enroll/",
+  "/enrollment/", "/chat", "/family", "/become-provider",
+  "/provider/", "/provider-profile/",
+];
 
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
-  const { session, loading, isNewUser, family, profile } = useUser();
+  const { session, loading, family, profile } = useUser();
   const location = useLocation();
 
   if (loading) {
@@ -19,18 +30,32 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
+  // Not logged in → auth page
   if (!session) {
     return <Navigate to="/auth" replace />;
   }
 
-  // Allow admins to bypass onboarding for admin-specific routes
-  const isAdmin = profile?.is_platform_admin || profile?.is_apartment_admin;
-  const isAdminRoute = ADMIN_BYPASS_ROUTES.some((r) => location.pathname.startsWith(r));
+  const path = location.pathname;
 
-  // Redirect new users or users without a family to onboarding
-  // (unless they're already on the onboarding page or they're an admin accessing admin routes)
-  if ((isNewUser || !family) && location.pathname !== "/onboarding" && !(isAdmin && isAdminRoute)) {
-    return <Navigate to="/onboarding" replace />;
+  // Always allow onboarding-exempt routes for any authenticated user
+  if (ONBOARDING_EXEMPT_ROUTES.some((r) => path.startsWith(r))) {
+    return <>{children}</>;
+  }
+
+  // Allow admin routes for users with matching admin roles
+  if (ADMIN_ROUTES.some((r) => path.startsWith(r))) {
+    const isAdmin = profile?.is_platform_admin || profile?.is_apartment_admin;
+    if (isAdmin) {
+      return <>{children}</>;
+    }
+    // Non-admin trying to access admin route → redirect to landing
+    return <Navigate to="/" replace />;
+  }
+
+  // For routes that require family/apartment context, redirect to landing hub
+  // (which shows the "Complete Your Setup" card) if onboarding isn't done
+  if (!family && REQUIRES_FAMILY_PREFIXES.some((r) => path.startsWith(r))) {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
