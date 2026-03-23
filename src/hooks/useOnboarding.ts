@@ -64,6 +64,32 @@ export function useCreateFamily() {
       flatNumber: string;
       blockTower: string;
     }) => {
+      // Check if family already exists (from a previous attempt)
+      const { data: existing } = await supabase
+        .from("families")
+        .select("id")
+        .eq("primary_user_id", userId)
+        .eq("apartment_id", apartmentId)
+        .maybeSingle();
+
+      if (existing) {
+        // Update flat/block if changed
+        await supabase
+          .from("families")
+          .update({ flat_number: flatNumber || null, block_tower: blockTower || null })
+          .eq("id", existing.id);
+
+        // Ensure family_links row exists
+        await supabase
+          .from("family_links")
+          .upsert(
+            { family_id: existing.id, user_id: userId, role: "primary", status: "active", linked_via: "creation" },
+            { onConflict: "family_id,user_id" }
+          );
+
+        return existing;
+      }
+
       const { data, error } = await supabase
         .from("families")
         .insert({

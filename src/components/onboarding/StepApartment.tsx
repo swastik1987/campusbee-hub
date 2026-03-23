@@ -67,8 +67,9 @@ const StepApartment = ({ onNext, onBack }: StepApartmentProps) => {
         blockTower,
       });
       onNext(result.id);
-    } catch {
-      toast.error("Failed to save apartment details");
+    } catch (err: any) {
+      console.error("[CampusBee] Failed to save apartment details:", err);
+      toast.error(err?.message || "Failed to save apartment details");
     }
   };
 
