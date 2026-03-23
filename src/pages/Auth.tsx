@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useUser } from "@/contexts/UserContext";
-import { Mail, CheckCircle2, Loader2, Shield, Building2 } from "lucide-react";
+import { Mail, CheckCircle2, Loader2, Shield, Building2, AlertTriangle } from "lucide-react";
 
 const ROLE_STORAGE_KEY = "campusbee_intended_role";
 
@@ -16,6 +16,7 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+  const [debugInfo, setDebugInfo] = useState("");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { session, profile } = useUser();
@@ -35,7 +36,11 @@ const Auth = () => {
 
   // Redirect once authenticated with profile loaded
   useEffect(() => {
-    if (!session || !profile) return;
+    if (!session) return;
+
+    console.log("[CampusBee Auth] Session detected, profile:", profile ? "loaded" : "pending");
+
+    if (!profile) return; // Wait for profile to load
 
     // Clear stored role after using it
     localStorage.removeItem(ROLE_STORAGE_KEY);
@@ -65,9 +70,10 @@ const Auth = () => {
 
     setLoading(true);
     setError("");
+    setDebugInfo("");
 
-    // Always redirect to origin — Supabase will append hash tokens
-    // The Landing page / UserContext will detect the session automatically
+    console.log("[CampusBee Auth] Sending magic link to:", email.trim());
+
     const { error: authError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: { emailRedirectTo: window.location.origin },
@@ -76,8 +82,11 @@ const Auth = () => {
     setLoading(false);
 
     if (authError) {
+      console.error("[CampusBee Auth] Magic link error:", authError);
       setError(authError.message);
+      setDebugInfo(`Error code: ${(authError as any).status || "unknown"}`);
     } else {
+      console.log("[CampusBee Auth] Magic link sent successfully");
       setSent(true);
     }
   };
@@ -85,30 +94,40 @@ const Auth = () => {
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     setError("");
+    setDebugInfo("");
 
     // Persist intended role so it survives the OAuth redirect
     if (intendedRole) {
       localStorage.setItem(ROLE_STORAGE_KEY, intendedRole);
     }
 
-    // Safety timeout: reset button if OAuth takes too long (popup blocked, etc.)
+    console.log("[CampusBee Auth] Starting Google OAuth...");
+
+    // Safety timeout: reset button if OAuth takes too long
     googleTimeoutRef.current = setTimeout(() => {
       setGoogleLoading(false);
       setError("Google sign-in timed out. Please try again or use email login.");
+      setDebugInfo("The OAuth flow did not complete within 15 seconds. Check if popups are blocked.");
     }, 15000);
 
     try {
-      // Use Lovable's managed OAuth — redirect_uri MUST be origin for Lovable to work
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin,
       });
 
-      // If redirected, the full page navigates away — button state resets on reload
-      if (result?.redirected) return;
+      console.log("[CampusBee Auth] OAuth result:", JSON.stringify(result, null, 2));
 
-      // If popup flow completed successfully, session is already set via setSession
+      // If redirected, the full page navigates away — button state resets on reload
+      if (result?.redirected) {
+        console.log("[CampusBee Auth] OAuth redirect initiated");
+        return;
+      }
+
+      // If popup flow completed successfully
       if (!result?.error) {
         if (googleTimeoutRef.current) clearTimeout(googleTimeoutRef.current);
+        console.log("[CampusBee Auth] OAuth completed, waiting for session...");
+        setGoogleLoading(false);
         // Session will be picked up by UserContext → useEffect will redirect
         return;
       }
@@ -117,16 +136,31 @@ const Auth = () => {
       if (googleTimeoutRef.current) clearTimeout(googleTimeoutRef.current);
       const errMsg = result.error instanceof Error
         ? result.error.message
-        : "Google sign-in failed. Please try email login.";
-      setError(errMsg);
+        : String(result.error);
+      console.error("[CampusBee Auth] OAuth error:", errMsg);
+      setError("Google sign-in failed. Please try email login.");
+      setDebugInfo(errMsg);
       setGoogleLoading(false);
     } catch (err: any) {
       if (googleTimeoutRef.current) clearTimeout(googleTimeoutRef.current);
-      console.error("Google OAuth error:", err);
-      setError(err?.message ?? "Google sign-in failed. Please try email login.");
+      console.error("[CampusBee Auth] OAuth exception:", err);
+      setError("Google sign-in failed. Please try email login.");
+      setDebugInfo(err?.message ?? String(err));
       setGoogleLoading(false);
     }
   };
+
+  // If already logged in but waiting for profile, show a loading state
+  if (session && !profile) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
+        <div className="flex flex-col items-center gap-3">
+          <img src="/logo-icon.png" alt="CampusBee" className="h-12 w-12 object-contain animate-fade-in" />
+          <p className="text-muted-foreground text-sm animate-fade-up">Setting up your profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
@@ -233,7 +267,17 @@ const Auth = () => {
                 </div>
               </div>
 
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && (
+                <div className="rounded-lg bg-destructive/10 p-3 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle size={14} className="text-destructive" />
+                    <p className="text-sm text-destructive font-medium">{error}</p>
+                  </div>
+                  {debugInfo && (
+                    <p className="text-xs text-muted-foreground pl-5">{debugInfo}</p>
+                  )}
+                </div>
+              )}
 
               <Button
                 type="submit"

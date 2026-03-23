@@ -201,41 +201,81 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const fetchOrCreateProfile = useCallback(async (authUser: User) => {
-    const { data: existing } = await supabase
-      .from("users")
-      .select("id, auth_id, full_name, email, avatar_url, mobile_number, is_provider, is_apartment_admin, is_platform_admin, last_active_persona, is_active, is_verified")
-      .eq("auth_id", authUser.id)
-      .maybeSingle();
+    try {
+      console.log("[CampusBee] fetchOrCreateProfile for auth_id:", authUser.id);
 
-    if (existing) {
-      const prof = existing as unknown as UserProfile;
-      setProfile(prof);
-      setActivePersona((prof.last_active_persona as Persona) || "seeker");
-      setIsNewUser(false);
+      const { data: existing, error: selectError } = await supabase
+        .from("users")
+        .select("id, auth_id, full_name, email, avatar_url, mobile_number, is_provider, is_apartment_admin, is_platform_admin, last_active_persona, is_active, is_verified")
+        .eq("auth_id", authUser.id)
+        .maybeSingle();
 
-      // Load related data in parallel
-      await Promise.all([
-        fetchFamily(prof.id),
-        prof.is_provider ? fetchProviderProfile(prof.id) : Promise.resolve(),
-      ]);
-      return;
-    }
+      if (selectError) {
+        console.error("[CampusBee] Error fetching user profile:", selectError);
+      }
 
-    // Create new user row
-    const { data: created, error } = await supabase
-      .from("users")
-      .insert({
-        auth_id: authUser.id,
-        email: authUser.email ?? null,
-        full_name: authUser.user_metadata?.full_name ?? "",
-      })
-      .select("id, auth_id, full_name, email, avatar_url, mobile_number, is_provider, is_apartment_admin, is_platform_admin, last_active_persona, is_active, is_verified")
-      .single();
+      if (existing) {
+        const prof = existing as unknown as UserProfile;
+        setProfile(prof);
+        setActivePersona((prof.last_active_persona as Persona) || "seeker");
+        setIsNewUser(false);
+        console.log("[CampusBee] Profile loaded:", prof.id, prof.full_name);
 
-    if (!error && created) {
-      setProfile(created as unknown as UserProfile);
-      setIsNewUser(true);
-      setActivePersona("seeker");
+        // Load related data in parallel — errors here should NOT block profile
+        try {
+          await Promise.all([
+            fetchFamily(prof.id).catch((e) => console.error("[CampusBee] fetchFamily error:", e)),
+            prof.is_provider ? fetchProviderProfile(prof.id).catch((e) => console.error("[CampusBee] fetchProviderProfile error:", e)) : Promise.resolve(),
+          ]);
+        } catch (e) {
+          console.error("[CampusBee] Error loading related data:", e);
+        }
+        return;
+      }
+
+      // Create new user row
+      console.log("[CampusBee] Creating new user row for:", authUser.email);
+      const { data: created, error: insertError } = await supabase
+        .from("users")
+        .insert({
+          auth_id: authUser.id,
+          email: authUser.email ?? null,
+          full_name: authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? "",
+        })
+        .select("id, auth_id, full_name, email, avatar_url, mobile_number, is_provider, is_apartment_admin, is_platform_admin, last_active_persona, is_active, is_verified")
+        .single();
+
+      if (insertError) {
+        console.error("[CampusBee] Error creating user profile:", insertError);
+
+        // If insert failed due to unique constraint, the user exists but SELECT missed it
+        // (can happen with RLS timing). Try one more SELECT.
+        if (insertError.code === "23505") {
+          console.log("[CampusBee] Retrying SELECT after unique constraint error...");
+          const { data: retry } = await supabase
+            .from("users")
+            .select("id, auth_id, full_name, email, avatar_url, mobile_number, is_provider, is_apartment_admin, is_platform_admin, last_active_persona, is_active, is_verified")
+            .eq("auth_id", authUser.id)
+            .maybeSingle();
+          if (retry) {
+            setProfile(retry as unknown as UserProfile);
+            setActivePersona(((retry as any).last_active_persona as Persona) || "seeker");
+            setIsNewUser(false);
+            console.log("[CampusBee] Retry succeeded:", retry.id);
+            return;
+          }
+        }
+        return;
+      }
+
+      if (created) {
+        setProfile(created as unknown as UserProfile);
+        setIsNewUser(true);
+        setActivePersona("seeker");
+        console.log("[CampusBee] New user created:", created.id);
+      }
+    } catch (err) {
+      console.error("[CampusBee] Unexpected error in fetchOrCreateProfile:", err);
     }
   }, [fetchFamily, fetchProviderProfile]);
 
@@ -273,12 +313,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, [profile]);
 
   useEffect(() => {
+    let isMounted = true;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, sess) => {
+      async (event, sess) => {
+        if (!isMounted) return;
+        console.log("[CampusBee] onAuthStateChange:", event, sess ? "session exists" : "no session");
         setSession(sess);
         setUser(sess?.user ?? null);
         if (sess?.user) {
-          setTimeout(() => fetchOrCreateProfile(sess.user), 0);
+          // Use setTimeout to avoid Supabase deadlock when calling API inside auth callback
+          setTimeout(() => {
+            if (isMounted) fetchOrCreateProfile(sess.user);
+          }, 0);
         } else {
           setProfile(null);
           setFamily(null);
@@ -294,7 +341,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session: sess } }) => {
+    // Initial session check
+    supabase.auth.getSession().then(({ data: { session: sess }, error }) => {
+      if (!isMounted) return;
+      if (error) {
+        console.error("[CampusBee] getSession error:", error);
+      }
+      console.log("[CampusBee] getSession:", sess ? "session exists" : "no session");
       setSession(sess);
       setUser(sess?.user ?? null);
       if (sess?.user) {
@@ -303,7 +356,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

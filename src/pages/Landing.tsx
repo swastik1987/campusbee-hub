@@ -550,13 +550,44 @@ const Landing = () => {
     );
   }
 
-  // Brief wait for profile after OAuth return (max 5s, then show guest page)
+  // Brief wait for profile after OAuth return (max 5s)
   if (session && !profile && !profileTimeout) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <img src="/logo-icon.png" alt="CampusBee" className="h-12 w-12 object-contain animate-fade-in" />
           <p className="text-muted-foreground text-sm animate-fade-up">Setting up...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Session exists but profile failed to load after timeout — show helpful state
+  if (session && !profile && profileTimeout) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-6">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <img src="/logo-icon.png" alt="CampusBee" className="h-12 w-12 object-contain" />
+          <p className="text-sm text-muted-foreground">
+            Having trouble loading your profile.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground"
+            >
+              Retry
+            </button>
+            <button
+              onClick={async () => {
+                await supabase.auth.signOut();
+                window.location.href = "/auth";
+              }}
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-border text-muted-foreground"
+            >
+              Sign in again
+            </button>
+          </div>
         </div>
       </div>
     );
