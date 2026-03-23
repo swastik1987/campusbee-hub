@@ -43,17 +43,20 @@ serve(async (req) => {
     }
 
     // Find pending invites that match this user's email or phone but don't yet have invited_user_id set
+    const now = new Date().toISOString();
     const conditions: string[] = [];
     if (user.email) conditions.push(`invited_email.eq.${user.email}`);
     if (user.mobile_number) conditions.push(`invited_phone.eq.${user.mobile_number}`);
 
     if (conditions.length > 0) {
       // Update invites that match by email/phone to set the invited_user_id
+      // Only match non-expired invites
       const { data: matchingInvites } = await supabase
         .from("family_invites")
         .select("id")
         .is("invited_user_id", null)
         .eq("status", "pending")
+        .gt("expires_at", now)
         .or(conditions.join(","));
 
       if (matchingInvites && matchingInvites.length > 0) {
@@ -74,6 +77,7 @@ serve(async (req) => {
       .from("family_invites")
       .select("id", { count: "exact", head: true })
       .eq("status", "pending")
+      .gt("expires_at", now)
       .or(allConditions.join(","));
 
     if (countErr) throw countErr;

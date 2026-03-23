@@ -25,11 +25,7 @@ serve(async (req) => {
     // Find all pending invites that have expired
     const { data: expiredInvites, error: fetchErr } = await supabase
       .from("family_invites")
-      .select(`
-        id, invited_by, invited_phone, invited_email,
-        invited_user_id, family_id,
-        users!family_invites_invited_user_id_fkey(full_name)
-      `)
+      .select("id, invited_by, invited_phone, invited_email, invited_user_id, family_id")
       .eq("status", "pending")
       .lt("expires_at", now);
 
@@ -47,11 +43,15 @@ serve(async (req) => {
       expiredCount++;
 
       // Determine who was invited for the notification message
-      const invitedName =
-        (invite.users as any)?.full_name ??
-        invite.invited_email ??
-        invite.invited_phone ??
-        "someone";
+      let invitedName = invite.invited_email ?? invite.invited_phone ?? "someone";
+      if (invite.invited_user_id) {
+        const { data: invitedUser } = await supabase
+          .from("users")
+          .select("full_name")
+          .eq("id", invite.invited_user_id)
+          .single();
+        if (invitedUser?.full_name) invitedName = invitedUser.full_name;
+      }
 
       // Notify the inviter
       await supabase.from("notifications").insert({
