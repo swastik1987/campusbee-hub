@@ -64,56 +64,15 @@ export function useCreateFamily() {
       flatNumber: string;
       blockTower: string;
     }) => {
-      // Check if family already exists (from a previous attempt)
-      const { data: existing } = await supabase
-        .from("families")
-        .select("id")
-        .eq("primary_user_id", userId)
-        .eq("apartment_id", apartmentId)
-        .maybeSingle();
-
-      if (existing) {
-        // Update flat/block if changed
-        await supabase
-          .from("families")
-          .update({ flat_number: flatNumber || null, block_tower: blockTower || null })
-          .eq("id", existing.id);
-
-        // Ensure family_links row exists
-        await supabase
-          .from("family_links")
-          .upsert(
-            { family_id: existing.id, user_id: userId, role: "primary", status: "active", linked_via: "creation" },
-            { onConflict: "family_id,user_id" }
-          );
-
-        return existing;
-      }
-
-      const { data, error } = await supabase
-        .from("families")
-        .insert({
-          primary_user_id: userId,
-          apartment_id: apartmentId,
-          flat_number: flatNumber || null,
-          block_tower: blockTower || null,
-        })
-        .select("id")
-        .single();
+      // Use RPC to bypass RLS — handles create, duplicate check, and family_links in one call
+      const { data, error } = await supabase.rpc("create_family_for_user", {
+        p_user_id: userId,
+        p_apartment_id: apartmentId,
+        p_flat_number: flatNumber || null,
+        p_block_tower: blockTower || null,
+      });
       if (error) throw error;
-
-      // Also create the family_links row so RLS policies work immediately
-      await supabase
-        .from("family_links")
-        .insert({
-          family_id: data.id,
-          user_id: userId,
-          role: "primary",
-          status: "active",
-          linked_via: "creation",
-        });
-
-      return data;
+      return { id: data as string };
     },
   });
 }
