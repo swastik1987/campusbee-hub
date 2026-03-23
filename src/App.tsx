@@ -29,6 +29,11 @@ import ProviderStudents from "./pages/provider/ProviderStudents";
 import ProviderPayments from "./pages/provider/ProviderPayments";
 import TakeAttendance from "./pages/provider/TakeAttendance";
 import Announcements from "./pages/provider/Announcements";
+import ProviderAnalytics from "./pages/provider/ProviderAnalytics";
+import ProviderMaterials from "./pages/provider/ProviderMaterials";
+import ProviderDemoSessions from "./pages/provider/ProviderDemoSessions";
+import ProviderReviews from "./pages/provider/ProviderReviews";
+import Notifications from "./pages/Notifications";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProviders from "./pages/admin/AdminProviders";
 import AdminReports from "./pages/admin/AdminReports";
@@ -71,6 +76,13 @@ const App = () => (
             <Route path="/provider/payments" element={<AuthGuard><ProviderPayments /></AuthGuard>} />
             <Route path="/provider/attendance/:batchId" element={<AuthGuard><TakeAttendance /></AuthGuard>} />
             <Route path="/provider/announcements" element={<AuthGuard><Announcements /></AuthGuard>} />
+            <Route path="/provider/analytics" element={<AuthGuard><ProviderAnalytics /></AuthGuard>} />
+            <Route path="/provider/classes/:classId/materials" element={<AuthGuard><ProviderMaterials /></AuthGuard>} />
+            <Route path="/provider/classes/:classId/demos" element={<AuthGuard><ProviderDemoSessions /></AuthGuard>} />
+            <Route path="/provider/reviews" element={<AuthGuard><ProviderReviews /></AuthGuard>} />
+
+            {/* Notifications */}
+            <Route path="/notifications" element={<AuthGuard><Notifications /></AuthGuard>} />
 
             {/* Protected admin routes */}
             <Route path="/admin/dashboard" element={<AuthGuard><AdminDashboard /></AuthGuard>} />
