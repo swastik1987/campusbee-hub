@@ -567,7 +567,7 @@ export function useEnrollmentMaterials(classId: string | undefined, batchId: str
     queryFn: async () => {
       let query = supabase
         .from("class_materials")
-        .select("id, title, description, material_type, file_url, external_url, created_at")
+        .select("id, title, description, material_type, file_url, external_url, created_at, batch_id")
         .eq("class_id", classId!)
         .eq("is_active", true)
         .order("created_at", { ascending: false });
