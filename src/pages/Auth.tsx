@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,9 @@ const Auth = () => {
   const [searchParams] = useSearchParams();
   const { session, profile } = useUser();
   const intendedRole = searchParams.get("role");
+  const googleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Redirect once authenticated
   useEffect(() => {
     if (!session || !profile) return;
 
@@ -34,6 +36,13 @@ const Auth = () => {
     navigate("/", { replace: true });
   }, [session, profile, intendedRole, navigate]);
 
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (googleTimeoutRef.current) clearTimeout(googleTimeoutRef.current);
+    };
+  }, []);
+
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
@@ -41,9 +50,14 @@ const Auth = () => {
     setLoading(true);
     setError("");
 
+    // Build redirect URL that preserves the role parameter
+    const redirectUrl = intendedRole
+      ? `${window.location.origin}/auth?role=${intendedRole}`
+      : window.location.origin;
+
     const { error: authError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: redirectUrl },
     });
 
     setLoading(false);
@@ -59,13 +73,46 @@ const Auth = () => {
     setGoogleLoading(true);
     setError("");
 
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-
-    if (result?.error) {
-      setError(result.error instanceof Error ? result.error.message : "Google sign-in failed. Please try email login.");
+    // Safety timeout: if OAuth doesn't resolve in 15 seconds, reset the button
+    googleTimeoutRef.current = setTimeout(() => {
       setGoogleLoading(false);
+      setError("Google sign-in is taking too long. Please try again or use email login.");
+    }, 15000);
+
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+
+      // If redirected, the page will reload after OAuth — loading state resets naturally
+      if (result?.redirected) return;
+
+      if (result?.error) {
+        if (googleTimeoutRef.current) clearTimeout(googleTimeoutRef.current);
+        setError(result.error instanceof Error ? result.error.message : "Google sign-in failed. Please try email login.");
+        setGoogleLoading(false);
+      }
+    } catch (err: any) {
+      if (googleTimeoutRef.current) clearTimeout(googleTimeoutRef.current);
+      // Fallback: try direct Supabase OAuth if Lovable auth fails
+      try {
+        const { error: supaError } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: intendedRole
+              ? `${window.location.origin}/auth?role=${intendedRole}`
+              : window.location.origin,
+          },
+        });
+        if (supaError) {
+          setError(supaError.message);
+          setGoogleLoading(false);
+        }
+        // If no error, a redirect will happen
+      } catch {
+        setError("Google sign-in failed. Please try email login.");
+        setGoogleLoading(false);
+      }
     }
   };
 
