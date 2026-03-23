@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, Search, BookOpen, MessageCircle, User, LayoutDashboard, Users, Wallet, FileBarChart, Shield } from "lucide-react";
+import { Home, Search, BookOpen, MessageCircle, User, LayoutDashboard, Users, Wallet, FileBarChart, Shield, Building2, BarChart3, FolderTree } from "lucide-react";
 
-type Persona = "seeker" | "provider" | "admin";
+type Persona = "seeker" | "provider" | "admin" | "platform_admin";
 
 const seekerTabs = [
   { path: "/home", icon: Home, label: "Home" },
@@ -26,13 +26,29 @@ const adminTabs = [
   { path: "/profile", icon: User, label: "Profile" },
 ];
 
+const platformAdminTabs = [
+  { path: "/platform", icon: LayoutDashboard, label: "Dashboard" },
+  { path: "/platform/apartments", icon: Building2, label: "Apartments" },
+  { path: "/platform/categories", icon: FolderTree, label: "Categories" },
+  { path: "/platform/analytics", icon: BarChart3, label: "Analytics" },
+  { path: "/profile", icon: User, label: "Profile" },
+];
+
 const BottomNav = ({ persona = "seeker" }: { persona?: Persona }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const tabs = persona === "admin" ? adminTabs : persona === "provider" ? providerTabs : seekerTabs;
+  const tabs = persona === "platform_admin"
+    ? platformAdminTabs
+    : persona === "admin"
+    ? adminTabs
+    : persona === "provider"
+    ? providerTabs
+    : seekerTabs;
 
-  const accentColor = persona === "admin"
+  const accentColor = persona === "platform_admin"
     ? "hsl(160, 84%, 39%)"
+    : persona === "admin"
+    ? "hsl(240, 60%, 60%)"
     : persona === "provider"
     ? "hsl(239, 84%, 67%)"
     : "hsl(var(--primary))";

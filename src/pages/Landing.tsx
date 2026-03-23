@@ -1,6 +1,8 @@
 import { useNavigate } from "react-router-dom";
-import { Search, UserPlus, GraduationCap, Music, Dumbbell, Palette } from "lucide-react";
+import { useUser } from "@/contexts/UserContext";
+import { Search, UserPlus, GraduationCap, Music, Dumbbell, Palette, Shield, Building2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useEffect } from "react";
 
 const features = [
   {
@@ -22,6 +24,43 @@ const features = [
 
 const Landing = () => {
   const navigate = useNavigate();
+  const { session, profile, family, loading } = useUser();
+
+  // Auto-redirect logged-in users to the appropriate dashboard
+  useEffect(() => {
+    if (loading || !session || !profile) return;
+
+    // If user has a family, go to normal home
+    if (family) {
+      navigate("/home", { replace: true });
+      return;
+    }
+
+    // Admins without family — redirect to their respective panel
+    if (profile.is_platform_admin) {
+      navigate("/platform", { replace: true });
+      return;
+    }
+    if (profile.is_apartment_admin) {
+      navigate("/admin/dashboard", { replace: true });
+      return;
+    }
+
+    // Regular new user without family — onboarding
+    navigate("/onboarding", { replace: true });
+  }, [session, profile, family, loading, navigate]);
+
+  // Show nothing while auto-redirecting a logged-in user
+  if (session && !loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <img src="/logo-icon.png" alt="CampusBee" className="h-12 w-12 object-contain animate-fade-in" />
+          <p className="text-muted-foreground text-sm animate-fade-up">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -84,6 +123,43 @@ const Landing = () => {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Admin quick-access section */}
+        <div className="mt-8 w-full max-w-sm animate-fade-up" style={{ animationDelay: "660ms" }}>
+          <div className="mb-3 flex items-center gap-2">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Admin Access</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+          <div className="space-y-2">
+            <button
+              onClick={() => navigate("/auth?role=platform_admin")}
+              className="flex w-full items-center gap-3 rounded-xl bg-card p-4 text-left shadow-sm transition-colors hover:bg-accent active:scale-[0.98]"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
+                <Shield size={20} className="text-emerald-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold">Platform Admin</p>
+                <p className="text-xs text-muted-foreground">Manage apartments, categories & analytics</p>
+              </div>
+              <ChevronRight size={16} className="text-muted-foreground" />
+            </button>
+            <button
+              onClick={() => navigate("/auth?role=apartment_admin")}
+              className="flex w-full items-center gap-3 rounded-xl bg-card p-4 text-left shadow-sm transition-colors hover:bg-accent active:scale-[0.98]"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10">
+                <Building2 size={20} className="text-indigo-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold">Apartment Admin</p>
+                <p className="text-xs text-muted-foreground">Approve providers & manage your community</p>
+              </div>
+              <ChevronRight size={16} className="text-muted-foreground" />
+            </button>
+          </div>
         </div>
       </div>
 

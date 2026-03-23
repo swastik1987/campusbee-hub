@@ -6,10 +6,13 @@ import {
   LayoutDashboard,
   UserCog,
   LogOut,
+  Home,
+  User,
 } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import BottomNav from "@/components/BottomNav";
 
 const navItems = [
   { path: "/platform", icon: LayoutDashboard, label: "Dashboard" },
@@ -103,9 +106,14 @@ const PlatformLayout = () => {
         </header>
 
         {/* Content */}
-        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-6xl mx-auto w-full">
+        <main className="flex-1 p-4 pb-24 md:p-6 md:pb-6 lg:p-8 max-w-6xl mx-auto w-full">
           <Outlet />
         </main>
+
+        {/* Mobile bottom nav */}
+        <div className="md:hidden">
+          <BottomNav persona="platform_admin" />
+        </div>
       </div>
     </div>
   );

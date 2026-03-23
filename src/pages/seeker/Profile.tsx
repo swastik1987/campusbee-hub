@@ -153,18 +153,43 @@ const Profile = () => {
           </button>
         )}
 
-        {/* Platform admin link */}
-        {profile?.is_platform_admin && (
-          <button
-            onClick={() => navigate("/platform")}
-            className="flex w-full items-center gap-3 rounded-xl p-4 text-left transition-colors hover:bg-accent"
-          >
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
-              <Shield size={18} className="text-emerald-600" />
-            </div>
-            <span className="flex-1 text-sm font-medium">Platform Admin</span>
-            <ChevronRight size={16} className="text-muted-foreground" />
-          </button>
+        {/* Admin links */}
+        {(profile?.is_platform_admin || profile?.is_apartment_admin) && (
+          <Card className="p-2 space-y-1">
+            <p className="px-2 pt-1 pb-1 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+              Admin Access
+            </p>
+            {profile?.is_platform_admin && (
+              <button
+                onClick={() => navigate("/platform")}
+                className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-accent"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+                  <Shield size={18} className="text-emerald-600" />
+                </div>
+                <div className="flex-1">
+                  <span className="text-sm font-medium">Platform Admin</span>
+                  <p className="text-[10px] text-muted-foreground">Manage apartments, categories & analytics</p>
+                </div>
+                <ChevronRight size={16} className="text-muted-foreground" />
+              </button>
+            )}
+            {profile?.is_apartment_admin && (
+              <button
+                onClick={() => navigate("/admin/dashboard")}
+                className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-accent"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/10">
+                  <Building2 size={18} className="text-indigo-600" />
+                </div>
+                <div className="flex-1">
+                  <span className="text-sm font-medium">Apartment Admin</span>
+                  <p className="text-[10px] text-muted-foreground">Approve providers & manage community</p>
+                </div>
+                <ChevronRight size={16} className="text-muted-foreground" />
+              </button>
+            )}
+          </Card>
         )}
 
         {/* Actions */}
@@ -197,7 +222,11 @@ const Profile = () => {
         </div>
       </div>
 
-      <BottomNav persona={activePersona === "provider" ? "provider" : "seeker"} />
+      <BottomNav persona={
+        activePersona === "platform_admin" ? "platform_admin" :
+        activePersona === "apartment_admin" ? "admin" :
+        activePersona === "provider" ? "provider" : "seeker"
+      } />
     </div>
   );
 };

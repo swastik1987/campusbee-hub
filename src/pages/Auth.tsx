@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useUser } from "@/contexts/UserContext";
-import { Mail, CheckCircle2, Loader2 } from "lucide-react";
+import { Mail, CheckCircle2, Loader2, Shield, Building2 } from "lucide-react";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -15,13 +15,30 @@ const Auth = () => {
   const [oauthLoading, setOauthLoading] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-  const { session, isNewUser, family } = useUser();
+  const [searchParams] = useSearchParams();
+  const { session, profile, isNewUser, family } = useUser();
+  const intendedRole = searchParams.get("role"); // platform_admin | apartment_admin | null
 
   useEffect(() => {
-    if (session) {
-      navigate(isNewUser || !family ? "/onboarding" : "/home", { replace: true });
+    if (!session || !profile) return;
+
+    // Smart redirect based on admin roles
+    if (profile.is_platform_admin && (!family || intendedRole === "platform_admin")) {
+      navigate("/platform", { replace: true });
+      return;
     }
-  }, [session, isNewUser, family, navigate]);
+    if (profile.is_apartment_admin && (!family || intendedRole === "apartment_admin")) {
+      navigate("/admin/dashboard", { replace: true });
+      return;
+    }
+
+    // Regular user flow
+    if (isNewUser || !family) {
+      navigate("/onboarding", { replace: true });
+    } else {
+      navigate("/home", { replace: true });
+    }
+  }, [session, profile, isNewUser, family, intendedRole, navigate]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,9 +96,31 @@ const Auth = () => {
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center gap-3 animate-fade-up">
           <img src="/logo-full.png" alt="CampusBee" className="h-16 object-contain" />
-          <p className="text-sm text-muted-foreground text-center">
-            Discover classes in your apartment community
-          </p>
+          {intendedRole === "platform_admin" ? (
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1">
+                <Shield size={14} className="text-emerald-600" />
+                <span className="text-xs font-semibold text-emerald-700">Platform Admin</span>
+              </div>
+              <p className="text-sm text-muted-foreground text-center">
+                Sign in to access the platform admin panel
+              </p>
+            </div>
+          ) : intendedRole === "apartment_admin" ? (
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="flex items-center gap-2 rounded-full bg-indigo-500/10 px-3 py-1">
+                <Building2 size={14} className="text-indigo-600" />
+                <span className="text-xs font-semibold text-indigo-700">Apartment Admin</span>
+              </div>
+              <p className="text-sm text-muted-foreground text-center">
+                Sign in to manage your apartment community
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center">
+              Discover classes in your apartment community
+            </p>
+          )}
         </div>
 
         {sent ? (
