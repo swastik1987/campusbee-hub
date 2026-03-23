@@ -37,6 +37,11 @@ import Notifications from "./pages/Notifications";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProviders from "./pages/admin/AdminProviders";
 import AdminReports from "./pages/admin/AdminReports";
+import PlatformLayout from "./pages/platform/PlatformLayout";
+import PlatformDashboard from "./pages/platform/PlatformDashboard";
+import PlatformApartments from "./pages/platform/PlatformApartments";
+import PlatformCategories from "./pages/platform/PlatformCategories";
+import PlatformAnalytics from "./pages/platform/PlatformAnalytics";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -88,6 +93,14 @@ const App = () => (
             <Route path="/admin/dashboard" element={<AuthGuard><AdminDashboard /></AuthGuard>} />
             <Route path="/admin/providers" element={<AuthGuard><AdminProviders /></AuthGuard>} />
             <Route path="/admin/reports" element={<AuthGuard><AdminReports /></AuthGuard>} />
+
+            {/* Platform admin routes (nested layout) */}
+            <Route path="/platform" element={<AuthGuard><PlatformLayout /></AuthGuard>}>
+              <Route index element={<PlatformDashboard />} />
+              <Route path="apartments" element={<PlatformApartments />} />
+              <Route path="categories" element={<PlatformCategories />} />
+              <Route path="analytics" element={<PlatformAnalytics />} />
+            </Route>
 
             <Route path="*" element={<NotFound />} />
           </Routes>
