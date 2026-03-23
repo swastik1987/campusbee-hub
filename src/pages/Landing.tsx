@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -506,10 +507,19 @@ const GuestLanding = () => {
 
 const Landing = () => {
   const { session, profile, loading } = useUser();
+  const [profileTimeout, setProfileTimeout] = useState(false);
 
-  // Show loading while auth state is being determined, or when session exists
-  // but profile hasn't been fetched yet (e.g., returning from OAuth redirect)
-  if (loading || (session && !profile)) {
+  // Give profile fetch up to 3 seconds before showing the page anyway
+  useEffect(() => {
+    if (session && !profile && !loading) {
+      const timer = setTimeout(() => setProfileTimeout(true), 3000);
+      return () => clearTimeout(timer);
+    }
+    if (profile) setProfileTimeout(false);
+  }, [session, profile, loading]);
+
+  // Show loading only during initial auth check
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -520,7 +530,20 @@ const Landing = () => {
     );
   }
 
-  return session ? <LoggedInLanding /> : <GuestLanding />;
+  // Brief wait for profile after OAuth return (max 3s, then show guest page)
+  if (session && !profile && !profileTimeout) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <img src="/logo-icon.png" alt="CampusBee" className="h-12 w-12 object-contain animate-fade-in" />
+          <p className="text-muted-foreground text-sm animate-fade-up">Setting up...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If profile loaded, show logged-in hub. Otherwise show guest page.
+  return (session && profile) ? <LoggedInLanding /> : <GuestLanding />;
 };
 
 export default Landing;
