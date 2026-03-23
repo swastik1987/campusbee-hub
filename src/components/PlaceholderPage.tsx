@@ -29,7 +29,7 @@ const PlaceholderPage = ({ title, icon: Icon, persona = "seeker" }: PlaceholderP
           <Icon size={36} className="text-muted-foreground" />
         </div>
         <p className="text-center text-muted-foreground text-sm">
-          Coming Soon — Building with 🐝
+          Coming Soon — Building with CampusBee
         </p>
       </main>
 

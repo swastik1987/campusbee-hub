@@ -9,7 +9,7 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <span className="text-4xl animate-fade-in">🐝</span>
+          <img src="/logo-icon.png" alt="CampusBee" className="h-12 w-12 object-contain animate-fade-in" />
           <p className="text-muted-foreground text-sm animate-fade-up">Loading...</p>
         </div>
       </div>

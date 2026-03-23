@@ -4,7 +4,6 @@ import {
   BarChart3,
   FolderTree,
   LayoutDashboard,
-  Shield,
   UserCog,
   LogOut,
 } from "lucide-react";
@@ -29,7 +28,7 @@ const PlatformLayout = () => {
       {/* Sidebar - hidden on mobile, visible on md+ */}
       <aside className="hidden md:flex w-60 flex-col border-r border-border bg-card p-4">
         <div className="flex items-center gap-2 px-2 mb-6">
-          <Shield size={20} className="text-primary" />
+          <img src="/logo-icon.png" alt="CampusBee" className="h-8 w-8 object-contain" />
           <div>
             <h1 className="text-sm font-bold gradient-primary-text">CampusBee</h1>
             <p className="text-[10px] text-muted-foreground">Platform Admin</p>
@@ -79,7 +78,7 @@ const PlatformLayout = () => {
       <div className="flex flex-1 flex-col">
         <header className="md:hidden sticky top-0 z-40 border-b border-border bg-card px-4">
           <div className="flex h-12 items-center gap-2">
-            <Shield size={18} className="text-primary" />
+            <img src="/logo-icon.png" alt="CampusBee" className="h-7 w-7 object-contain" />
             <span className="text-sm font-bold gradient-primary-text">CampusBee Admin</span>
           </div>
           <div className="flex gap-1 pb-2 overflow-x-auto">

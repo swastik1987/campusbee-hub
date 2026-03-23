@@ -18,7 +18,7 @@ const Header = ({ showPersonaSwitcher = true }: HeaderProps) => {
       <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4">
         {/* Logo + Apartment */}
         <div className="flex items-center gap-2">
-          <span className="text-2xl">🐝</span>
+          <img src="/logo-icon.png" alt="CampusBee" className="h-8 w-8 object-contain" />
           <div className="leading-tight">
             <h1 className="text-sm font-extrabold gradient-primary-text">
               CampusBee

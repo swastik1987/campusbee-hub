@@ -28,15 +28,9 @@ const Landing = () => {
       {/* Hero */}
       <div className="flex flex-1 flex-col items-center px-6 pt-16 pb-8">
         {/* Logo */}
-        <div className="mb-6 animate-fade-up" style={{ animationDelay: "0ms" }}>
-          <span className="text-5xl">🐝</span>
+        <div className="mb-4 animate-fade-up" style={{ animationDelay: "0ms" }}>
+          <img src="/logo-full.png" alt="CampusBee" className="h-14 object-contain" />
         </div>
-        <h1
-          className="mb-2 text-3xl font-extrabold tracking-tight animate-fade-up"
-          style={{ animationDelay: "80ms", lineHeight: "1.1" }}
-        >
-          <span className="gradient-primary-text">CampusBee</span>
-        </h1>
         <p
           className="mb-8 max-w-xs text-center text-muted-foreground animate-fade-up"
           style={{ animationDelay: "160ms" }}

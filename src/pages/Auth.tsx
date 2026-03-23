@@ -77,11 +77,8 @@ const Auth = () => {
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
       <div className="w-full max-w-sm">
         {/* Logo */}
-        <div className="mb-8 flex flex-col items-center gap-2 animate-fade-up">
-          <span className="text-5xl">🐝</span>
-          <h1 className="text-2xl font-extrabold tracking-tight">
-            <span className="gradient-primary-text">CampusBee</span>
-          </h1>
+        <div className="mb-8 flex flex-col items-center gap-3 animate-fade-up">
+          <img src="/logo-full.png" alt="CampusBee" className="h-12 object-contain" />
           <p className="text-sm text-muted-foreground text-center">
             Discover classes in your apartment community
           </p>
