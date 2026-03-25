@@ -45,6 +45,7 @@ const CreateBatch = () => {
   const [maxSize, setMaxSize] = useState("");
   const [feeAmount, setFeeAmount] = useState("");
   const [feeFrequency, setFeeFrequency] = useState("monthly");
+  const [registrationFee, setRegistrationFee] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [totalSessions, setTotalSessions] = useState("");
@@ -81,6 +82,7 @@ const CreateBatch = () => {
         maxBatchSize: parseInt(maxSize),
         feeAmount: parseFloat(feeAmount),
         feeFrequency,
+        registrationFee: registrationFee ? parseFloat(registrationFee) : 0,
         startDate: startDate || null,
         endDate: endDate || null,
         totalSessions: totalSessions ? parseInt(totalSessions) : null,
@@ -224,6 +226,12 @@ const CreateBatch = () => {
               </SelectContent>
             </Select>
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Registration Fee (₹)</Label>
+          <Input type="number" value={registrationFee} onChange={(e) => setRegistrationFee(e.target.value)} placeholder="0 (one-time fee at enrollment)" className="h-11 rounded-xl" />
+          <p className="text-xs text-muted-foreground">One-time fee charged when a student enrolls. Leave empty or 0 for no registration fee.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
