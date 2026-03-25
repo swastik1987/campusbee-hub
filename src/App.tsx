@@ -41,6 +41,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProviders from "./pages/admin/AdminProviders";
 import AdminProviderDetail from "./pages/admin/AdminProviderDetail";
 import AdminReports from "./pages/admin/AdminReports";
+import AdminFeatured from "./pages/admin/AdminFeatured";
 import PlatformLayout from "./pages/platform/PlatformLayout";
 import PlatformDashboard from "./pages/platform/PlatformDashboard";
 import PlatformApartments from "./pages/platform/PlatformApartments";
@@ -101,6 +102,7 @@ const App = () => (
             <Route path="/admin/providers" element={<AuthGuard><AdminProviders /></AuthGuard>} />
             <Route path="/admin/providers/:registrationId" element={<AuthGuard><AdminProviderDetail /></AuthGuard>} />
             <Route path="/admin/reports" element={<AuthGuard><AdminReports /></AuthGuard>} />
+            <Route path="/admin/featured" element={<AuthGuard><AdminFeatured /></AuthGuard>} />
 
             {/* Platform admin routes (nested layout) */}
             <Route path="/platform" element={<AuthGuard><PlatformLayout /></AuthGuard>}>

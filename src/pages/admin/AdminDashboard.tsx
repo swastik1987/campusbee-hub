@@ -8,6 +8,7 @@ import {
   useApproveProvider,
   useRejectProvider,
 } from "@/hooks/useAdmin";
+import { useAdminFeaturedRequests } from "@/hooks/useFeatured";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -35,6 +36,7 @@ import {
   Check,
   GraduationCap,
   Loader2,
+  Sparkles,
   Users,
   Home as HomeIcon,
   X,
@@ -52,6 +54,8 @@ const AdminDashboard = () => {
   const { data: stats, isLoading: statsLoading } = useAdminStats(aptId);
   const { data: pendingRegs } = useAdminProviderRegistrations(aptId, "pending");
   const { data: topClasses } = useTopClassesByEnrollment(aptId);
+  const { data: featuredRequests } = useAdminFeaturedRequests(aptId);
+  const pendingFeaturedCount = featuredRequests?.filter((r) => r.status === "pending_approval").length ?? 0;
 
   const approveProvider = useApproveProvider();
   const rejectProvider = useRejectProvider();
@@ -242,20 +246,32 @@ const AdminDashboard = () => {
         )}
 
         {/* Quick links */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Card
             className="p-4 cursor-pointer hover:shadow-md transition-all text-center"
             onClick={() => navigate("/admin/providers")}
           >
             <Users size={20} className="mx-auto text-provider mb-1" />
-            <p className="text-xs font-semibold">Manage Providers</p>
+            <p className="text-xs font-semibold">Providers</p>
+          </Card>
+          <Card
+            className="p-4 cursor-pointer hover:shadow-md transition-all text-center relative"
+            onClick={() => navigate("/admin/featured")}
+          >
+            <Sparkles size={20} className="mx-auto text-amber-500 mb-1" />
+            <p className="text-xs font-semibold">Featured</p>
+            {pendingFeaturedCount > 0 && (
+              <Badge variant="destructive" className="absolute -top-1 -right-1 text-[9px] h-5 min-w-5 px-1">
+                {pendingFeaturedCount}
+              </Badge>
+            )}
           </Card>
           <Card
             className="p-4 cursor-pointer hover:shadow-md transition-all text-center"
             onClick={() => navigate("/admin/reports")}
           >
             <BookOpen size={20} className="mx-auto text-emerald-600 mb-1" />
-            <p className="text-xs font-semibold">Fee Reports</p>
+            <p className="text-xs font-semibold">Reports</p>
           </Card>
         </div>
       </div>
