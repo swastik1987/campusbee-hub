@@ -24,38 +24,85 @@ export function useCreateProvider() {
       upiQrImageUrl: string;
       apartmentIds: string[];
     }) => {
-      // 1. Create service_providers row
-      const { data: provider, error: pErr } = await supabase
-        .from("service_providers")
-        .insert({
-          user_id: input.userId,
-          provider_type: input.providerType,
-          business_name: input.businessName || null,
-          bio: input.bio || null,
-          experience_years: input.experienceYears,
-          qualifications: input.qualifications || null,
-          specializations: input.specializations,
-          specialization_category_ids: input.specializationCategoryIds,
-          intro_video_url: input.introVideoUrl || null,
-          whatsapp_number: input.whatsappNumber || null,
-          upi_id: input.upiId || null,
-          upi_qr_image_url: input.upiQrImageUrl || null,
-        })
-        .select("id")
-        .single();
-      if (pErr) throw pErr;
+      const providerFields = {
+        user_id: input.userId,
+        provider_type: input.providerType,
+        business_name: input.businessName || null,
+        bio: input.bio || null,
+        experience_years: input.experienceYears,
+        qualifications: input.qualifications || null,
+        specializations: input.specializations,
+        specialization_category_ids: input.specializationCategoryIds,
+        intro_video_url: input.introVideoUrl || null,
+        whatsapp_number: input.whatsappNumber || null,
+        upi_id: input.upiId || null,
+        upi_qr_image_url: input.upiQrImageUrl || null,
+        is_verified: false,
+      };
 
-      // 2. Create registrations for selected apartments
+      // 1. Check if provider row already exists (e.g. previously rejected)
+      const { data: existing } = await supabase
+        .from("service_providers")
+        .select("id")
+        .eq("user_id", input.userId)
+        .maybeSingle();
+
+      let providerId: string;
+
+      if (existing) {
+        // Update the existing row with new details
+        const { error: upErr } = await supabase
+          .from("service_providers")
+          .update(providerFields)
+          .eq("id", existing.id);
+        if (upErr) throw upErr;
+        providerId = existing.id;
+      } else {
+        // Create new service_providers row
+        const { data: provider, error: pErr } = await supabase
+          .from("service_providers")
+          .insert(providerFields)
+          .select("id")
+          .single();
+        if (pErr) throw pErr;
+        providerId = provider.id;
+      }
+
+      // 2. Create registrations for selected apartments (skip if already registered)
       if (input.apartmentIds.length > 0) {
-        const regs = input.apartmentIds.map((aptId) => ({
-          provider_id: provider.id,
-          apartment_id: aptId,
-          status: "pending" as const,
-        }));
-        const { error: rErr } = await supabase
+        // Find existing registrations for this provider
+        const { data: existingRegs } = await supabase
           .from("provider_apartment_registrations")
-          .insert(regs);
-        if (rErr) throw rErr;
+          .select("apartment_id, status")
+          .eq("provider_id", providerId);
+        const existingAptIds = new Set((existingRegs ?? []).map((r) => r.apartment_id));
+
+        // Only create registrations for apartments not already registered
+        const newAptIds = input.apartmentIds.filter((id) => !existingAptIds.has(id));
+
+        // Re-activate rejected registrations for selected apartments
+        const rejectedAptIds = input.apartmentIds.filter(
+          (id) => existingRegs?.find((r) => r.apartment_id === id && r.status === "rejected")
+        );
+        if (rejectedAptIds.length > 0) {
+          await supabase
+            .from("provider_apartment_registrations")
+            .update({ status: "pending", terms_status: null })
+            .eq("provider_id", providerId)
+            .in("apartment_id", rejectedAptIds);
+        }
+
+        if (newAptIds.length > 0) {
+          const regs = newAptIds.map((aptId) => ({
+            provider_id: providerId,
+            apartment_id: aptId,
+            status: "pending" as const,
+          }));
+          const { error: rErr } = await supabase
+            .from("provider_apartment_registrations")
+            .insert(regs);
+          if (rErr) throw rErr;
+        }
       }
 
       // 3. Mark user as provider
@@ -65,7 +112,7 @@ export function useCreateProvider() {
         .eq("id", input.userId);
       if (uErr) throw uErr;
 
-      return provider;
+      return { id: providerId };
     },
     onSuccess: async () => {
       await refreshProfile();

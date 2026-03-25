@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useCreateProvider, useUploadProviderMedia } from "@/hooks/useProvider";
+import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useClasses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,8 +35,9 @@ const STEPS = ["Type", "Profile", "Payment", "Apartments"];
 
 const BecomeProvider = () => {
   const navigate = useNavigate();
-  const { profile, family, refreshProfile } = useUser();
+  const { profile, family, providerProfile, refreshProfile } = useUser();
   const [step, setStep] = useState(0);
+  const [prefilled, setPrefilled] = useState(false);
 
   // Step 1 state
   const [providerType, setProviderType] = useState<"individual" | "academy" | "">("");
@@ -58,6 +60,33 @@ const BecomeProvider = () => {
   const [selectedApartments, setSelectedApartments] = useState<string[]>(
     family?.apartment_id ? [family.apartment_id] : []
   );
+
+  // Pre-fill from existing provider profile (re-application after rejection)
+  useEffect(() => {
+    if (prefilled || !profile) return;
+    const loadExisting = async () => {
+      const { data: sp } = await supabase
+        .from("service_providers")
+        .select("provider_type, business_name, bio, experience_years, qualifications, specializations, specialization_category_ids, intro_video_url, whatsapp_number, upi_id, upi_qr_image_url")
+        .eq("user_id", profile.id)
+        .maybeSingle();
+      if (sp) {
+        setProviderType((sp.provider_type as "individual" | "academy") || "");
+        setBusinessName(sp.business_name || "");
+        setBio(sp.bio || "");
+        setExperience(sp.experience_years ? String(sp.experience_years) : "");
+        setQualifications(sp.qualifications || "");
+        setSpecializations((sp.specializations as string[]) || []);
+        setSelectedCategoryIds((sp.specialization_category_ids as string[]) || []);
+        setIntroVideoUrl(sp.intro_video_url || "");
+        setWhatsappNumber(sp.whatsapp_number || profile.mobile_number || "");
+        setUpiId(sp.upi_id || "");
+        setUpiQrUrl(sp.upi_qr_image_url || "");
+      }
+      setPrefilled(true);
+    };
+    loadExisting();
+  }, [profile, prefilled]);
 
   const createProvider = useCreateProvider();
   const uploadMedia = useUploadProviderMedia();

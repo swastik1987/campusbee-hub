@@ -5,7 +5,9 @@ import {
   useBatches,
   useClassAddons,
   useUpdateClassStatus,
+  useUpdateClass,
   useUpdateBatchStatus,
+  useUpdateBatch,
   useCreateAddon,
   useDeleteAddon,
 } from "@/hooks/useClasses";
@@ -31,14 +33,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
   BookOpen,
   Calendar,
   Clock,
+  Edit3,
   Loader2,
   Package,
   Pause,
+  Pencil,
   Play,
   Plus,
   Star,
@@ -64,7 +69,9 @@ const ProviderClassDetail = () => {
   const { data: batches, isLoading: batchesLoading } = useBatches(classId);
   const { data: addons } = useClassAddons(classId);
   const updateStatus = useUpdateClassStatus();
+  const updateClass = useUpdateClass();
   const updateBatchStatus = useUpdateBatchStatus();
+  const updateBatch = useUpdateBatch();
   const createAddon = useCreateAddon();
   const deleteAddon = useDeleteAddon();
 
@@ -75,6 +82,26 @@ const ProviderClassDetail = () => {
   const [addonFeeType, setAddonFeeType] = useState("one_time");
   const [addonMandatory, setAddonMandatory] = useState(false);
   const [addonSheetOpen, setAddonSheetOpen] = useState(false);
+
+  // Edit class state
+  const [editClassOpen, setEditClassOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editShortDesc, setEditShortDesc] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editVenue, setEditVenue] = useState("");
+  const [editWhatToBring, setEditWhatToBring] = useState("");
+  const [editTrialAvailable, setEditTrialAvailable] = useState(false);
+  const [editTrialFee, setEditTrialFee] = useState("");
+
+  // Edit batch state
+  const [editBatchOpen, setEditBatchOpen] = useState(false);
+  const [editBatchId, setEditBatchId] = useState("");
+  const [editBatchName, setEditBatchName] = useState("");
+  const [editBatchCapacity, setEditBatchCapacity] = useState("");
+  const [editBatchFee, setEditBatchFee] = useState("");
+  const [editBatchFeeFreq, setEditBatchFeeFreq] = useState("");
+  const [editBatchRegFee, setEditBatchRegFee] = useState("");
+  const [editBatchNotes, setEditBatchNotes] = useState("");
 
   if (isLoading) {
     return (
@@ -101,6 +128,67 @@ const ProviderClassDetail = () => {
       toast.success(newStatus === "published" ? "Class published" : "Class paused");
     } catch {
       toast.error("Failed to update status");
+    }
+  };
+
+  const openEditClass = () => {
+    if (!cls) return;
+    setEditTitle(cls.title || "");
+    setEditShortDesc(cls.short_description || "");
+    setEditDesc(cls.description || "");
+    setEditVenue(cls.venue_details || "");
+    setEditWhatToBring(cls.what_to_bring || "");
+    setEditTrialAvailable(cls.trial_available ?? false);
+    setEditTrialFee(cls.trial_fee ? String(cls.trial_fee) : "0");
+    setEditClassOpen(true);
+  };
+
+  const handleSaveClass = async () => {
+    if (!cls) return;
+    try {
+      await updateClass.mutateAsync({
+        classId: cls.id,
+        title: editTitle,
+        shortDescription: editShortDesc,
+        description: editDesc,
+        venueDetails: editVenue,
+        whatToBring: editWhatToBring,
+        trialAvailable: editTrialAvailable,
+        trialFee: editTrialAvailable ? parseFloat(editTrialFee) || 0 : 0,
+      });
+      toast.success("Class updated");
+      setEditClassOpen(false);
+    } catch {
+      toast.error("Failed to update class");
+    }
+  };
+
+  const openEditBatch = (batch: any) => {
+    setEditBatchId(batch.id);
+    setEditBatchName(batch.batch_name || "");
+    setEditBatchCapacity(String(batch.max_batch_size || ""));
+    setEditBatchFee(String(batch.fee_amount || ""));
+    setEditBatchFeeFreq(batch.fee_frequency || "monthly");
+    setEditBatchRegFee(String(batch.registration_fee ?? 0));
+    setEditBatchNotes(batch.notes || "");
+    setEditBatchOpen(true);
+  };
+
+  const handleSaveBatch = async () => {
+    try {
+      await updateBatch.mutateAsync({
+        batchId: editBatchId,
+        batchName: editBatchName,
+        maxBatchSize: parseInt(editBatchCapacity) || 10,
+        feeAmount: parseFloat(editBatchFee) || 0,
+        feeFrequency: editBatchFeeFreq,
+        registrationFee: parseFloat(editBatchRegFee) || 0,
+        notes: editBatchNotes,
+      });
+      toast.success("Batch updated");
+      setEditBatchOpen(false);
+    } catch {
+      toast.error("Failed to update batch");
     }
   };
 
@@ -146,6 +234,14 @@ const ProviderClassDetail = () => {
           <Button
             size="sm"
             variant="outline"
+            onClick={openEditClass}
+            className="flex-1"
+          >
+            <Pencil size={14} className="mr-1" /> Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             onClick={handleToggleStatus}
             disabled={updateStatus.isPending}
             className="flex-1"
@@ -161,7 +257,7 @@ const ProviderClassDetail = () => {
             onClick={() => navigate(`/provider/classes/${cls.id}/batch/new`)}
             className="flex-1 bg-provider hover:bg-provider/90 text-white"
           >
-            <Plus size={14} className="mr-1" /> Add Batch
+            <Plus size={14} className="mr-1" /> Batch
           </Button>
         </div>
 
@@ -209,6 +305,10 @@ const ProviderClassDetail = () => {
                     </p>
                   )}
                   <div className="flex gap-2 pt-1">
+                    <Button size="sm" variant="outline" className="text-xs h-7"
+                      onClick={() => openEditBatch(batch)}>
+                      <Pencil size={12} className="mr-1" /> Edit
+                    </Button>
                     {batch.status === "active" && (
                       <Button size="sm" variant="outline" className="text-xs h-7"
                         onClick={() => updateBatchStatus.mutateAsync({ batchId: batch.id, status: "paused" })}>
@@ -361,6 +461,98 @@ const ProviderClassDetail = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Class Sheet */}
+      <Sheet open={editClassOpen} onOpenChange={setEditClassOpen}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
+          <SheetHeader><SheetTitle>Edit Class</SheetTitle></SheetHeader>
+          <div className="space-y-3 py-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Title</Label>
+              <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="h-10 rounded-lg" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Short Description</Label>
+              <Input value={editShortDesc} onChange={(e) => setEditShortDesc(e.target.value.slice(0, 300))} className="h-10 rounded-lg" />
+              <p className="text-[10px] text-muted-foreground text-right">{editShortDesc.length}/300</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Full Description</Label>
+              <Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={4} className="rounded-lg" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Venue Details</Label>
+              <Input value={editVenue} onChange={(e) => setEditVenue(e.target.value)} placeholder="e.g. Community Hall, Block A" className="h-10 rounded-lg" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">What to Bring</Label>
+              <Input value={editWhatToBring} onChange={(e) => setEditWhatToBring(e.target.value)} placeholder="e.g. Racquet, sportswear" className="h-10 rounded-lg" />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Trial Available?</Label>
+              <Switch checked={editTrialAvailable} onCheckedChange={setEditTrialAvailable} />
+            </div>
+            {editTrialAvailable && (
+              <div className="space-y-1">
+                <Label className="text-xs">Trial Fee (₹)</Label>
+                <Input type="number" value={editTrialFee} onChange={(e) => setEditTrialFee(e.target.value)} placeholder="0 for free" className="h-10 rounded-lg" />
+              </div>
+            )}
+            <Button onClick={handleSaveClass} disabled={!editTitle.trim() || updateClass.isPending} className="w-full bg-provider text-white rounded-lg">
+              {updateClass.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save Changes"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Edit Batch Sheet */}
+      <Sheet open={editBatchOpen} onOpenChange={setEditBatchOpen}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
+          <SheetHeader><SheetTitle>Edit Batch</SheetTitle></SheetHeader>
+          <div className="space-y-3 py-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Batch Name</Label>
+              <Input value={editBatchName} onChange={(e) => setEditBatchName(e.target.value)} className="h-10 rounded-lg" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Capacity</Label>
+                <Input type="number" value={editBatchCapacity} onChange={(e) => setEditBatchCapacity(e.target.value)} className="h-10 rounded-lg" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Registration Fee (₹)</Label>
+                <Input type="number" value={editBatchRegFee} onChange={(e) => setEditBatchRegFee(e.target.value)} placeholder="0" className="h-10 rounded-lg" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Class Fee (₹)</Label>
+                <Input type="number" value={editBatchFee} onChange={(e) => setEditBatchFee(e.target.value)} className="h-10 rounded-lg" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Fee Frequency</Label>
+                <Select value={editBatchFeeFreq} onValueChange={setEditBatchFeeFreq}>
+                  <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="per_session">Per Session</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                    <SelectItem value="for_duration">For Duration</SelectItem>
+                    <SelectItem value="one_time">One-time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Notes</Label>
+              <Textarea value={editBatchNotes} onChange={(e) => setEditBatchNotes(e.target.value)} rows={2} className="rounded-lg" />
+            </div>
+            <Button onClick={handleSaveBatch} disabled={!editBatchName.trim() || updateBatch.isPending} className="w-full bg-provider text-white rounded-lg">
+              {updateBatch.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save Changes"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };

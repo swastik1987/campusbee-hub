@@ -34,6 +34,7 @@ const ProviderDashboard = () => {
 
   const approvedRegs = registrations?.filter((r) => r.status === "approved") ?? [];
   const pendingRegs = registrations?.filter((r) => r.status === "pending") ?? [];
+  const rejectedRegs = registrations?.filter((r) => r.status === "rejected") ?? [];
   const approvedRegIds = approvedRegs.map((r) => r.id);
   const hasApproved = approvedRegs.length > 0;
 
@@ -55,7 +56,7 @@ const ProviderDashboard = () => {
           <p className="text-sm text-muted-foreground max-w-xs">
             Your applications are being reviewed by apartment admins. You'll be notified once approved.
           </p>
-          {pendingRegs.length > 0 && (
+          {(pendingRegs.length > 0 || rejectedRegs.length > 0) && (
             <div className="w-full max-w-sm space-y-2 mt-4">
               {pendingRegs.map((r) => (
                 <Card key={r.id} className="flex items-center gap-3 p-3">
@@ -75,6 +76,32 @@ const ProviderDashboard = () => {
                   </Badge>
                 </Card>
               ))}
+              {rejectedRegs.map((r) => (
+                <Card key={r.id} className="flex items-center gap-3 p-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100">
+                    <AlertCircle size={16} className="text-red-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      {(r.apartment_complexes as any)?.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {(r.apartment_complexes as any)?.locality}, {(r.apartment_complexes as any)?.city}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-red-600 border-red-300">
+                    Rejected
+                  </Badge>
+                </Card>
+              ))}
+              {rejectedRegs.length > 0 && pendingRegs.length === 0 && (
+                <Button
+                  onClick={() => navigate("/become-provider")}
+                  className="w-full mt-3 bg-provider hover:bg-provider/90 text-white"
+                >
+                  Re-apply as Provider
+                </Button>
+              )}
             </div>
           )}
         </div>
