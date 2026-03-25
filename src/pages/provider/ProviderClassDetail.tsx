@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useUser } from "@/contexts/UserContext";
 import {
   useClassDetail,
   useBatches,
@@ -11,6 +12,13 @@ import {
   useCreateAddon,
   useDeleteAddon,
 } from "@/hooks/useClasses";
+import {
+  useRequestFeaturedListing,
+  useProviderFeaturedRequests,
+  useUploadBannerImage,
+  useProviderRespondToFeaturedFee,
+} from "@/hooks/useFeatured";
+import { useProviderRegistrations } from "@/hooks/useProvider";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,14 +46,17 @@ import {
   ArrowLeft,
   BookOpen,
   Calendar,
+  Camera,
   Clock,
   Edit3,
+  Image,
   Loader2,
   Package,
   Pause,
   Pencil,
   Play,
   Plus,
+  Sparkles,
   Star,
   Trash2,
   Users,
@@ -61,9 +72,19 @@ const FEE_LABELS: Record<string, string> = {
   one_time: " one-time",
 };
 
+const FEATURED_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  pending_approval: { label: "Pending Admin Review", color: "bg-amber-100 text-amber-700" },
+  fee_proposed: { label: "Fee Proposed — Review", color: "bg-blue-100 text-blue-700" },
+  active: { label: "Featured", color: "bg-green-100 text-green-700" },
+  expired: { label: "Expired", color: "bg-gray-100 text-gray-600" },
+  cancelled: { label: "Cancelled", color: "bg-gray-100 text-gray-600" },
+  rejected: { label: "Rejected", color: "bg-red-100 text-red-600" },
+};
+
 const ProviderClassDetail = () => {
   const { classId } = useParams();
   const navigate = useNavigate();
+  const { profile, providerProfile } = useUser();
 
   const { data: cls, isLoading } = useClassDetail(classId);
   const { data: batches, isLoading: batchesLoading } = useBatches(classId);
@@ -74,6 +95,14 @@ const ProviderClassDetail = () => {
   const updateBatch = useUpdateBatch();
   const createAddon = useCreateAddon();
   const deleteAddon = useDeleteAddon();
+
+  // Featured listing hooks
+  const { data: registrations } = useProviderRegistrations(providerProfile?.id);
+  const approvedRegIds = registrations?.filter((r) => r.status === "approved").map((r) => r.id) ?? [];
+  const { data: featuredRequests } = useProviderFeaturedRequests(providerProfile?.id, approvedRegIds);
+  const requestFeatured = useRequestFeaturedListing();
+  const uploadBanner = useUploadBannerImage();
+  const respondToFee = useProviderRespondToFeaturedFee();
 
   // Addon form state
   const [addonName, setAddonName] = useState("");
@@ -92,6 +121,11 @@ const ProviderClassDetail = () => {
   const [editWhatToBring, setEditWhatToBring] = useState("");
   const [editTrialAvailable, setEditTrialAvailable] = useState(false);
   const [editTrialFee, setEditTrialFee] = useState("");
+
+  // Featured listing state
+  const [featuredSheetOpen, setFeaturedSheetOpen] = useState(false);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bannerPreview, setBannerPreview] = useState("");
 
   // Edit batch state
   const [editBatchOpen, setEditBatchOpen] = useState(false);
@@ -192,6 +226,53 @@ const ProviderClassDetail = () => {
     }
   };
 
+  // Featured listing for this class
+  const classFeatured = featuredRequests?.filter((r) => r.class_id === classId) ?? [];
+  const hasActiveFeatured = classFeatured.some((r) => r.status === "active" || r.status === "pending_approval" || r.status === "fee_proposed");
+
+  const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBannerFile(file);
+    setBannerPreview(URL.createObjectURL(file));
+  };
+
+  const handleRequestFeatured = async () => {
+    if (!bannerFile || !cls || !profile) return;
+    const par = cls.provider_apartment_registrations as any;
+    const apartmentId = par?.apartment_id;
+    const regId = cls.provider_registration_id;
+    if (!apartmentId || !regId) {
+      toast.error("Missing apartment info");
+      return;
+    }
+    try {
+      const bannerUrl = await uploadBanner.mutateAsync({ classId: cls.id, file: bannerFile });
+      await requestFeatured.mutateAsync({
+        classId: cls.id,
+        apartmentId,
+        providerRegistrationId: regId,
+        bannerImageUrl: bannerUrl,
+        requestedBy: profile.id,
+      });
+      toast.success("Featured request submitted! The apartment admin will review it.");
+      setFeaturedSheetOpen(false);
+      setBannerFile(null);
+      setBannerPreview("");
+    } catch {
+      toast.error("Failed to submit featured request");
+    }
+  };
+
+  const handleRespondToFee = async (listingId: string, accept: boolean) => {
+    try {
+      await respondToFee.mutateAsync({ listingId, accept });
+      toast.success(accept ? "Fee accepted — your class is now featured!" : "Fee rejected");
+    } catch {
+      toast.error("Failed to respond");
+    }
+  };
+
   const handleAddAddon = async () => {
     if (!addonName.trim() || !addonFee) return;
     try {
@@ -265,6 +346,7 @@ const ProviderClassDetail = () => {
           <TabsList className="w-full">
             <TabsTrigger value="batches" className="flex-1">Batches</TabsTrigger>
             <TabsTrigger value="addons" className="flex-1">Add-ons</TabsTrigger>
+            <TabsTrigger value="featured" className="flex-1">Featured</TabsTrigger>
             <TabsTrigger value="info" className="flex-1">Info</TabsTrigger>
           </TabsList>
 
@@ -415,6 +497,87 @@ const ProviderClassDetail = () => {
             </Sheet>
           </TabsContent>
 
+          {/* Featured Tab */}
+          <TabsContent value="featured" className="space-y-4 mt-4">
+            {/* Existing featured requests for this class */}
+            {classFeatured.length > 0 ? (
+              <div className="space-y-3">
+                {classFeatured.map((req) => {
+                  const st = FEATURED_STATUS_LABELS[req.status ?? ""] ?? { label: req.status, color: "bg-gray-100 text-gray-600" };
+                  return (
+                    <Card key={req.id} className="p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-semibold">Featured Request</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(req.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Badge className={`text-[10px] border-0 ${st.color}`}>{st.label}</Badge>
+                      </div>
+                      {req.banner_image_url && (
+                        <img src={req.banner_image_url} alt="Banner" className="w-full rounded-lg aspect-[3/1] object-cover" />
+                      )}
+                      {req.status === "fee_proposed" && (
+                        <div className="space-y-2 rounded-lg bg-blue-50 p-3">
+                          <p className="text-sm font-medium">Admin proposed ad fee: <span className="text-provider font-bold">₹{req.ad_fee}</span></p>
+                          {req.valid_from && req.valid_until && (
+                            <p className="text-xs text-muted-foreground">
+                              Valid: {new Date(req.valid_from).toLocaleDateString()} — {new Date(req.valid_until).toLocaleDateString()}
+                            </p>
+                          )}
+                          {req.admin_notes && (
+                            <p className="text-xs text-muted-foreground">Note: {req.admin_notes}</p>
+                          )}
+                          <div className="flex gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              className="flex-1 bg-provider text-white text-xs h-8"
+                              onClick={() => handleRespondToFee(req.id, true)}
+                              disabled={respondToFee.isPending}
+                            >
+                              Accept Fee
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 text-xs h-8"
+                              onClick={() => handleRespondToFee(req.id, false)}
+                              disabled={respondToFee.isPending}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {req.status === "active" && req.valid_until && (
+                        <p className="text-xs text-green-700">
+                          Active until {new Date(req.valid_until).toLocaleDateString()}
+                        </p>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 py-6 text-center">
+                <Sparkles size={24} className="text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">No featured requests yet</p>
+              </div>
+            )}
+
+            {/* Request Featured button — only for published classes with no active/pending request */}
+            {cls.status === "published" && !hasActiveFeatured && (
+              <Button
+                onClick={() => setFeaturedSheetOpen(true)}
+                className="w-full border-dashed border-provider text-provider"
+                variant="outline"
+              >
+                <Sparkles size={14} className="mr-1" /> Request Featured Listing
+              </Button>
+            )}
+          </TabsContent>
+
           {/* Info Tab */}
           <TabsContent value="info" className="space-y-4 mt-4">
             <div>
@@ -500,6 +663,46 @@ const ProviderClassDetail = () => {
             )}
             <Button onClick={handleSaveClass} disabled={!editTitle.trim() || updateClass.isPending} className="w-full bg-provider text-white rounded-lg">
               {updateClass.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save Changes"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Request Featured Sheet */}
+      <Sheet open={featuredSheetOpen} onOpenChange={setFeaturedSheetOpen}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
+          <SheetHeader><SheetTitle>Request Featured Listing</SheetTitle></SheetHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Upload a banner image (3:1 ratio recommended) for your class. The apartment admin will review your request and propose an ad fee.
+            </p>
+            <div className="space-y-2">
+              <Label className="text-xs">Banner Image</Label>
+              <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-6 transition-colors hover:border-provider">
+                {bannerPreview ? (
+                  <img src={bannerPreview} alt="Banner preview" className="w-full rounded-lg aspect-[3/1] object-cover" />
+                ) : (
+                  <>
+                    <Image size={28} className="text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Upload banner (3:1 ratio)</span>
+                    <span className="text-xs text-muted-foreground">e.g. 1200 x 400 px</span>
+                  </>
+                )}
+                <input type="file" accept="image/*" className="hidden" onChange={handleBannerSelect} />
+              </label>
+            </div>
+            <Button
+              onClick={handleRequestFeatured}
+              disabled={!bannerFile || requestFeatured.isPending || uploadBanner.isPending}
+              className="w-full bg-provider text-white rounded-lg"
+            >
+              {(requestFeatured.isPending || uploadBanner.isPending) ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <>
+                  <Sparkles size={14} className="mr-1" /> Submit Request
+                </>
+              )}
             </Button>
           </div>
         </SheetContent>
