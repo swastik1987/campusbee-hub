@@ -7,12 +7,15 @@ const ONBOARDING_EXEMPT_ROUTES = ["/onboarding", "/profile", "/notifications"];
 // Routes that specifically require admin roles (but not family/onboarding)
 const ADMIN_ROUTES = ["/platform", "/admin"];
 
+// Provider routes — require provider profile, not family setup
+const PROVIDER_ROUTES_PREFIX = "/provider/";
+
 // Routes that require a completed onboarding (family setup)
-// i.e., seeker/provider routes that depend on apartment context
+// i.e., seeker routes that depend on apartment context
 const REQUIRES_FAMILY_PREFIXES = [
   "/home", "/explore", "/my-classes", "/class/", "/enroll/",
   "/enrollment/", "/chat", "/family", "/become-provider",
-  "/provider/", "/provider-profile/",
+  "/provider-profile/",
 ];
 
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
@@ -49,6 +52,14 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
       return <>{children}</>;
     }
     // Non-admin trying to access admin route → redirect to landing
+    return <Navigate to="/" replace />;
+  }
+
+  // Allow provider routes for users with provider profile (no family required)
+  if (path.startsWith(PROVIDER_ROUTES_PREFIX)) {
+    if (profile?.is_provider) {
+      return <>{children}</>;
+    }
     return <Navigate to="/" replace />;
   }
 
