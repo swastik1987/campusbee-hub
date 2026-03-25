@@ -142,6 +142,58 @@ export function useUploadAvatar() {
   });
 }
 
+export function useCreateProviderOnboarding() {
+  const { refreshProfile } = useUser();
+
+  return useMutation({
+    mutationFn: async (input: {
+      userId: string;
+      providerType: "individual" | "academy";
+      businessName: string;
+      bio: string;
+      apartmentIds: string[];
+    }) => {
+      // 1. Create service_providers row
+      const { data: provider, error: pErr } = await supabase
+        .from("service_providers")
+        .insert({
+          user_id: input.userId,
+          provider_type: input.providerType,
+          business_name: input.businessName || null,
+          bio: input.bio || null,
+        })
+        .select("id")
+        .single();
+      if (pErr) throw pErr;
+
+      // 2. Register for selected apartments
+      if (input.apartmentIds.length > 0) {
+        const regs = input.apartmentIds.map((aptId) => ({
+          provider_id: provider.id,
+          apartment_id: aptId,
+          status: "pending" as const,
+        }));
+        const { error: rErr } = await supabase
+          .from("provider_apartment_registrations")
+          .insert(regs);
+        if (rErr) throw rErr;
+      }
+
+      // 3. Mark user as provider
+      const { error: uErr } = await supabase
+        .from("users")
+        .update({ is_provider: true, last_active_persona: "provider" })
+        .eq("id", input.userId);
+      if (uErr) throw uErr;
+
+      return provider;
+    },
+    onSuccess: async () => {
+      await refreshProfile();
+    },
+  });
+}
+
 export function calculateAgeGroup(dob: string): string | null {
   if (!dob) return null;
   const today = new Date();

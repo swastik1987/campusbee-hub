@@ -203,7 +203,7 @@ const Profile = () => {
                 <GraduationCap size={18} className="text-provider" />
               </div>
               <span className="flex-1 text-sm font-medium">
-                Start Teaching on CampusBee
+                Become a Service Provider
               </span>
               <ChevronRight size={16} className="text-muted-foreground" />
             </button>
