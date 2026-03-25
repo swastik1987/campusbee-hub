@@ -190,7 +190,7 @@ export function useSeekerClassDetail(classId: string | undefined) {
             )
           ),
           batches(id, batch_name, batch_type, skill_level, age_group_min, age_group_max,
-            max_batch_size, current_enrollment_count, fee_amount, fee_frequency,
+            max_batch_size, current_enrollment_count, fee_amount, fee_frequency, registration_fee,
             start_date, end_date, status, registration_mode, auto_waitlist, trainer_id,
             trainers(id, name, photo_url, specializations),
             batch_schedules(id, day_of_week, start_time, end_time)

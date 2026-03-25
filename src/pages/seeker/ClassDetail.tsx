@@ -282,12 +282,19 @@ const ClassDetail = () => {
                           </Badge>
                         )}
                       </div>
-                      <p className="font-bold text-sm">
-                        ₹{batch.fee_amount}
-                        <span className="text-xs font-normal text-muted-foreground">
-                          {FEE_LABELS[batch.fee_frequency] ?? ""}
-                        </span>
-                      </p>
+                      <div className="text-right">
+                        <p className="font-bold text-sm">
+                          ₹{batch.fee_amount}
+                          <span className="text-xs font-normal text-muted-foreground">
+                            {FEE_LABELS[batch.fee_frequency] ?? ""}
+                          </span>
+                        </p>
+                        {batch.registration_fee > 0 && (
+                          <p className="text-[10px] text-muted-foreground">
+                            + ₹{batch.registration_fee} reg. fee
+                          </p>
+                        )}
+                      </div>
                     </div>
                     {scheduleSummary && (
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -301,6 +308,30 @@ const ClassDetail = () => {
                     {batch.trainers?.name && (
                       <p className="text-xs text-muted-foreground">Trainer: {batch.trainers.name}</p>
                     )}
+                    {(() => {
+                      const today = new Date().toISOString().split("T")[0];
+                      const startDate = batch.start_date;
+                      const endDate = batch.end_date;
+                      const isFuture = startDate && startDate > today;
+                      return (
+                        (startDate || endDate) && (
+                          <div className="flex flex-wrap items-center gap-x-2 text-xs">
+                            {isFuture ? (
+                              <span className="text-blue-600 font-medium">
+                                Starting from {new Date(startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                              </span>
+                            ) : startDate ? (
+                              <span className="text-green-600 font-medium">Class is live</span>
+                            ) : null}
+                            {endDate && (
+                              <span className="text-muted-foreground">
+                                · Ending on {new Date(endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                              </span>
+                            )}
+                          </div>
+                        )
+                      );
+                    })()}
                     <div className="flex items-center justify-between pt-1">
                       <div className="flex items-center gap-1 text-xs">
                         <Users size={12} className="text-muted-foreground" />

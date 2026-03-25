@@ -48,7 +48,7 @@ const EnrollFlow = () => {
       const { data, error } = await supabase
         .from("batches")
         .select(`
-          id, batch_name, skill_level, fee_amount, fee_frequency, status,
+          id, batch_name, skill_level, fee_amount, fee_frequency, registration_fee, status,
           max_batch_size, current_enrollment_count, registration_mode, auto_waitlist,
           start_date, end_date, trainer_id,
           trainers(id, name, photo_url),
@@ -92,9 +92,39 @@ const EnrollFlow = () => {
     );
   };
 
+  const registrationFee = (batch as any).registration_fee ?? 0;
+
+  // Check if this member already has an enrollment in any batch of this class (registration fee is first-time only)
+  const { data: existingEnrollment } = useQuery({
+    queryKey: ["existing-enrollment-check", selectedMemberId, cls?.id],
+    enabled: !!selectedMemberId && !!cls?.id,
+    queryFn: async () => {
+      // Get all batch IDs for this class
+      const { data: classBatches } = await supabase
+        .from("batches")
+        .select("id")
+        .eq("class_id", cls.id);
+      if (!classBatches?.length) return null;
+      const batchIds = classBatches.map((b: any) => b.id);
+      // Check if member has any enrollment in these batches
+      const { data } = await supabase
+        .from("enrollments")
+        .select("id")
+        .in("batch_id", batchIds)
+        .eq("family_member_id", selectedMemberId)
+        .in("status", ["active", "completed", "paused"])
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+  });
+
+  const isFirstTimeEnrollment = !existingEnrollment;
+  const applicableRegFee = isFirstTimeEnrollment ? registrationFee : 0;
+
   const selectedAddons = addons.filter((a: any) => selectedAddonIds.includes(a.id));
   const addonTotal = selectedAddons.reduce((sum: number, a: any) => sum + a.fee_amount, 0);
-  const totalAmount = batch.fee_amount + addonTotal;
+  const totalAmount = batch.fee_amount + addonTotal + applicableRegFee;
 
   const handleEnroll = async () => {
     if (!selectedMemberId || !profile) return;
@@ -270,6 +300,12 @@ const EnrollFlow = () => {
                 <span>Base fee</span>
                 <span>₹{batch.fee_amount}{FEE_LABELS[batch.fee_frequency] ?? ""}</span>
               </div>
+              {applicableRegFee > 0 && (
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Registration fee <span className="text-[10px]">(one-time)</span></span>
+                  <span>₹{applicableRegFee}</span>
+                </div>
+              )}
               {selectedAddons.map((a: any) => (
                 <div key={a.id} className="flex justify-between text-sm text-muted-foreground">
                   <span>{a.name}</span>
