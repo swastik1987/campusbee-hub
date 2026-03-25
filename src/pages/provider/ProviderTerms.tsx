@@ -130,7 +130,9 @@ const ProviderTerms = () => {
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Fee Amount</span>
                         <span className="font-medium">
-                          ₹{reg.admin_fee_amount}
+                          {reg.admin_fee_type === "percentage"
+                            ? `${reg.admin_fee_amount}%`
+                            : `₹${reg.admin_fee_amount}`}
                         </span>
                       </div>
 
