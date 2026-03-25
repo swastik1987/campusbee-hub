@@ -84,9 +84,15 @@ export function useProviderEnrollments(batchIds: string[], status?: string) {
       let query = supabase
         .from("enrollments")
         .select(`
-          id, batch_id, status, enrolled_at, notes, created_at,
-          family_members(id, name, relationship, avatar_url),
-          batches(id, batch_name, class_id, classes(id, title))
+          id, batch_id, family_member_id, enrolled_by, status, enrolled_at, approved_at, notes, created_at,
+          family_members(id, name, relationship, avatar_url, date_of_birth, age_group,
+            families(flat_number, block_tower)
+          ),
+          batches(id, batch_name, class_id, fee_amount, fee_frequency, start_date, end_date, status,
+            classes(id, title),
+            batch_schedules(day_of_week, start_time, end_time)
+          ),
+          payments(id, amount, status, upi_transaction_id, paid_at, payment_type)
         `)
         .in("batch_id", batchIds)
         .order("created_at", { ascending: false });
