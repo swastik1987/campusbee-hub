@@ -1,18 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useCreateEnrollment, useCreateWaitlistEntry, useRecordPayment } from "@/hooks/useSeeker";
-import { useBatches, useBatchSchedules, useClassAddons } from "@/hooks/useClasses";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Calendar, CheckCircle, Clock, Copy, Loader2, Users } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ArrowLeft, Calendar, CheckCircle, Clock, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -41,7 +40,7 @@ const EnrollFlow = () => {
   const recordPayment = useRecordPayment();
 
   // Fetch batch details with class info
-  const { data: batch } = useQuery({
+  const { data: batch, isLoading: batchLoading } = useQuery({
     queryKey: ["enroll-batch", batchId],
     enabled: !!batchId,
     queryFn: async () => {
@@ -70,43 +69,41 @@ const EnrollFlow = () => {
     },
   });
 
-  if (!batch || !profile) return null;
+  // Derived data — safe even when batch is null
+  const cls = (batch?.classes as any) ?? null;
+  const provider = cls?.provider_apartment_registrations?.service_providers ?? null;
+  const schedules = batch?.batch_schedules ?? [];
+  const addons = useMemo(
+    () => (cls?.class_addons ?? []).filter((a: any) => a.is_active),
+    [cls]
+  );
+  const slotsLeft = batch ? batch.max_batch_size - (batch.current_enrollment_count ?? 0) : 0;
+  const isFull = batch ? (batch.status === "full" || slotsLeft <= 0) : false;
+  const registrationFee = (batch as any)?.registration_fee ?? 0;
 
-  const cls = batch.classes as any;
-  const provider = cls?.provider_apartment_registrations?.service_providers;
-  const schedules = batch.batch_schedules ?? [];
-  const addons = (cls?.class_addons ?? []).filter((a: any) => a.is_active);
-  const slotsLeft = batch.max_batch_size - (batch.current_enrollment_count ?? 0);
-  const isFull = slotsLeft <= 0;
-
-  // Initialize mandatory addons
-  const mandatoryIds = addons.filter((a: any) => a.is_mandatory).map((a: any) => a.id);
-  if (mandatoryIds.some((id: string) => !selectedAddonIds.includes(id))) {
-    setSelectedAddonIds((prev) => [...new Set([...prev, ...mandatoryIds])]);
-  }
-
-  const toggleAddon = (id: string) => {
-    if (mandatoryIds.includes(id)) return;
-    setSelectedAddonIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-  const registrationFee = (batch as any).registration_fee ?? 0;
+  // Initialize mandatory addons via useEffect (not during render)
+  useEffect(() => {
+    if (!addons.length) return;
+    const mandatoryIds = addons.filter((a: any) => a.is_mandatory).map((a: any) => a.id);
+    if (mandatoryIds.length > 0) {
+      setSelectedAddonIds((prev) => {
+        const merged = [...new Set([...prev, ...mandatoryIds])];
+        return merged.length !== prev.length ? merged : prev;
+      });
+    }
+  }, [addons]);
 
   // Check if this member already has an enrollment in any batch of this class (registration fee is first-time only)
   const { data: existingEnrollment } = useQuery({
     queryKey: ["existing-enrollment-check", selectedMemberId, cls?.id],
     enabled: !!selectedMemberId && !!cls?.id,
     queryFn: async () => {
-      // Get all batch IDs for this class
       const { data: classBatches } = await supabase
         .from("batches")
         .select("id")
         .eq("class_id", cls.id);
       if (!classBatches?.length) return null;
       const batchIds = classBatches.map((b: any) => b.id);
-      // Check if member has any enrollment in these batches
       const { data } = await supabase
         .from("enrollments")
         .select("id")
@@ -122,12 +119,24 @@ const EnrollFlow = () => {
   const isFirstTimeEnrollment = !existingEnrollment;
   const applicableRegFee = isFirstTimeEnrollment ? registrationFee : 0;
 
+  const mandatoryIds = useMemo(
+    () => addons.filter((a: any) => a.is_mandatory).map((a: any) => a.id),
+    [addons]
+  );
+
+  const toggleAddon = (id: string) => {
+    if (mandatoryIds.includes(id)) return;
+    setSelectedAddonIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
   const selectedAddons = addons.filter((a: any) => selectedAddonIds.includes(a.id));
   const addonTotal = selectedAddons.reduce((sum: number, a: any) => sum + a.fee_amount, 0);
-  const totalAmount = batch.fee_amount + addonTotal + applicableRegFee;
+  const totalAmount = (batch?.fee_amount ?? 0) + addonTotal + applicableRegFee;
 
   const handleEnroll = async () => {
-    if (!selectedMemberId || !profile) return;
+    if (!selectedMemberId || !profile || !batch) return;
 
     try {
       if (isFull && batch.auto_waitlist) {
@@ -137,7 +146,7 @@ const EnrollFlow = () => {
           requestedBy: profile.id,
         });
         setWaitlistPosition(result.position);
-        setStep(3); // success
+        setStep(3);
         return;
       }
 
@@ -148,7 +157,7 @@ const EnrollFlow = () => {
         selectedAddonIds,
       });
       setEnrollmentId(result.id);
-      setStep(2); // payment
+      setStep(2);
     } catch (err: any) {
       toast.error(err?.message || "Enrollment failed");
     }
@@ -165,7 +174,7 @@ const EnrollFlow = () => {
         paymentType: "class_fee",
         upiTransactionId: upiRef.trim(),
       });
-      setStep(3); // success
+      setStep(3);
     } catch {
       toast.error("Failed to record payment");
     }
@@ -177,6 +186,37 @@ const EnrollFlow = () => {
       toast.success("UPI ID copied");
     }
   };
+
+  // Loading state
+  if (batchLoading || !profile) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card px-4 py-3">
+          <button onClick={() => navigate(-1)} className="p-1"><ArrowLeft size={20} /></button>
+          <Skeleton className="h-6 w-32" />
+        </header>
+        <div className="p-6 space-y-4">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!batch) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card px-4 py-3">
+          <button onClick={() => navigate(-1)} className="p-1"><ArrowLeft size={20} /></button>
+          <h1 className="text-lg font-bold">Enroll</h1>
+        </header>
+        <div className="flex flex-1 items-center justify-center p-6">
+          <p className="text-sm text-muted-foreground">Batch not found</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -203,34 +243,43 @@ const EnrollFlow = () => {
         {step === 0 && (
           <div className="space-y-4 animate-fade-up">
             <h2 className="text-xl font-bold">Who is enrolling?</h2>
-            <div className="space-y-2">
-              {familyMembers.map((member) => (
-                <Card
-                  key={member.id}
-                  className={`flex items-center gap-3 p-4 cursor-pointer transition-all ${
-                    selectedMemberId === member.id ? "border-primary bg-primary/5" : "hover:border-primary/50"
-                  }`}
-                  onClick={() => setSelectedMemberId(member.id)}
-                >
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={member.avatar_url ?? undefined} />
-                    <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                      {member.name[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold">{member.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {member.relationship}
-                      {member.age_group && ` · ${member.age_group}`}
-                    </p>
-                  </div>
-                  {selectedMemberId === member.id && (
-                    <CheckCircle size={20} className="text-primary" />
-                  )}
-                </Card>
-              ))}
-            </div>
+            {familyMembers.length === 0 ? (
+              <Card className="p-4 text-center">
+                <p className="text-sm text-muted-foreground">No family members found. Please add a family member from your profile first.</p>
+                <Button variant="outline" className="mt-3" onClick={() => navigate("/family")}>
+                  Manage Family
+                </Button>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {familyMembers.map((member) => (
+                  <Card
+                    key={member.id}
+                    className={`flex items-center gap-3 p-4 cursor-pointer transition-all ${
+                      selectedMemberId === member.id ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                    }`}
+                    onClick={() => setSelectedMemberId(member.id)}
+                  >
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={member.avatar_url ?? undefined} />
+                      <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                        {member.name[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold">{member.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {member.relationship}
+                        {member.age_group && ` · ${member.age_group}`}
+                      </p>
+                    </div>
+                    {selectedMemberId === member.id && (
+                      <CheckCircle size={20} className="text-primary" />
+                    )}
+                  </Card>
+                ))}
+              </div>
+            )}
             <Button
               disabled={!selectedMemberId}
               onClick={() => setStep(1)}
