@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useCreateProvider, useUploadProviderMedia } from "@/hooks/useProvider";
+import { useCategories } from "@/hooks/useClasses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,13 +32,6 @@ import { toast } from "sonner";
 
 const STEPS = ["Type", "Profile", "Payment", "Apartments"];
 
-const SPECIALIZATION_OPTIONS = [
-  "Badminton", "Tennis", "Swimming", "Cricket", "Football", "Basketball",
-  "Karate", "Taekwondo", "Classical Dance", "Western Dance", "Bollywood Dance",
-  "Drawing", "Painting", "Craft", "Mathematics", "Science", "English",
-  "Vocal Music", "Guitar", "Piano", "Drums", "Yoga", "Fitness",
-];
-
 const BecomeProvider = () => {
   const navigate = useNavigate();
   const { profile, family, refreshProfile } = useUser();
@@ -52,6 +46,7 @@ const BecomeProvider = () => {
   const [experience, setExperience] = useState("");
   const [qualifications, setQualifications] = useState("");
   const [specializations, setSpecializations] = useState<string[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [introVideoUrl, setIntroVideoUrl] = useState("");
 
   // Step 3 state
@@ -66,10 +61,17 @@ const BecomeProvider = () => {
 
   const createProvider = useCreateProvider();
   const uploadMedia = useUploadProviderMedia();
+  const { data: allCategories } = useCategories();
 
-  const toggleSpec = (spec: string) => {
+  const parentCategories = allCategories?.filter((c) => !c.parent_category_id) ?? [];
+  const subCategories = allCategories?.filter((c) => c.parent_category_id) ?? [];
+
+  const toggleCategoryId = (catId: string, catName: string) => {
+    setSelectedCategoryIds((prev) =>
+      prev.includes(catId) ? prev.filter((id) => id !== catId) : [...prev, catId]
+    );
     setSpecializations((prev) =>
-      prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec]
+      prev.includes(catName) ? prev.filter((s) => s !== catName) : [...prev, catName]
     );
   };
 
@@ -96,6 +98,7 @@ const BecomeProvider = () => {
         experienceYears: experience ? parseInt(experience) : null,
         qualifications,
         specializations,
+        specializationCategoryIds: selectedCategoryIds,
         introVideoUrl,
         whatsappNumber,
         upiId,
@@ -216,20 +219,29 @@ const BecomeProvider = () => {
               <Label>Qualifications</Label>
               <Textarea value={qualifications} onChange={(e) => setQualifications(e.target.value)} placeholder="Certifications, degrees..." rows={2} className="rounded-xl" />
             </div>
-            <div className="space-y-2">
-              <Label>Specializations</Label>
-              <div className="flex flex-wrap gap-2">
-                {SPECIALIZATION_OPTIONS.map((s) => (
-                  <Badge
-                    key={s}
-                    variant={specializations.includes(s) ? "default" : "outline"}
-                    className={`cursor-pointer transition-all ${specializations.includes(s) ? "bg-provider hover:bg-provider/90" : "hover:border-provider"}`}
-                    onClick={() => toggleSpec(s)}
-                  >
-                    {s}
-                  </Badge>
-                ))}
-              </div>
+            <div className="space-y-3">
+              <Label>What will you teach? (select sub-categories)</Label>
+              {parentCategories.map((parent) => {
+                const children = subCategories.filter((c) => c.parent_category_id === parent.id);
+                if (children.length === 0) return null;
+                return (
+                  <div key={parent.id} className="space-y-1.5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{parent.name}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {children.map((cat) => (
+                        <Badge
+                          key={cat.id}
+                          variant={selectedCategoryIds.includes(cat.id) ? "default" : "outline"}
+                          className={`cursor-pointer transition-all ${selectedCategoryIds.includes(cat.id) ? "bg-provider hover:bg-provider/90" : "hover:border-provider"}`}
+                          onClick={() => toggleCategoryId(cat.id, cat.name)}
+                        >
+                          {cat.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             <Button onClick={() => setStep(2)} className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl">
               Continue

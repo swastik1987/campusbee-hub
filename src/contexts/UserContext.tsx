@@ -53,6 +53,7 @@ type ProviderProfileRow = {
   business_name: string | null;
   bio: string | null;
   is_verified: boolean | null;
+  specialization_category_ids: string[] | null;
 };
 
 type UserContextType = {
@@ -205,7 +206,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const fetchProviderProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from("service_providers")
-      .select("id, user_id, provider_type, business_name, bio, is_verified")
+      .select("id, user_id, provider_type, business_name, bio, is_verified, specialization_category_ids")
       .eq("user_id", userId)
       .maybeSingle();
     setProviderProfile(data);

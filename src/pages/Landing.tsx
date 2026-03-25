@@ -397,7 +397,7 @@ const GuestLanding = () => {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Hero */}
-      <div className="flex flex-1 flex-col items-center px-6 pt-16 pb-8">
+      <div className="flex flex-1 flex-col items-center px-6 pt-8 pb-8">
         {/* Logo */}
         <div className="mb-4 animate-fade-up" style={{ animationDelay: "0ms" }}>
           <img src="/logo-full.png" alt="CampusBee" className="h-20 object-contain" />
@@ -457,42 +457,6 @@ const GuestLanding = () => {
           ))}
         </div>
 
-        {/* Admin quick-access section */}
-        <div className="mt-8 w-full max-w-sm animate-fade-up" style={{ animationDelay: "660ms" }}>
-          <div className="mb-3 flex items-center gap-2">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Admin Access</span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
-          <div className="space-y-2">
-            <button
-              onClick={() => navigate("/auth?role=platform_admin")}
-              className="flex w-full items-center gap-3 rounded-xl bg-card p-4 text-left shadow-sm transition-colors hover:bg-accent active:scale-[0.98]"
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
-                <Shield size={20} className="text-emerald-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold">Platform Admin</p>
-                <p className="text-xs text-muted-foreground">Manage apartments, categories & analytics</p>
-              </div>
-              <ChevronRight size={16} className="text-muted-foreground" />
-            </button>
-            <button
-              onClick={() => navigate("/auth?role=apartment_admin")}
-              className="flex w-full items-center gap-3 rounded-xl bg-card p-4 text-left shadow-sm transition-colors hover:bg-accent active:scale-[0.98]"
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10">
-                <Building2 size={20} className="text-indigo-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold">Apartment Admin</p>
-                <p className="text-xs text-muted-foreground">Approve providers & manage your community</p>
-              </div>
-              <ChevronRight size={16} className="text-muted-foreground" />
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Footer */}

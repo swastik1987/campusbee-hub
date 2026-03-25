@@ -1,6 +1,8 @@
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useFeaturedClasses, useNewClasses, usePopularClasses } from "@/hooks/useSeeker";
+import { useNewClasses, usePopularClasses } from "@/hooks/useSeeker";
+import { useActiveFeaturedListings } from "@/hooks/useFeatured";
 import { useIncomingInvites } from "@/hooks/useFamilyLinking";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
@@ -50,9 +52,37 @@ const SeekerHome = () => {
     },
   });
 
-  const { data: featured, isLoading: featuredLoading } = useFeaturedClasses(aptId);
+  const { data: featuredListings } = useActiveFeaturedListings(aptId);
   const { data: newClasses, isLoading: newLoading } = useNewClasses(aptId);
   const { data: popular, isLoading: popularLoading } = usePopularClasses(aptId);
+
+  // Featured carousel state
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  useEffect(() => {
+    if (!featuredListings || featuredListings.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => {
+        const next = (prev + 1) % featuredListings.length;
+        carouselRef.current?.scrollTo({ left: next * carouselRef.current.offsetWidth, behavior: "smooth" });
+        return next;
+      });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [featuredListings]);
+
+  // Track manual scrolling
+  useEffect(() => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const index = Math.round(el.scrollLeft / el.offsetWidth);
+      setCurrentSlide(index);
+    };
+    el.addEventListener("scrollend", handleScroll);
+    return () => el.removeEventListener("scrollend", handleScroll);
+  }, []);
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-20">
@@ -88,6 +118,47 @@ const SeekerHome = () => {
           />
         </div>
 
+        {/* Featured Classes Banner Carousel */}
+        {featuredListings && featuredListings.length > 0 && (
+          <div className="space-y-2">
+            <h2 className="text-base font-bold">Featured Classes</h2>
+            <div className="relative">
+              <div
+                ref={carouselRef}
+                className="flex overflow-x-auto scroll-snap-x-mandatory scrollbar-hide gap-0"
+                style={{ scrollSnapType: "x mandatory" }}
+              >
+                {featuredListings.map((listing) => (
+                  <div
+                    key={listing.id}
+                    className="w-full flex-shrink-0 scroll-snap-start cursor-pointer"
+                    style={{ scrollSnapAlign: "start" }}
+                    onClick={() => navigate(`/class/${listing.class_id}`)}
+                  >
+                    <div className="relative aspect-[3/1] overflow-hidden rounded-xl mx-1">
+                      <img src={listing.banner_image_url} alt="" className="h-full w-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      <div className="absolute bottom-2 left-3 right-3">
+                        <p className="text-sm font-bold text-white truncate">
+                          {(listing.classes as any)?.title}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Dot indicators */}
+              {featuredListings.length > 1 && (
+                <div className="flex justify-center gap-1.5 mt-2">
+                  {featuredListings.map((_, i) => (
+                    <div key={i} className={`h-1.5 rounded-full transition-all ${i === currentSlide ? "w-4 bg-primary" : "w-1.5 bg-muted-foreground/30"}`} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Category grid */}
         <div>
           <h2 className="mb-3 text-base font-bold">Browse Categories</h2>
@@ -114,34 +185,6 @@ const SeekerHome = () => {
                   </Card>
                 );
               })}
-            </div>
-          )}
-        </div>
-
-        {/* Featured classes */}
-        <div>
-          <h2 className="mb-3 text-base font-bold">Featured Classes</h2>
-          {featuredLoading ? (
-            <div className="flex gap-3 overflow-x-auto">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-40 w-44 rounded-xl flex-shrink-0" />
-              ))}
-            </div>
-          ) : featured && featured.length > 0 ? (
-            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
-              {featured.map((cls) => (
-                <ClassCard key={cls.id} cls={cls as any} variant="vertical" />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-muted-foreground/20 p-8 text-center">
-              <BookOpen size={32} className="text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">
-                Classes will appear here once providers add them
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {currentApartment ? `in ${currentApartment.name}` : "Select an apartment to see classes"}
-              </p>
             </div>
           )}
         </div>

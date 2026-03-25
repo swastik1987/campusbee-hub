@@ -17,6 +17,7 @@ export function useCreateProvider() {
       experienceYears: number | null;
       qualifications: string;
       specializations: string[];
+      specializationCategoryIds: string[];
       introVideoUrl: string;
       whatsappNumber: string;
       upiId: string;
@@ -34,6 +35,7 @@ export function useCreateProvider() {
           experience_years: input.experienceYears,
           qualifications: input.qualifications || null,
           specializations: input.specializations,
+          specialization_category_ids: input.specializationCategoryIds,
           intro_video_url: input.introVideoUrl || null,
           whatsapp_number: input.whatsappNumber || null,
           upi_id: input.upiId || null,

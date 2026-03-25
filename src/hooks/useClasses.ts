@@ -150,6 +150,57 @@ export function useUpdateClassStatus() {
   });
 }
 
+export function useUpdateClass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      classId: string;
+      title?: string;
+      description?: string;
+      shortDescription?: string;
+      classType?: string;
+      skillLevel?: string[];
+      ageGroupMin?: number | null;
+      ageGroupMax?: number | null;
+      venueDetails?: string;
+      whatToBring?: string;
+      coverImageUrl?: string;
+      galleryUrls?: string[];
+      promoVideoUrl?: string;
+      trialAvailable?: boolean;
+      trialFee?: number;
+      status?: string;
+      isFeatured?: boolean;
+    }) => {
+      const { classId, ...fields } = input;
+      const updateObj: any = {};
+      if (fields.title !== undefined) updateObj.title = fields.title;
+      if (fields.description !== undefined) updateObj.description = fields.description || null;
+      if (fields.shortDescription !== undefined) updateObj.short_description = fields.shortDescription || null;
+      if (fields.classType !== undefined) updateObj.class_type = fields.classType;
+      if (fields.skillLevel !== undefined) updateObj.skill_level = fields.skillLevel;
+      if (fields.ageGroupMin !== undefined) updateObj.age_group_min = fields.ageGroupMin;
+      if (fields.ageGroupMax !== undefined) updateObj.age_group_max = fields.ageGroupMax;
+      if (fields.venueDetails !== undefined) updateObj.venue_details = fields.venueDetails || null;
+      if (fields.whatToBring !== undefined) updateObj.what_to_bring = fields.whatToBring || null;
+      if (fields.coverImageUrl !== undefined) updateObj.cover_image_url = fields.coverImageUrl || null;
+      if (fields.galleryUrls !== undefined) updateObj.gallery_urls = fields.galleryUrls;
+      if (fields.promoVideoUrl !== undefined) updateObj.promo_video_url = fields.promoVideoUrl || null;
+      if (fields.trialAvailable !== undefined) updateObj.trial_available = fields.trialAvailable;
+      if (fields.trialFee !== undefined) updateObj.trial_fee = fields.trialFee;
+      if (fields.status !== undefined) updateObj.status = fields.status;
+      if (fields.isFeatured !== undefined) updateObj.is_featured = fields.isFeatured;
+
+      const { error } = await supabase.from("classes").update(updateObj).eq("id", classId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["provider-classes"] });
+      qc.invalidateQueries({ queryKey: ["class-detail"] });
+    },
+  });
+}
+
 export function useUploadClassImage() {
   return useMutation({
     mutationFn: async ({ classId, file, folder }: { classId: string; file: File; folder: string }) => {
@@ -224,6 +275,7 @@ export function useCreateBatch() {
       registrationMode: string;
       autoWaitlist: boolean;
       notes: string;
+      registrationFee?: number;
       status: string;
       schedules: { dayOfWeek: number; startTime: string; endTime: string }[];
     }) => {
@@ -246,6 +298,7 @@ export function useCreateBatch() {
           registration_mode: input.registrationMode,
           auto_waitlist: input.autoWaitlist,
           notes: input.notes || null,
+          registration_fee: input.registrationFee ?? 0,
           status: input.status,
         })
         .select("id")
@@ -283,6 +336,49 @@ export function useUpdateBatchStatus() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["batches"] }),
+  });
+}
+
+export function useUpdateBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      batchId: string;
+      batchName?: string;
+      maxBatchSize?: number;
+      feeAmount?: number;
+      feeFrequency?: string;
+      registrationFee?: number;
+      startDate?: string | null;
+      endDate?: string | null;
+      totalSessions?: number | null;
+      registrationMode?: string;
+      autoWaitlist?: boolean;
+      notes?: string;
+      status?: string;
+    }) => {
+      const { batchId, ...fields } = input;
+      const updateObj: any = {};
+      if (fields.batchName !== undefined) updateObj.batch_name = fields.batchName;
+      if (fields.maxBatchSize !== undefined) updateObj.max_batch_size = fields.maxBatchSize;
+      if (fields.feeAmount !== undefined) updateObj.fee_amount = fields.feeAmount;
+      if (fields.feeFrequency !== undefined) updateObj.fee_frequency = fields.feeFrequency;
+      if (fields.registrationFee !== undefined) updateObj.registration_fee = fields.registrationFee;
+      if (fields.startDate !== undefined) updateObj.start_date = fields.startDate;
+      if (fields.endDate !== undefined) updateObj.end_date = fields.endDate;
+      if (fields.totalSessions !== undefined) updateObj.total_sessions = fields.totalSessions;
+      if (fields.registrationMode !== undefined) updateObj.registration_mode = fields.registrationMode;
+      if (fields.autoWaitlist !== undefined) updateObj.auto_waitlist = fields.autoWaitlist;
+      if (fields.notes !== undefined) updateObj.notes = fields.notes || null;
+      if (fields.status !== undefined) updateObj.status = fields.status;
+
+      const { error } = await supabase.from("batches").update(updateObj).eq("id", batchId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["batches"] });
+      qc.invalidateQueries({ queryKey: ["class-detail"] });
+    },
   });
 }
 
