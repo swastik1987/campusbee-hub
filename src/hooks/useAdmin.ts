@@ -50,8 +50,11 @@ export function useAdminProviderRegistrations(apartmentId: string | undefined, s
       let query = supabase
         .from("provider_apartment_registrations")
         .select(`
-          id, status, admin_fee_type, admin_fee_amount, created_at, approved_at,
-          suspended_at, suspension_reason,
+          id, status, admin_fee_type, admin_fee_amount,
+          min_guaranteed_fee, revenue_share_pct, payment_frequency,
+          free_trial_days, commercial_notes, terms_status,
+          terms_accepted_at, terms_version,
+          created_at, approved_at, suspended_at, suspension_reason,
           service_providers(
             id, user_id, provider_type, business_name, bio, experience_years,
             qualifications, specializations, whatsapp_number, is_verified,
@@ -80,6 +83,11 @@ export function useApproveProvider() {
       approvedBy: string;
       feeType: string;
       feeAmount: number;
+      minGuaranteedFee?: number;
+      revenueSharePct?: number;
+      paymentFrequency?: string;
+      freeTrialDays?: number;
+      commercialNotes?: string;
     }) => {
       const { error } = await supabase
         .from("provider_apartment_registrations")
@@ -89,9 +97,41 @@ export function useApproveProvider() {
           approved_at: new Date().toISOString(),
           admin_fee_type: input.feeType,
           admin_fee_amount: input.feeAmount,
+          min_guaranteed_fee: input.minGuaranteedFee ?? 0,
+          revenue_share_pct: input.revenueSharePct ?? 0,
+          payment_frequency: input.paymentFrequency ?? "monthly",
+          free_trial_days: input.freeTrialDays ?? 0,
+          commercial_notes: input.commercialNotes ?? null,
+          terms_status: "pending_acceptance",
+          terms_version: 1,
         })
         .eq("id", input.registrationId);
       if (error) throw error;
+
+      // Notify the provider via RPC
+      const { data: reg } = await supabase
+        .from("provider_apartment_registrations")
+        .select("service_providers(user_id), apartment_id")
+        .eq("id", input.registrationId)
+        .single();
+
+      const { data: apt } = await supabase
+        .from("apartment_complexes")
+        .select("name")
+        .eq("id", (reg as any)?.apartment_id)
+        .single();
+
+      const providerUserId = (reg as any)?.service_providers?.user_id;
+      if (providerUserId) {
+        await supabase.rpc("send_notification", {
+          p_user_id: providerUserId,
+          p_title: "Application Approved!",
+          p_body: `You've been approved at ${apt?.name ?? "an apartment"}. Please review and accept the commercial terms.`,
+          p_type: "provider_approved",
+          p_ref_type: "provider_apartment_registration",
+          p_ref_id: input.registrationId,
+        });
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-provider-regs"] });
@@ -103,12 +143,37 @@ export function useApproveProvider() {
 export function useRejectProvider() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (registrationId: string) => {
+    mutationFn: async (input: { registrationId: string; reason?: string }) => {
+      const { data: reg } = await supabase
+        .from("provider_apartment_registrations")
+        .select("service_providers(user_id), apartment_id")
+        .eq("id", input.registrationId)
+        .single();
+
       const { error } = await supabase
         .from("provider_apartment_registrations")
         .update({ status: "rejected" })
-        .eq("id", registrationId);
+        .eq("id", input.registrationId);
       if (error) throw error;
+
+      // Notify provider
+      const { data: apt } = await supabase
+        .from("apartment_complexes")
+        .select("name")
+        .eq("id", (reg as any)?.apartment_id)
+        .single();
+
+      const providerUserId = (reg as any)?.service_providers?.user_id;
+      if (providerUserId) {
+        await supabase.rpc("send_notification", {
+          p_user_id: providerUserId,
+          p_title: "Application Not Approved",
+          p_body: `Your application at ${apt?.name ?? "an apartment"} was not approved.${input.reason ? ` Reason: ${input.reason}` : ""}`,
+          p_type: "provider_rejected",
+          p_ref_type: "provider_apartment_registration",
+          p_ref_id: input.registrationId,
+        });
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-provider-regs"] });
@@ -278,6 +343,152 @@ export function useConfirmFeePaid() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-fee-payments"] });
+    },
+  });
+}
+
+// ---- Admin: Provider Detail ----
+
+export function useAdminProviderDetail(registrationId: string | undefined) {
+  return useQuery({
+    queryKey: ["admin-provider-detail", registrationId],
+    enabled: !!registrationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("provider_apartment_registrations")
+        .select(`
+          id, status, admin_fee_type, admin_fee_amount,
+          min_guaranteed_fee, revenue_share_pct, payment_frequency,
+          free_trial_days, commercial_notes, terms_status,
+          terms_accepted_at, terms_version,
+          created_at, approved_at, approved_by, suspended_at, suspension_reason,
+          apartment_id,
+          service_providers(
+            id, user_id, provider_type, business_name, bio,
+            experience_years, qualifications, specializations,
+            whatsapp_number, is_verified,
+            users(full_name, avatar_url, email, mobile_number)
+          )
+        `)
+        .eq("id", registrationId!)
+        .single();
+      if (error) throw error;
+
+      // Fetch class count and student count for this registration
+      const { count: classCount } = await supabase
+        .from("classes")
+        .select("id", { count: "exact", head: true })
+        .eq("provider_registration_id", registrationId!);
+
+      const { data: classes } = await supabase
+        .from("classes")
+        .select("id")
+        .eq("provider_registration_id", registrationId!);
+      const classIds = classes?.map((c) => c.id) ?? [];
+
+      let activeStudents = 0;
+      if (classIds.length > 0) {
+        const { data: batches } = await supabase
+          .from("batches")
+          .select("id")
+          .in("class_id", classIds);
+        const batchIds = batches?.map((b) => b.id) ?? [];
+
+        if (batchIds.length > 0) {
+          const { count } = await supabase
+            .from("enrollments")
+            .select("id", { count: "exact", head: true })
+            .in("batch_id", batchIds)
+            .eq("status", "active");
+          activeStudents = count ?? 0;
+        }
+      }
+
+      // Get confirmed payment total
+      let totalRevenue = 0;
+      const providerId = (data as any)?.service_providers?.id;
+      if (providerId) {
+        const { data: payments } = await supabase
+          .from("payments")
+          .select("amount")
+          .eq("provider_id", providerId)
+          .eq("status", "confirmed");
+        totalRevenue = (payments ?? []).reduce((sum: number, p: any) => sum + (p.amount ?? 0), 0);
+      }
+
+      return {
+        ...data,
+        classCount: classCount ?? 0,
+        activeStudents,
+        totalRevenue,
+      };
+    },
+  });
+}
+
+// ---- Admin: Update Commercial Terms ----
+
+export function useUpdateCommercialTerms() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      registrationId: string;
+      feeType: string;
+      feeAmount: number;
+      minGuaranteedFee?: number;
+      revenueSharePct?: number;
+      paymentFrequency?: string;
+      freeTrialDays?: number;
+      commercialNotes?: string;
+    }) => {
+      // Get current version
+      const { data: current } = await supabase
+        .from("provider_apartment_registrations")
+        .select("terms_version, service_providers(user_id), apartment_id")
+        .eq("id", input.registrationId)
+        .single();
+
+      const newVersion = ((current as any)?.terms_version ?? 0) + 1;
+
+      const { error } = await supabase
+        .from("provider_apartment_registrations")
+        .update({
+          admin_fee_type: input.feeType,
+          admin_fee_amount: input.feeAmount,
+          min_guaranteed_fee: input.minGuaranteedFee ?? 0,
+          revenue_share_pct: input.revenueSharePct ?? 0,
+          payment_frequency: input.paymentFrequency ?? "monthly",
+          free_trial_days: input.freeTrialDays ?? 0,
+          commercial_notes: input.commercialNotes ?? null,
+          terms_status: "pending_acceptance",
+          terms_accepted_at: null,
+          terms_version: newVersion,
+        })
+        .eq("id", input.registrationId);
+      if (error) throw error;
+
+      // Notify provider
+      const { data: apt } = await supabase
+        .from("apartment_complexes")
+        .select("name")
+        .eq("id", (current as any)?.apartment_id)
+        .single();
+
+      const providerUserId = (current as any)?.service_providers?.user_id;
+      if (providerUserId) {
+        await supabase.rpc("send_notification", {
+          p_user_id: providerUserId,
+          p_title: "Commercial Terms Updated",
+          p_body: `The admin at ${apt?.name ?? "your apartment"} has updated your commercial terms. Please review and accept.`,
+          p_type: "terms_updated",
+          p_ref_type: "provider_apartment_registration",
+          p_ref_id: input.registrationId,
+        });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-provider-regs"] });
+      qc.invalidateQueries({ queryKey: ["admin-provider-detail"] });
     },
   });
 }

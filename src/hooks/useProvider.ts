@@ -315,3 +315,70 @@ export function useDeleteTrainer() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["trainers"] }),
   });
 }
+
+// ---- Provider: Pending Commercial Terms ----
+
+export function useProviderPendingTerms(providerId: string | undefined) {
+  return useQuery({
+    queryKey: ["provider-pending-terms", providerId],
+    enabled: !!providerId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("provider_apartment_registrations")
+        .select(`
+          id, status, admin_fee_type, admin_fee_amount,
+          min_guaranteed_fee, revenue_share_pct, payment_frequency,
+          free_trial_days, commercial_notes, terms_status,
+          terms_version, created_at, approved_at,
+          apartment_complexes(id, name, city, locality)
+        `)
+        .eq("provider_id", providerId!)
+        .eq("terms_status", "pending_acceptance");
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+// ---- Provider: Accept or Reject Terms ----
+
+export function useRespondToTerms() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ registrationId, accept }: { registrationId: string; accept: boolean }) => {
+      const { error } = await supabase.rpc("accept_provider_terms", {
+        p_registration_id: registrationId,
+        p_accept: accept,
+      });
+      if (error) throw error;
+
+      // Notify the admin who approved
+      const { data: reg } = await supabase
+        .from("provider_apartment_registrations")
+        .select("approved_by, apartment_id, service_providers(business_name, users(full_name))")
+        .eq("id", registrationId)
+        .single();
+
+      const adminUserId = (reg as any)?.approved_by;
+      const provName = (reg as any)?.service_providers?.business_name
+        || (reg as any)?.service_providers?.users?.full_name;
+
+      if (adminUserId) {
+        await supabase.rpc("send_notification", {
+          p_user_id: adminUserId,
+          p_title: accept ? "Terms Accepted" : "Terms Rejected",
+          p_body: accept
+            ? `${provName} has accepted the commercial terms.`
+            : `${provName} has rejected the commercial terms. You may want to renegotiate.`,
+          p_type: accept ? "terms_accepted" : "terms_rejected",
+          p_ref_type: "provider_apartment_registration",
+          p_ref_id: registrationId,
+        });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["provider-pending-terms"] });
+      qc.invalidateQueries({ queryKey: ["provider-registrations"] });
+    },
+  });
+}

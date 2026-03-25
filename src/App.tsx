@@ -35,9 +35,11 @@ import ProviderAnalytics from "./pages/provider/ProviderAnalytics";
 import ProviderMaterials from "./pages/provider/ProviderMaterials";
 import ProviderDemoSessions from "./pages/provider/ProviderDemoSessions";
 import ProviderReviews from "./pages/provider/ProviderReviews";
+import ProviderTerms from "./pages/provider/ProviderTerms";
 import Notifications from "./pages/Notifications";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProviders from "./pages/admin/AdminProviders";
+import AdminProviderDetail from "./pages/admin/AdminProviderDetail";
 import AdminReports from "./pages/admin/AdminReports";
 import PlatformLayout from "./pages/platform/PlatformLayout";
 import PlatformDashboard from "./pages/platform/PlatformDashboard";
@@ -89,6 +91,7 @@ const App = () => (
             <Route path="/provider/classes/:classId/materials" element={<AuthGuard><ProviderMaterials /></AuthGuard>} />
             <Route path="/provider/classes/:classId/demos" element={<AuthGuard><ProviderDemoSessions /></AuthGuard>} />
             <Route path="/provider/reviews" element={<AuthGuard><ProviderReviews /></AuthGuard>} />
+            <Route path="/provider/terms" element={<AuthGuard><ProviderTerms /></AuthGuard>} />
 
             {/* Notifications */}
             <Route path="/notifications" element={<AuthGuard><Notifications /></AuthGuard>} />
@@ -96,6 +99,7 @@ const App = () => (
             {/* Protected admin routes */}
             <Route path="/admin/dashboard" element={<AuthGuard><AdminDashboard /></AuthGuard>} />
             <Route path="/admin/providers" element={<AuthGuard><AdminProviders /></AuthGuard>} />
+            <Route path="/admin/providers/:registrationId" element={<AuthGuard><AdminProviderDetail /></AuthGuard>} />
             <Route path="/admin/reports" element={<AuthGuard><AdminReports /></AuthGuard>} />
 
             {/* Platform admin routes (nested layout) */}

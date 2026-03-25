@@ -61,9 +61,30 @@ const AdminProviders = () => {
   const [detailReg, setDetailReg] = useState<any>(null);
   const [approveSheet, setApproveSheet] = useState<any>(null);
   const [suspendSheet, setSuspendSheet] = useState<any>(null);
+  const [rejectSheet, setRejectSheet] = useState<any>(null);
+
+  // Approval form states
   const [feeType, setFeeType] = useState("flat");
   const [feeAmount, setFeeAmount] = useState("0");
+  const [minGuaranteedFee, setMinGuaranteedFee] = useState("0");
+  const [revenueSharePct, setRevenueSharePct] = useState("0");
+  const [paymentFrequency, setPaymentFrequency] = useState("monthly");
+  const [freeTrialDays, setFreeTrialDays] = useState("0");
+  const [commercialNotes, setCommercialNotes] = useState("");
+
+  // Suspend / Reject states
   const [suspendReason, setSuspendReason] = useState("");
+  const [rejectReason, setRejectReason] = useState("");
+
+  const resetApproveForm = () => {
+    setFeeType("flat");
+    setFeeAmount("0");
+    setMinGuaranteedFee("0");
+    setRevenueSharePct("0");
+    setPaymentFrequency("monthly");
+    setFreeTrialDays("0");
+    setCommercialNotes("");
+  };
 
   const handleApprove = async () => {
     if (!approveSheet || !profile) return;
@@ -73,11 +94,32 @@ const AdminProviders = () => {
         approvedBy: profile.id,
         feeType,
         feeAmount: parseFloat(feeAmount) || 0,
+        minGuaranteedFee: parseFloat(minGuaranteedFee) || 0,
+        revenueSharePct: parseFloat(revenueSharePct) || 0,
+        paymentFrequency,
+        freeTrialDays: parseInt(freeTrialDays, 10) || 0,
+        commercialNotes: commercialNotes.trim() || undefined,
       });
       toast.success("Provider approved");
       setApproveSheet(null);
+      resetApproveForm();
     } catch {
       toast.error("Failed to approve");
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectSheet) return;
+    try {
+      await rejectProvider.mutateAsync({
+        registrationId: rejectSheet.id,
+        reason: rejectReason.trim() || undefined,
+      });
+      toast.success("Provider rejected");
+      setRejectSheet(null);
+      setRejectReason("");
+    } catch {
+      toast.error("Failed to reject");
     }
   };
 
@@ -105,11 +147,35 @@ const AdminProviders = () => {
     }
   };
 
+  const renderTermsStatusBadge = (reg: any) => {
+    if (reg.status !== "approved") return null;
+    if (reg.terms_status === "accepted") return null;
+
+    if (reg.terms_status === "rejected") {
+      return (
+        <Badge variant="destructive" className="text-[9px] h-4 px-1">
+          Terms Rejected
+        </Badge>
+      );
+    }
+
+    // pending / not yet accepted
+    return (
+      <Badge className="text-[9px] h-4 px-1 bg-amber-100 text-amber-800 hover:bg-amber-100">
+        Awaiting Acceptance
+      </Badge>
+    );
+  };
+
   const renderProviderCard = (reg: any) => {
     const prov = reg.service_providers as any;
     const user = prov?.users;
     return (
-      <Card key={reg.id} className="p-4 space-y-3">
+      <Card
+        key={reg.id}
+        className="p-4 space-y-3 cursor-pointer hover:shadow-md transition-shadow"
+        onClick={() => navigate(`/admin/providers/${reg.id}`)}
+      >
         <div className="flex items-center gap-3">
           <Avatar className="h-11 w-11">
             <AvatarImage src={user?.avatar_url} />
@@ -131,6 +197,9 @@ const AdminProviders = () => {
             </div>
           </div>
         </div>
+
+        {/* Terms status badge */}
+        {renderTermsStatusBadge(reg)}
 
         {prov?.specializations?.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -155,20 +224,20 @@ const AdminProviders = () => {
         )}
 
         {/* Actions */}
-        <div className="flex gap-2">
+        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
           {reg.status === "pending" && (
             <>
               <Button
                 size="sm" variant="outline"
                 className="flex-1 text-xs text-destructive border-destructive"
-                onClick={() => rejectProvider.mutateAsync(reg.id).then(() => toast.success("Rejected"))}
+                onClick={() => { setRejectSheet(reg); setRejectReason(""); }}
               >
                 <X size={14} className="mr-1" /> Reject
               </Button>
               <Button
                 size="sm"
                 className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => { setApproveSheet(reg); setFeeType("flat"); setFeeAmount("0"); }}
+                onClick={() => { setApproveSheet(reg); resetApproveForm(); }}
               >
                 <Check size={14} className="mr-1" /> Approve
               </Button>
@@ -252,7 +321,7 @@ const AdminProviders = () => {
 
       {/* Approve Sheet */}
       <Sheet open={!!approveSheet} onOpenChange={() => setApproveSheet(null)}>
-        <SheetContent side="bottom" className="rounded-t-2xl">
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
           <SheetHeader><SheetTitle>Set Commission Terms</SheetTitle></SheetHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
@@ -262,6 +331,8 @@ const AdminProviders = () => {
                   (approveSheet?.service_providers as any)?.users?.full_name}
               </span>
             </p>
+
+            {/* Base fee fields */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Fee Type</Label>
@@ -283,12 +354,105 @@ const AdminProviders = () => {
                 />
               </div>
             </div>
+
+            {/* Enhanced commercial terms */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Min Guaranteed Fee (₹)</Label>
+                <Input
+                  type="number"
+                  value={minGuaranteedFee}
+                  onChange={(e) => setMinGuaranteedFee(e.target.value)}
+                  placeholder="0"
+                  className="h-10 rounded-lg"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Revenue Share %</Label>
+                <Input
+                  type="number"
+                  value={revenueSharePct}
+                  onChange={(e) => setRevenueSharePct(e.target.value)}
+                  placeholder="0"
+                  className="h-10 rounded-lg"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Payment Frequency</Label>
+                <Select value={paymentFrequency} onValueChange={setPaymentFrequency}>
+                  <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Free Trial Days</Label>
+                <Input
+                  type="number"
+                  value={freeTrialDays}
+                  onChange={(e) => setFreeTrialDays(e.target.value)}
+                  placeholder="0"
+                  className="h-10 rounded-lg"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Commercial Notes</Label>
+              <Textarea
+                value={commercialNotes}
+                onChange={(e) => setCommercialNotes(e.target.value)}
+                placeholder="Any additional terms or notes..."
+                rows={2}
+                className="rounded-lg"
+              />
+            </div>
+
             <Button
               onClick={handleApprove}
               disabled={approveProvider.isPending}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
             >
               {approveProvider.isPending ? <Loader2 size={16} className="animate-spin" /> : "Approve Provider"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Reject Sheet */}
+      <Sheet open={!!rejectSheet} onOpenChange={() => setRejectSheet(null)}>
+        <SheetContent side="bottom" className="rounded-t-2xl">
+          <SheetHeader><SheetTitle>Reject Provider</SheetTitle></SheetHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Reject application from{" "}
+              <span className="font-semibold text-foreground">
+                {(rejectSheet?.service_providers as any)?.business_name ||
+                  (rejectSheet?.service_providers as any)?.users?.full_name}
+              </span>
+              ?
+            </p>
+            <div className="space-y-1">
+              <Label className="text-xs">Reason (optional)</Label>
+              <Textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Reason for rejection..."
+                rows={2}
+                className="rounded-lg"
+              />
+            </div>
+            <Button
+              onClick={handleReject}
+              disabled={rejectProvider.isPending}
+              className="w-full bg-destructive hover:bg-destructive/90 text-white rounded-lg"
+            >
+              {rejectProvider.isPending ? <Loader2 size={16} className="animate-spin" /> : "Reject Provider"}
             </Button>
           </div>
         </SheetContent>

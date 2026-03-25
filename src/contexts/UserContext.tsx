@@ -107,7 +107,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [familyRole, setFamilyRole] = useState<"primary" | "member" | null>(null);
   const [familyLinkId, setFamilyLinkId] = useState<string | null>(null);
 
-  const fetchFamily = useCallback(async (userId: string) => {
+  const fetchFamily = useCallback(async (userId: string, isAdmin: boolean = false) => {
+    let foundApartment = false;
+
     // Phase 2: Use family_links to find the family instead of primary_user_id
     const { data: link } = await supabase
       .from("family_links")
@@ -146,6 +148,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         setFamilyMembers(membersResult.data ?? []);
         setCurrentApartment(aptResult.data);
+        if (aptResult.data) foundApartment = true;
       }
     } else {
       // Fallback: check if user has a family via primary_user_id (pre-migration)
@@ -189,6 +192,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setCurrentApartment(null);
       }
     }
+
+    // Fallback: if no apartment found via family and user is admin, check apartment_admins
+    if (!foundApartment && isAdmin) {
+      const { data: adminApt } = await supabase.rpc("get_admin_apartment");
+      if (adminApt && adminApt.length > 0) {
+        setCurrentApartment(adminApt[0] as ApartmentRow);
+      }
+    }
   }, []);
 
   const fetchProviderProfile = useCallback(async (userId: string) => {
@@ -224,7 +235,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         // Load related data in parallel — errors here should NOT block profile
         try {
           await Promise.all([
-            fetchFamily(prof.id).catch((e) => console.error("[CampusBee] fetchFamily error:", e)),
+            fetchFamily(prof.id, prof.is_apartment_admin).catch((e) => console.error("[CampusBee] fetchFamily error:", e)),
             prof.is_provider ? fetchProviderProfile(prof.id).catch((e) => console.error("[CampusBee] fetchProviderProfile error:", e)) : Promise.resolve(),
           ]);
         } catch (e) {
@@ -299,7 +310,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshFamily = useCallback(async () => {
     if (!profile) return;
-    await fetchFamily(profile.id);
+    await fetchFamily(profile.id, profile.is_apartment_admin);
   }, [profile, fetchFamily]);
 
   const activatePersona = useCallback(async (persona: Persona) => {

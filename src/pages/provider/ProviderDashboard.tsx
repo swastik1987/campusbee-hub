@@ -5,6 +5,7 @@ import {
   useProviderStats,
   useProviderTodaySchedule,
   usePendingEnrollments,
+  useProviderPendingTerms,
 } from "@/hooks/useProvider";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
@@ -39,6 +40,7 @@ const ProviderDashboard = () => {
   const { data: stats, isLoading: statsLoading } = useProviderStats(providerId, approvedRegIds);
   const { data: todaySchedule } = useProviderTodaySchedule(providerId, approvedRegIds);
   const { data: pendingEnrollments } = usePendingEnrollments(providerId, approvedRegIds);
+  const { data: pendingTerms } = useProviderPendingTerms(providerId);
 
   // Pending state — no approved apartments yet
   if (!regsLoading && !hasApproved) {
@@ -88,6 +90,22 @@ const ProviderDashboard = () => {
       <Header />
 
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-6">
+        {/* Pending Terms Banner */}
+        {(pendingTerms?.length ?? 0) > 0 && (
+          <Card className="flex items-center gap-3 border-amber-300 bg-amber-50 p-3">
+            <AlertCircle size={20} className="shrink-0 text-amber-600" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-800">
+                {pendingTerms!.length} commercial term{pendingTerms!.length > 1 ? "s" : ""} to review
+              </p>
+              <p className="text-xs text-amber-600">Accept terms to start listing classes</p>
+            </div>
+            <Button size="sm" variant="outline" className="border-amber-400 text-amber-700 hover:bg-amber-100" onClick={() => navigate("/provider/terms")}>
+              Review
+            </Button>
+          </Card>
+        )}
+
         {/* Quick Stats */}
         <div className="grid grid-cols-3 gap-3">
           {statsLoading ? (

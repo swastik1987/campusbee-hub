@@ -59,6 +59,11 @@ const AdminDashboard = () => {
   const [selectedReg, setSelectedReg] = useState<any>(null);
   const [feeType, setFeeType] = useState("flat");
   const [feeAmount, setFeeAmount] = useState("0");
+  const [minGuaranteedFee, setMinGuaranteedFee] = useState("0");
+  const [revenueSharePct, setRevenueSharePct] = useState("0");
+  const [paymentFrequency, setPaymentFrequency] = useState("monthly");
+  const [freeTrialDays, setFreeTrialDays] = useState("0");
+  const [commercialNotes, setCommercialNotes] = useState("");
 
   const handleApprove = async () => {
     if (!selectedReg || !profile) return;
@@ -68,6 +73,11 @@ const AdminDashboard = () => {
         approvedBy: profile.id,
         feeType,
         feeAmount: parseFloat(feeAmount) || 0,
+        minGuaranteedFee: parseFloat(minGuaranteedFee) || 0,
+        revenueSharePct: parseFloat(revenueSharePct) || 0,
+        paymentFrequency,
+        freeTrialDays: parseInt(freeTrialDays) || 0,
+        commercialNotes: commercialNotes || undefined,
       });
       toast.success("Provider approved");
       setSelectedReg(null);
@@ -78,7 +88,7 @@ const AdminDashboard = () => {
 
   const handleReject = async (regId: string) => {
     try {
-      await rejectProvider.mutateAsync(regId);
+      await rejectProvider.mutateAsync({ registrationId: regId });
       toast.success("Provider rejected");
     } catch {
       toast.error("Failed to reject");
@@ -183,6 +193,11 @@ const AdminDashboard = () => {
                           setSelectedReg(reg);
                           setFeeType("flat");
                           setFeeAmount("0");
+                          setMinGuaranteedFee("0");
+                          setRevenueSharePct("0");
+                          setPaymentFrequency("monthly");
+                          setFreeTrialDays("0");
+                          setCommercialNotes("");
                         }}
                       >
                         <Check size={14} className="mr-1" /> Approve
@@ -251,9 +266,9 @@ const AdminDashboard = () => {
           <SheetHeader>
             <SheetTitle>Set Commission Terms</SheetTitle>
           </SheetHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto">
             <p className="text-sm text-muted-foreground">
-              Set the commission fee for{" "}
+              Set commercial terms for{" "}
               <span className="font-semibold text-foreground">
                 {(selectedReg?.service_providers as any)?.business_name ||
                   (selectedReg?.service_providers as any)?.users?.full_name}
@@ -267,21 +282,75 @@ const AdminDashboard = () => {
                   <SelectContent>
                     <SelectItem value="flat">Flat (₹/month)</SelectItem>
                     <SelectItem value="percentage">Percentage (%)</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">
-                  {feeType === "flat" ? "Amount (₹)" : "Rate (%)"}
+                  {feeType === "percentage" ? "Rate (%)" : "Amount (₹)"}
                 </Label>
                 <Input
                   type="number"
                   value={feeAmount}
                   onChange={(e) => setFeeAmount(e.target.value)}
-                  placeholder={feeType === "flat" ? "500" : "10"}
+                  placeholder={feeType === "percentage" ? "10" : "500"}
                   className="h-10 rounded-lg"
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Min Guaranteed Fee (₹)</Label>
+                <Input
+                  type="number"
+                  value={minGuaranteedFee}
+                  onChange={(e) => setMinGuaranteedFee(e.target.value)}
+                  placeholder="0"
+                  className="h-10 rounded-lg"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Revenue Share (%)</Label>
+                <Input
+                  type="number"
+                  value={revenueSharePct}
+                  onChange={(e) => setRevenueSharePct(e.target.value)}
+                  placeholder="0"
+                  className="h-10 rounded-lg"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Payment Frequency</Label>
+                <Select value={paymentFrequency} onValueChange={setPaymentFrequency}>
+                  <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Free Trial Days</Label>
+                <Input
+                  type="number"
+                  value={freeTrialDays}
+                  onChange={(e) => setFreeTrialDays(e.target.value)}
+                  placeholder="0"
+                  className="h-10 rounded-lg"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Notes (optional)</Label>
+              <Input
+                value={commercialNotes}
+                onChange={(e) => setCommercialNotes(e.target.value)}
+                placeholder="Any additional terms or notes..."
+                className="h-10 rounded-lg"
+              />
             </div>
             <Button
               onClick={handleApprove}
