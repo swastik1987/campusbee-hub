@@ -77,6 +77,7 @@ const LoggedInLanding = () => {
     color: string;
     bgColor: string;
     show: boolean;
+    section?: string;
   }[] = [
     // Seeker actions (only if onboarding is complete)
     {
@@ -124,6 +125,7 @@ const LoggedInLanding = () => {
       color: "text-indigo-600",
       bgColor: "bg-indigo-500/10",
       show: !!profile?.is_provider,
+      section: "provider",
     },
     {
       label: "My Classes (Provider)",
@@ -133,6 +135,7 @@ const LoggedInLanding = () => {
       color: "text-indigo-600",
       bgColor: "bg-indigo-500/10",
       show: !!profile?.is_provider,
+      section: "provider",
     },
     {
       label: "My Students",
@@ -142,6 +145,7 @@ const LoggedInLanding = () => {
       color: "text-indigo-600",
       bgColor: "bg-indigo-500/10",
       show: !!profile?.is_provider,
+      section: "provider",
     },
     {
       label: "Messages",
@@ -151,6 +155,7 @@ const LoggedInLanding = () => {
       color: "text-indigo-600",
       bgColor: "bg-indigo-500/10",
       show: !!profile?.is_provider,
+      section: "provider",
     },
     // Apartment Admin actions
     {
@@ -223,7 +228,7 @@ const LoggedInLanding = () => {
 
   // Group actions by section
   const seekerActions = visibleActions.filter((a) => a.color === "text-primary");
-  const providerActions = visibleActions.filter((a) => a.color === "text-indigo-600" && a.path.startsWith("/provider"));
+  const providerActions = visibleActions.filter((a) => a.section === "provider");
   const apartmentAdminActions = visibleActions.filter((a) => a.color === "text-indigo-600" && a.path.startsWith("/admin"));
   const platformAdminActions = visibleActions.filter((a) => a.color === "text-emerald-600");
 
