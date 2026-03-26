@@ -237,37 +237,6 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Popular Classes Chart */}
-        {topClasses && topClasses.length > 0 && (
-          <div>
-            <h3 className="text-sm font-bold mb-3">Top Classes by Enrollment</h3>
-            <Card className="p-4">
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={topClasses} layout="vertical" margin={{ left: 0, right: 10, top: 0, bottom: 0 }}>
-                  <XAxis type="number" hide />
-                  <YAxis
-                    type="category"
-                    dataKey="title"
-                    width={100}
-                    tick={{ fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    formatter={(value: number) => [`${value} students`, "Enrollments"]}
-                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                  />
-                  <Bar dataKey="enrollments" radius={[0, 4, 4, 0]}>
-                    {topClasses.map((_: any, i: number) => (
-                      <Cell key={i} fill={STAT_COLORS[i % STAT_COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-          </div>
-        )}
-
         {/* Quick links */}
         <div className="grid grid-cols-3 gap-3">
           <Card
@@ -297,6 +266,37 @@ const AdminDashboard = () => {
             <p className="text-xs font-semibold">Reports</p>
           </Card>
         </div>
+
+        {/* Top Classes by Enrollment */}
+        {topClasses && topClasses.length > 0 && (
+          <div>
+            <h3 className="text-sm font-bold mb-3">Top Classes by Enrollment</h3>
+            <Card className="p-4">
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={topClasses} layout="vertical" margin={{ left: 0, right: 10, top: 0, bottom: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis
+                    type="category"
+                    dataKey="title"
+                    width={100}
+                    tick={{ fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [`${value} students`, "Enrollments"]}
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  />
+                  <Bar dataKey="enrollments" radius={[0, 4, 4, 0]}>
+                    {topClasses.map((_: any, i: number) => (
+                      <Cell key={i} fill={STAT_COLORS[i % STAT_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </Card>
+          </div>
+        )}
       </div>
 
       {/* Approve Sheet */}

@@ -257,6 +257,70 @@ export function useProviderTodaySchedule(providerId: string | undefined, apartme
   });
 }
 
+export function useProviderUpcomingSchedule(providerId: string | undefined, apartmentRegIds: string[]) {
+  const today = new Date();
+  // Next 3 days (excluding today)
+  const upcomingDays = [1, 2, 3].map((offset) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + offset);
+    return { dayOfWeek: d.getDay(), date: d };
+  });
+  const dayNumbers = upcomingDays.map((d) => d.dayOfWeek);
+
+  return useQuery({
+    queryKey: ["provider-upcoming-schedule", providerId, dayNumbers.join(",")],
+    enabled: !!providerId && apartmentRegIds.length > 0,
+    queryFn: async () => {
+      const { data: classes } = await supabase
+        .from("classes")
+        .select("id, title, provider_registration_id")
+        .in("provider_registration_id", apartmentRegIds)
+        .eq("status", "published");
+      if (!classes?.length) return [];
+
+      const classIds = classes.map((c) => c.id);
+      const { data: batches } = await supabase
+        .from("batches")
+        .select("id, batch_name, class_id, status")
+        .in("class_id", classIds)
+        .in("status", ["active", "full"]);
+      if (!batches?.length) return [];
+
+      const batchIds = batches.map((b) => b.id);
+      const { data: schedules } = await supabase
+        .from("batch_schedules")
+        .select("id, batch_id, day_of_week, start_time, end_time")
+        .in("batch_id", batchIds)
+        .in("day_of_week", dayNumbers)
+        .eq("is_active", true)
+        .order("start_time");
+
+      return upcomingDays.map((day) => {
+        const daySchedules = (schedules ?? [])
+          .filter((s) => s.day_of_week === day.dayOfWeek)
+          .map((s) => {
+            const batch = batches.find((b) => b.id === s.batch_id);
+            const cls = classes.find((c) => c.id === batch?.class_id);
+            return {
+              scheduleId: s.id,
+              batchId: s.batch_id,
+              batchName: batch?.batch_name ?? "",
+              classTitle: cls?.title ?? "",
+              classId: cls?.id ?? "",
+              startTime: s.start_time,
+              endTime: s.end_time,
+            };
+          });
+        return {
+          date: day.date,
+          dayOfWeek: day.dayOfWeek,
+          schedules: daySchedules,
+        };
+      });
+    },
+  });
+}
+
 export function usePendingEnrollments(providerId: string | undefined, apartmentRegIds: string[]) {
   return useQuery({
     queryKey: ["pending-enrollments", providerId],

@@ -4,6 +4,7 @@ import {
   useProviderRegistrations,
   useProviderStats,
   useProviderTodaySchedule,
+  useProviderUpcomingSchedule,
   usePendingEnrollments,
   useProviderPendingTerms,
 } from "@/hooks/useProvider";
@@ -23,6 +24,7 @@ import {
   AlertCircle,
   GraduationCap,
   Megaphone,
+  CalendarDays,
 } from "lucide-react";
 
 const ProviderDashboard = () => {
@@ -40,6 +42,7 @@ const ProviderDashboard = () => {
 
   const { data: stats, isLoading: statsLoading } = useProviderStats(providerId, approvedRegIds);
   const { data: todaySchedule } = useProviderTodaySchedule(providerId, approvedRegIds);
+  const { data: upcomingSchedule } = useProviderUpcomingSchedule(providerId, approvedRegIds);
   const { data: pendingEnrollments } = usePendingEnrollments(providerId, approvedRegIds);
   const { data: pendingTerms } = useProviderPendingTerms(providerId);
 
@@ -198,6 +201,44 @@ const ProviderDashboard = () => {
             </Card>
           )}
         </div>
+
+        {/* Upcoming 3-Day Schedule */}
+        {upcomingSchedule && upcomingSchedule.some((d) => d.schedules.length > 0) && (
+          <div>
+            <h2 className="mb-3 text-base font-bold flex items-center gap-2">
+              <CalendarDays size={18} className="text-provider" />
+              Upcoming Schedule
+            </h2>
+            <div className="space-y-3">
+              {upcomingSchedule.map((day) => {
+                const label = day.date.toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" });
+                return (
+                  <div key={day.dayOfWeek}>
+                    <p className="text-xs font-semibold text-muted-foreground mb-1.5">{label}</p>
+                    {day.schedules.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {day.schedules.map((s) => (
+                          <Card key={s.scheduleId} className="flex items-center gap-3 p-3 bg-muted/40">
+                            <div className="text-center min-w-[50px]">
+                              <p className="text-xs font-bold text-provider">{s.startTime?.slice(0, 5)}</p>
+                              <p className="text-[10px] text-muted-foreground">{s.endTime?.slice(0, 5)}</p>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold">{s.classTitle}</p>
+                              <p className="text-xs text-muted-foreground">{s.batchName}</p>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic pl-1">No classes</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Action Required */}
         {pendingEnrollments && pendingEnrollments.length > 0 && (
