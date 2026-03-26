@@ -376,6 +376,7 @@ export type Database = {
           id: string
           max_batch_size: number
           notes: string | null
+          registration_fee: number | null
           registration_mode: string | null
           skill_level: string | null
           start_date: string | null
@@ -399,6 +400,7 @@ export type Database = {
           id?: string
           max_batch_size: number
           notes?: string | null
+          registration_fee?: number | null
           registration_mode?: string | null
           skill_level?: string | null
           start_date?: string | null
@@ -422,6 +424,7 @@ export type Database = {
           id?: string
           max_batch_size?: number
           notes?: string | null
+          registration_fee?: number | null
           registration_mode?: string | null
           skill_level?: string | null
           start_date?: string | null
@@ -1191,6 +1194,108 @@ export type Database = {
           },
         ]
       }
+      featured_class_listings: {
+        Row: {
+          ad_fee: number | null
+          admin_notes: string | null
+          apartment_id: string
+          banner_image_url: string
+          class_id: string
+          created_at: string | null
+          display_order: number | null
+          fee_accepted_at: string | null
+          fee_status: string | null
+          id: string
+          provider_registration_id: string
+          requested_at: string | null
+          requested_by: string
+          responded_at: string | null
+          responded_by: string | null
+          status: string | null
+          updated_at: string | null
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          ad_fee?: number | null
+          admin_notes?: string | null
+          apartment_id: string
+          banner_image_url: string
+          class_id: string
+          created_at?: string | null
+          display_order?: number | null
+          fee_accepted_at?: string | null
+          fee_status?: string | null
+          id?: string
+          provider_registration_id: string
+          requested_at?: string | null
+          requested_by: string
+          responded_at?: string | null
+          responded_by?: string | null
+          status?: string | null
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          ad_fee?: number | null
+          admin_notes?: string | null
+          apartment_id?: string
+          banner_image_url?: string
+          class_id?: string
+          created_at?: string | null
+          display_order?: number | null
+          fee_accepted_at?: string | null
+          fee_status?: string | null
+          id?: string
+          provider_registration_id?: string
+          requested_at?: string | null
+          requested_by?: string
+          responded_at?: string | null
+          responded_by?: string | null
+          status?: string | null
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "featured_class_listings_apartment_id_fkey"
+            columns: ["apartment_id"]
+            isOneToOne: false
+            referencedRelation: "apartment_complexes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "featured_class_listings_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "featured_class_listings_provider_registration_id_fkey"
+            columns: ["provider_registration_id"]
+            isOneToOne: false
+            referencedRelation: "provider_apartment_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "featured_class_listings_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "featured_class_listings_responded_by_fkey"
+            columns: ["responded_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string
@@ -1367,12 +1472,20 @@ export type Database = {
           apartment_id: string
           approved_at: string | null
           approved_by: string | null
+          commercial_notes: string | null
           created_at: string | null
+          free_trial_days: number | null
           id: string
+          min_guaranteed_fee: number | null
+          payment_frequency: string | null
           provider_id: string
+          revenue_share_pct: number | null
           status: string | null
           suspended_at: string | null
           suspension_reason: string | null
+          terms_accepted_at: string | null
+          terms_status: string | null
+          terms_version: number | null
           updated_at: string | null
         }
         Insert: {
@@ -1381,12 +1494,20 @@ export type Database = {
           apartment_id: string
           approved_at?: string | null
           approved_by?: string | null
+          commercial_notes?: string | null
           created_at?: string | null
+          free_trial_days?: number | null
           id?: string
+          min_guaranteed_fee?: number | null
+          payment_frequency?: string | null
           provider_id: string
+          revenue_share_pct?: number | null
           status?: string | null
           suspended_at?: string | null
           suspension_reason?: string | null
+          terms_accepted_at?: string | null
+          terms_status?: string | null
+          terms_version?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -1395,12 +1516,20 @@ export type Database = {
           apartment_id?: string
           approved_at?: string | null
           approved_by?: string | null
+          commercial_notes?: string | null
           created_at?: string | null
+          free_trial_days?: number | null
           id?: string
+          min_guaranteed_fee?: number | null
+          payment_frequency?: string | null
           provider_id?: string
+          revenue_share_pct?: number | null
           status?: string | null
           suspended_at?: string | null
           suspension_reason?: string | null
+          terms_accepted_at?: string | null
+          terms_status?: string | null
+          terms_version?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1568,6 +1697,7 @@ export type Database = {
           profile_photos: string[] | null
           provider_type: string | null
           qualifications: string | null
+          specialization_category_ids: string[] | null
           specializations: string[] | null
           updated_at: string | null
           upi_id: string | null
@@ -1588,6 +1718,7 @@ export type Database = {
           profile_photos?: string[] | null
           provider_type?: string | null
           qualifications?: string | null
+          specialization_category_ids?: string[] | null
           specializations?: string[] | null
           updated_at?: string | null
           upi_id?: string | null
@@ -1608,6 +1739,7 @@ export type Database = {
           profile_photos?: string[] | null
           provider_type?: string | null
           qualifications?: string | null
+          specialization_category_ids?: string[] | null
           specializations?: string[] | null
           updated_at?: string | null
           upi_id?: string | null
@@ -1790,6 +1922,71 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_provider_terms: {
+        Args: { p_accept: boolean; p_registration_id: string }
+        Returns: undefined
+      }
+      admin_get_user_count: { Args: never; Returns: number }
+      admin_get_users_growth: {
+        Args: never
+        Returns: {
+          created_at: string
+          id: string
+        }[]
+      }
+      admin_search_users: {
+        Args: { search_query: string }
+        Returns: {
+          avatar_url: string
+          email: string
+          full_name: string
+          id: string
+          mobile_number: string
+        }[]
+      }
+      admin_update_user: {
+        Args: {
+          set_apartment_admin?: boolean
+          set_platform_admin?: boolean
+          target_user_id: string
+        }
+        Returns: undefined
+      }
+      create_family_for_user: {
+        Args: {
+          p_apartment_id: string
+          p_block_tower?: string
+          p_flat_number?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      get_admin_apartment: {
+        Args: never
+        Returns: {
+          city: string
+          id: string
+          locality: string
+          logo_url: string
+          name: string
+        }[]
+      }
+      get_chat_partner_family_ids: { Args: never; Returns: string[] }
+      get_chat_partner_family_ids_v2: { Args: never; Returns: string[] }
+      get_family_co_links: {
+        Args: { for_family_id: string }
+        Returns: {
+          family_id: string
+          id: string
+          linked_at: string
+          linked_via: string
+          role: string
+          status: string
+          user_id: string
+        }[]
+      }
+      get_provider_enrolled_family_ids: { Args: never; Returns: string[] }
+      get_provider_enrolled_member_ids: { Args: never; Returns: string[] }
       get_user_apartment_ids: { Args: { _auth_uid: string }; Returns: string[] }
       get_user_id: { Args: never; Returns: string }
       is_apartment_admin_for_any: {
@@ -1797,6 +1994,32 @@ export type Database = {
         Returns: string[]
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      search_apartment_users: {
+        Args: { apt_id: string; search_query: string }
+        Returns: {
+          avatar_url: string
+          email: string
+          full_name: string
+          id: string
+          mobile_number: string
+        }[]
+      }
+      send_notification: {
+        Args: {
+          p_body: string
+          p_ref_id?: string
+          p_ref_type?: string
+          p_title: string
+          p_type: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      transfer_family_primary: {
+        Args: { current_primary_link_id: string; new_primary_link_id: string }
+        Returns: undefined
+      }
+      unlink_family_member: { Args: { link_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
