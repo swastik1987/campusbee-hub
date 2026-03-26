@@ -214,8 +214,8 @@ export function useChatConversations(userId: string | undefined) {
         .from("chat_conversations")
         .select(`
           id, participant_1, participant_2, last_message_at, last_message_preview,
-          user1:users!chat_conversations_participant_1_fkey(id, full_name, avatar_url),
-          user2:users!chat_conversations_participant_2_fkey(id, full_name, avatar_url)
+          user1:users!chat_conversations_participant_1_fkey(id, full_name, avatar_url, families(flat_number, block_tower)),
+          user2:users!chat_conversations_participant_2_fkey(id, full_name, avatar_url, families(flat_number, block_tower))
         `)
         .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
         .order("last_message_at", { ascending: false, nullsFirst: false });

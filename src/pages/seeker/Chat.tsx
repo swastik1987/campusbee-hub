@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, MessageCircle, Send } from "lucide-react";
+import { ArrowLeft, Home, MessageCircle, Send } from "lucide-react";
 
 const Chat = () => {
   const navigate = useNavigate();
@@ -65,10 +65,23 @@ const Chat = () => {
     return conv.participant_1 === userId ? conv.user2 : conv.user1;
   };
 
+  const getFlatInfo = (user: any): string | null => {
+    const fam = user?.families;
+    if (!fam) return null;
+    // families is returned as array from nested select
+    const f = Array.isArray(fam) ? fam[0] : fam;
+    if (!f) return null;
+    const parts: string[] = [];
+    if (f.flat_number) parts.push(`Flat ${f.flat_number}`);
+    if (f.block_tower) parts.push(f.block_tower);
+    return parts.length > 0 ? parts.join(", ") : null;
+  };
+
   // Conversation detail view
   if (activeConversationId) {
     const activeConv = conversations?.find((c) => c.id === activeConversationId);
     const other = activeConv ? getOtherUser(activeConv) : null;
+    const otherFlat = getFlatInfo(other);
 
     return (
       <div className="flex min-h-screen flex-col bg-background">
@@ -76,13 +89,21 @@ const Chat = () => {
           <button onClick={() => setActiveConversationId(null)} className="p-1">
             <ArrowLeft size={20} />
           </button>
-          <Avatar className="h-8 w-8">
+          <Avatar className="h-9 w-9">
             <AvatarImage src={other?.avatar_url} />
             <AvatarFallback className="text-xs bg-muted">
               {other?.full_name?.[0]?.toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <h1 className="text-sm font-bold truncate">{other?.full_name ?? "Chat"}</h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm font-bold truncate">{other?.full_name ?? "Chat"}</h1>
+            {otherFlat && (
+              <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
+                <Home size={9} />
+                {otherFlat}
+              </p>
+            )}
+          </div>
         </header>
 
         {/* Messages */}
@@ -152,6 +173,7 @@ const Chat = () => {
           <div className="space-y-1">
             {conversations.map((conv) => {
               const other = getOtherUser(conv);
+              const flatInfo = getFlatInfo(other);
               return (
                 <div
                   key={conv.id}
@@ -166,9 +188,17 @@ const Chat = () => {
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold truncate">{other?.full_name}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold truncate">{other?.full_name}</p>
+                        {flatInfo && (
+                          <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
+                            <Home size={9} />
+                            {flatInfo}
+                          </p>
+                        )}
+                      </div>
                       {conv.last_message_at && (
-                        <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                        <span className="text-[10px] text-muted-foreground flex-shrink-0 ml-2">
                           {new Date(conv.last_message_at).toLocaleDateString("en-IN", {
                             day: "numeric", month: "short",
                           })}
@@ -176,7 +206,7 @@ const Chat = () => {
                       )}
                     </div>
                     {conv.last_message_preview && (
-                      <p className="text-xs text-muted-foreground truncate">{conv.last_message_preview}</p>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{conv.last_message_preview}</p>
                     )}
                   </div>
                 </div>
