@@ -69,21 +69,93 @@ const Explore = () => {
   const { data: allCategories } = useCategories();
   const parentCategories = allCategories?.filter((c) => !c.parent_category_id) ?? [];
 
+  // Resolve selected parent category to include all its subcategory IDs
+  const selectedCategoryIds = (() => {
+    if (!categorySlug || !allCategories) return undefined;
+    const parent = allCategories.find((c) => c.slug === categorySlug && !c.parent_category_id);
+    if (parent) {
+      const childIds = allCategories
+        .filter((c) => c.parent_category_id === parent.id)
+        .map((c) => c.id);
+      return [parent.id, ...childIds];
+    }
+    const sub = allCategories.find((c) => c.slug === categorySlug);
+    return sub ? [sub.id] : undefined;
+  })();
+
+  // Resolve search term to matching category IDs (for provider name / category name search)
+  const searchCategoryIds = (() => {
+    if (!debouncedSearch || !allCategories) return undefined;
+    const term = debouncedSearch.toLowerCase();
+    const matching = allCategories.filter((c) => c.name.toLowerCase().includes(term));
+    return matching.length > 0 ? matching.map((c) => c.id) : undefined;
+  })();
+
+  // Merge category filter IDs with search category IDs when both are active
+  const combinedCategoryIds = (() => {
+    if (selectedCategoryIds && searchCategoryIds) {
+      // When both filter and search are active, intersect: show only filtered categories that also match search
+      return selectedCategoryIds.filter((id) => searchCategoryIds.includes(id));
+    }
+    return selectedCategoryIds;
+  })();
+
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  const isSearching = !!debouncedSearch || !!categorySlug;
+  // Only hide discovery sections when there's a text search active
+  const isSearching = !!debouncedSearch;
 
+  // Main query: fetch by title/description search + category filter
   const { data: classes, isLoading } = useExploreClasses({
     apartmentId: aptId,
     search: debouncedSearch || undefined,
-    categorySlug: categorySlug || undefined,
+    categoryIds: combinedCategoryIds,
     sort,
-    limit: 30,
+    limit: 50,
   });
+
+  // Secondary query when searching: also fetch by matching category names (without text search filter)
+  const { data: catMatchClasses } = useExploreClasses({
+    apartmentId: aptId,
+    categoryIds: searchCategoryIds,
+    sort,
+    limit: 50,
+  });
+
+  // When searching, also fetch all classes (no text filter) so we can client-side match provider names
+  const { data: allAptClasses } = useExploreClasses({
+    apartmentId: isSearching ? aptId : undefined,
+    categoryIds: selectedCategoryIds,
+    sort,
+    limit: 100,
+  });
+
+  // Merge and deduplicate search results
+  const displayClasses = (() => {
+    if (!isSearching) return classes;
+    const map = new Map<string, any>();
+    // 1. Title/description matches from server
+    (classes ?? []).forEach((c) => map.set(c.id, c));
+    // 2. Category name matches
+    (catMatchClasses ?? []).forEach((c) => map.set(c.id, c));
+    // 3. Provider name matches (client-side)
+    if (allAptClasses && debouncedSearch) {
+      const term = debouncedSearch.toLowerCase();
+      allAptClasses.forEach((c: any) => {
+        const par = c.provider_apartment_registrations;
+        const sp = par?.service_providers;
+        const providerName = sp?.business_name || sp?.users?.full_name || "";
+        if (providerName.toLowerCase().includes(term)) {
+          map.set(c.id, c);
+        }
+      });
+    }
+    return Array.from(map.values());
+  })();
 
   // Discovery data (only fetched when not actively searching)
   const { data: featuredListings } = useActiveFeaturedListings(aptId);
@@ -172,17 +244,17 @@ const Explore = () => {
             <div className="relative">
               <div
                 ref={carouselRef}
-                className="flex overflow-x-auto scroll-snap-x-mandatory scrollbar-hide gap-0"
-                style={{ scrollSnapType: "x mandatory" }}
+                className="flex overflow-x-auto scrollbar-hide"
+                style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}
               >
                 {featuredListings.map((listing) => (
                   <div
                     key={listing.id}
-                    className="w-full flex-shrink-0 scroll-snap-start cursor-pointer"
-                    style={{ scrollSnapAlign: "start" }}
+                    className="w-full flex-shrink-0 cursor-pointer"
+                    style={{ scrollSnapAlign: "start", minWidth: "100%" }}
                     onClick={() => navigate(`/class/${listing.class_id}`)}
                   >
-                    <div className="relative aspect-[3/1] overflow-hidden rounded-xl mx-1">
+                    <div className="relative aspect-[3/1] overflow-hidden rounded-xl">
                       <img src={listing.banner_image_url} alt="" className="h-full w-full object-cover" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                       <div className="absolute bottom-2 left-3 right-3">
@@ -252,12 +324,12 @@ const Explore = () => {
           </div>
         </div>
 
-        {/* Search results (when searching/filtering) */}
+        {/* Search results (when text searching) */}
         {isSearching && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
-                {isLoading ? "Searching..." : `${classes?.length ?? 0} classes found`}
+                {isLoading ? "Searching..." : `${displayClasses?.length ?? 0} classes found`}
               </p>
               <Select value={sort} onValueChange={setSort}>
                 <SelectTrigger className="w-32 h-8 text-xs">
@@ -277,16 +349,16 @@ const Explore = () => {
                   <Skeleton key={i} className="h-24 rounded-xl" />
                 ))}
               </div>
-            ) : classes && classes.length > 0 ? (
+            ) : displayClasses && displayClasses.length > 0 ? (
               <div className="space-y-3">
-                {classes.map((cls) => (
+                {displayClasses.map((cls) => (
                   <ClassCard key={cls.id} cls={cls as any} />
                 ))}
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3 py-12 text-center">
                 <Search size={32} className="text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">No classes found matching your filters</p>
+                <p className="text-sm text-muted-foreground">No classes found matching your search</p>
                 {hasFilters && (
                   <button onClick={clearFilters} className="text-xs text-primary font-medium">
                     Clear all filters
@@ -351,13 +423,14 @@ const Explore = () => {
                 <div className="grid grid-cols-2 gap-3">
                   {categories?.map((cat) => {
                     const IconComponent = CATEGORY_ICONS[cat.icon_name ?? ""] ?? BookOpen;
+                    const isActive = categorySlug === cat.slug;
                     return (
                       <Card
                         key={cat.id}
-                        className="flex cursor-pointer flex-col items-center justify-center gap-2 p-4 transition-all hover:shadow-md active:scale-[0.97]"
-                        onClick={() => setCategorySlug(cat.slug)}
+                        className={`flex cursor-pointer flex-col items-center justify-center gap-2 p-4 transition-all hover:shadow-md active:scale-[0.97] ${isActive ? "ring-2 ring-primary bg-primary/5" : ""}`}
+                        onClick={() => setCategorySlug(isActive ? "" : cat.slug)}
                       >
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isActive ? "bg-primary/20" : "bg-primary/10"}`}>
                           <IconComponent size={22} className="text-primary" />
                         </div>
                         <span className="text-xs font-semibold text-center">{cat.name}</span>

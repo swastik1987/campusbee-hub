@@ -98,7 +98,7 @@ export function usePopularClasses(apartmentId: string | undefined) {
 export function useExploreClasses(filters: {
   apartmentId?: string;
   search?: string;
-  categorySlug?: string;
+  categoryIds?: string[];
   skillLevel?: string;
   dayOfWeek?: number;
   sort?: string;
@@ -114,8 +114,8 @@ export function useExploreClasses(filters: {
         .select(`
           id, title, short_description, cover_image_url, class_type,
           skill_level, age_group_min, age_group_max, total_rating, rating_count,
-          trial_available, trial_fee, created_at,
-          class_categories!inner(id, name, slug),
+          trial_available, trial_fee, created_at, category_id,
+          class_categories!inner(id, name, slug, parent_category_id),
           provider_apartment_registrations!inner(
             id, apartment_id,
             service_providers(id, business_name, provider_type,
@@ -130,13 +130,13 @@ export function useExploreClasses(filters: {
         .eq("provider_apartment_registrations.apartment_id", filters.apartmentId!)
         .eq("provider_apartment_registrations.status", "approved");
 
+      if (filters.categoryIds && filters.categoryIds.length > 0) {
+        query = query.in("category_id", filters.categoryIds);
+      }
+
       if (filters.search) {
         const safe = filters.search.replace(/%/g, "\\%").replace(/_/g, "\\_");
         query = query.or(`title.ilike.%${safe}%,short_description.ilike.%${safe}%`);
-      }
-
-      if (filters.categorySlug) {
-        query = query.eq("class_categories.slug", filters.categorySlug);
       }
 
       switch (filters.sort) {
