@@ -56,7 +56,7 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   }
 
   // Allow provider routes for users with provider profile (no family required)
-  if (path.startsWith(PROVIDER_ROUTES_PREFIX)) {
+  if (path.startsWith(PROVIDER_ROUTES_PREFIX) || (path.startsWith("/chat") && profile?.is_provider)) {
     if (profile?.is_provider) {
       return <>{children}</>;
     }

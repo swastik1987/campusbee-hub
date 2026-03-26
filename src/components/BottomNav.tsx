@@ -14,8 +14,8 @@ const providerTabs = [
   { path: "/provider/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { path: "/provider/classes", icon: BookOpen, label: "Classes" },
   { path: "/provider/students", icon: Users, label: "Students" },
+  { path: "/chat", icon: MessageCircle, label: "Chat" },
   { path: "/provider/payments", icon: Wallet, label: "Payments" },
-  { path: "/profile", icon: User, label: "Profile" },
 ];
 
 const adminTabs = [
