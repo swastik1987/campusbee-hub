@@ -36,6 +36,13 @@ const Header = ({ showPersonaSwitcher = true }: HeaderProps) => {
 
         {/* Right side */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate("/")}
+            className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
+            title="Home"
+          >
+            <Home size={18} className="text-muted-foreground" />
+          </button>
           {showPersonaSwitcher && <PersonaSwitcher />}
           <button
             onClick={() => navigate("/notifications")}
