@@ -135,6 +135,8 @@ const ProviderClassDetail = () => {
   const [editBatchFee, setEditBatchFee] = useState("");
   const [editBatchFeeFreq, setEditBatchFeeFreq] = useState("");
   const [editBatchRegFee, setEditBatchRegFee] = useState("");
+  const [editBatchStartDate, setEditBatchStartDate] = useState("");
+  const [editBatchEndDate, setEditBatchEndDate] = useState("");
   const [editBatchNotes, setEditBatchNotes] = useState("");
 
   if (isLoading) {
@@ -204,6 +206,8 @@ const ProviderClassDetail = () => {
     setEditBatchFee(String(batch.fee_amount || ""));
     setEditBatchFeeFreq(batch.fee_frequency || "monthly");
     setEditBatchRegFee(String(batch.registration_fee ?? 0));
+    setEditBatchStartDate(batch.start_date || "");
+    setEditBatchEndDate(batch.end_date || "");
     setEditBatchNotes(batch.notes || "");
     setEditBatchOpen(true);
   };
@@ -217,6 +221,8 @@ const ProviderClassDetail = () => {
         feeAmount: parseFloat(editBatchFee) || 0,
         feeFrequency: editBatchFeeFreq,
         registrationFee: parseFloat(editBatchRegFee) || 0,
+        startDate: editBatchStartDate || null,
+        endDate: editBatchEndDate || null,
         notes: editBatchNotes,
       });
       toast.success("Batch updated");
@@ -744,6 +750,16 @@ const ProviderClassDetail = () => {
                     <SelectItem value="one_time">One-time</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Start Date</Label>
+                <Input type="date" value={editBatchStartDate} onChange={(e) => setEditBatchStartDate(e.target.value)} className="h-10 rounded-lg" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">End Date</Label>
+                <Input type="date" value={editBatchEndDate} onChange={(e) => setEditBatchEndDate(e.target.value)} className="h-10 rounded-lg" />
               </div>
             </div>
             <div className="space-y-1">
