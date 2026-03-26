@@ -345,6 +345,11 @@ export function useUpdateBatch() {
     mutationFn: async (input: {
       batchId: string;
       batchName?: string;
+      batchType?: string;
+      skillLevel?: string | null;
+      ageGroupMin?: number | null;
+      ageGroupMax?: number | null;
+      trainerId?: string | null;
       maxBatchSize?: number;
       feeAmount?: number;
       feeFrequency?: string;
@@ -356,10 +361,16 @@ export function useUpdateBatch() {
       autoWaitlist?: boolean;
       notes?: string;
       status?: string;
+      schedules?: { dayOfWeek: number; startTime: string; endTime: string }[];
     }) => {
-      const { batchId, ...fields } = input;
+      const { batchId, schedules, ...fields } = input;
       const updateObj: any = {};
       if (fields.batchName !== undefined) updateObj.batch_name = fields.batchName;
+      if (fields.batchType !== undefined) updateObj.batch_type = fields.batchType;
+      if (fields.skillLevel !== undefined) updateObj.skill_level = fields.skillLevel;
+      if (fields.ageGroupMin !== undefined) updateObj.age_group_min = fields.ageGroupMin;
+      if (fields.ageGroupMax !== undefined) updateObj.age_group_max = fields.ageGroupMax;
+      if (fields.trainerId !== undefined) updateObj.trainer_id = fields.trainerId;
       if (fields.maxBatchSize !== undefined) updateObj.max_batch_size = fields.maxBatchSize;
       if (fields.feeAmount !== undefined) updateObj.fee_amount = fields.feeAmount;
       if (fields.feeFrequency !== undefined) updateObj.fee_frequency = fields.feeFrequency;
@@ -374,9 +385,25 @@ export function useUpdateBatch() {
 
       const { error } = await supabase.from("batches").update(updateObj).eq("id", batchId);
       if (error) throw error;
+
+      // Replace schedules if provided
+      if (schedules) {
+        await supabase.from("batch_schedules").delete().eq("batch_id", batchId);
+        if (schedules.length > 0) {
+          const scheds = schedules.map((s) => ({
+            batch_id: batchId,
+            day_of_week: s.dayOfWeek,
+            start_time: s.startTime,
+            end_time: s.endTime,
+          }));
+          const { error: sErr } = await supabase.from("batch_schedules").insert(scheds);
+          if (sErr) throw sErr;
+        }
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["batches"] });
+      qc.invalidateQueries({ queryKey: ["batch-schedules"] });
       qc.invalidateQueries({ queryKey: ["class-detail"] });
     },
   });

@@ -18,7 +18,7 @@ import {
   useUploadBannerImage,
   useProviderRespondToFeaturedFee,
 } from "@/hooks/useFeatured";
-import { useProviderRegistrations } from "@/hooks/useProvider";
+import { useProviderRegistrations, useTrainers } from "@/hooks/useProvider";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,6 +62,7 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const FEE_LABELS: Record<string, string> = {
@@ -95,6 +96,8 @@ const ProviderClassDetail = () => {
   const updateBatch = useUpdateBatch();
   const createAddon = useCreateAddon();
   const deleteAddon = useDeleteAddon();
+  const isAcademy = providerProfile?.provider_type === "academy";
+  const { data: trainers } = useTrainers(providerProfile?.id);
 
   // Featured listing hooks
   const { data: registrations } = useProviderRegistrations(providerProfile?.id);
@@ -131,13 +134,24 @@ const ProviderClassDetail = () => {
   const [editBatchOpen, setEditBatchOpen] = useState(false);
   const [editBatchId, setEditBatchId] = useState("");
   const [editBatchName, setEditBatchName] = useState("");
+  const [editBatchType, setEditBatchType] = useState("level");
+  const [editBatchSkillLevel, setEditBatchSkillLevel] = useState("");
+  const [editBatchAgeMin, setEditBatchAgeMin] = useState("");
+  const [editBatchAgeMax, setEditBatchAgeMax] = useState("");
+  const [editBatchTrainerId, setEditBatchTrainerId] = useState("");
   const [editBatchCapacity, setEditBatchCapacity] = useState("");
   const [editBatchFee, setEditBatchFee] = useState("");
   const [editBatchFeeFreq, setEditBatchFeeFreq] = useState("");
   const [editBatchRegFee, setEditBatchRegFee] = useState("");
   const [editBatchStartDate, setEditBatchStartDate] = useState("");
   const [editBatchEndDate, setEditBatchEndDate] = useState("");
+  const [editBatchTotalSessions, setEditBatchTotalSessions] = useState("");
+  const [editBatchRegMode, setEditBatchRegMode] = useState("auto");
+  const [editBatchAutoWaitlist, setEditBatchAutoWaitlist] = useState(true);
   const [editBatchNotes, setEditBatchNotes] = useState("");
+  const [editBatchDays, setEditBatchDays] = useState<number[]>([]);
+  const [editBatchStartTime, setEditBatchStartTime] = useState("06:00");
+  const [editBatchEndTime, setEditBatchEndTime] = useState("07:00");
 
   if (isLoading) {
     return (
@@ -199,17 +213,46 @@ const ProviderClassDetail = () => {
     }
   };
 
-  const openEditBatch = (batch: any) => {
+  const openEditBatch = async (batch: any) => {
     setEditBatchId(batch.id);
     setEditBatchName(batch.batch_name || "");
+    setEditBatchType(batch.batch_type || "level");
+    setEditBatchSkillLevel(batch.skill_level || "");
+    setEditBatchAgeMin(batch.age_group_min ? String(batch.age_group_min) : "");
+    setEditBatchAgeMax(batch.age_group_max ? String(batch.age_group_max) : "");
+    setEditBatchTrainerId(batch.trainer_id || "");
     setEditBatchCapacity(String(batch.max_batch_size || ""));
     setEditBatchFee(String(batch.fee_amount || ""));
     setEditBatchFeeFreq(batch.fee_frequency || "monthly");
     setEditBatchRegFee(String(batch.registration_fee ?? 0));
     setEditBatchStartDate(batch.start_date || "");
     setEditBatchEndDate(batch.end_date || "");
+    setEditBatchTotalSessions(batch.total_sessions ? String(batch.total_sessions) : "");
+    setEditBatchRegMode(batch.registration_mode || "auto");
+    setEditBatchAutoWaitlist(batch.auto_waitlist ?? true);
     setEditBatchNotes(batch.notes || "");
+    // Load existing schedules
+    const { data: scheds } = await supabase
+      .from("batch_schedules")
+      .select("day_of_week, start_time, end_time")
+      .eq("batch_id", batch.id)
+      .eq("is_active", true);
+    if (scheds && scheds.length > 0) {
+      setEditBatchDays(scheds.map((s) => s.day_of_week));
+      setEditBatchStartTime(scheds[0].start_time?.slice(0, 5) || "06:00");
+      setEditBatchEndTime(scheds[0].end_time?.slice(0, 5) || "07:00");
+    } else {
+      setEditBatchDays([]);
+      setEditBatchStartTime("06:00");
+      setEditBatchEndTime("07:00");
+    }
     setEditBatchOpen(true);
+  };
+
+  const toggleEditDay = (day: number) => {
+    setEditBatchDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
   };
 
   const handleSaveBatch = async () => {
@@ -217,13 +260,26 @@ const ProviderClassDetail = () => {
       await updateBatch.mutateAsync({
         batchId: editBatchId,
         batchName: editBatchName,
+        batchType: editBatchType,
+        skillLevel: editBatchSkillLevel || null,
+        ageGroupMin: editBatchAgeMin ? parseInt(editBatchAgeMin) : null,
+        ageGroupMax: editBatchAgeMax ? parseInt(editBatchAgeMax) : null,
+        trainerId: editBatchTrainerId || null,
         maxBatchSize: parseInt(editBatchCapacity) || 10,
         feeAmount: parseFloat(editBatchFee) || 0,
         feeFrequency: editBatchFeeFreq,
         registrationFee: parseFloat(editBatchRegFee) || 0,
         startDate: editBatchStartDate || null,
         endDate: editBatchEndDate || null,
+        totalSessions: editBatchTotalSessions ? parseInt(editBatchTotalSessions) : null,
+        registrationMode: editBatchRegMode,
+        autoWaitlist: editBatchAutoWaitlist,
         notes: editBatchNotes,
+        schedules: editBatchDays.map((d) => ({
+          dayOfWeek: d,
+          startTime: editBatchStartTime,
+          endTime: editBatchEndTime,
+        })),
       });
       toast.success("Batch updated");
       setEditBatchOpen(false);
@@ -723,16 +779,108 @@ const ProviderClassDetail = () => {
               <Label className="text-xs">Batch Name</Label>
               <Input value={editBatchName} onChange={(e) => setEditBatchName(e.target.value)} className="h-10 rounded-lg" />
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Capacity</Label>
-                <Input type="number" value={editBatchCapacity} onChange={(e) => setEditBatchCapacity(e.target.value)} className="h-10 rounded-lg" />
+                <Label className="text-xs">Batch Type</Label>
+                <Select value={editBatchType} onValueChange={setEditBatchType}>
+                  <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="level">Level</SelectItem>
+                    <SelectItem value="age_group">Age Group</SelectItem>
+                    <SelectItem value="time_slot">Time Slot</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+              {editBatchType === "level" && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Skill Level</Label>
+                  <Select value={editBatchSkillLevel} onValueChange={setEditBatchSkillLevel}>
+                    <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="beginner">Beginner</SelectItem>
+                      <SelectItem value="intermediate">Intermediate</SelectItem>
+                      <SelectItem value="advanced">Advanced</SelectItem>
+                      <SelectItem value="all_levels">All Levels</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {editBatchType === "age_group" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Min Age</Label>
+                  <Input type="number" value={editBatchAgeMin} onChange={(e) => setEditBatchAgeMin(e.target.value)} className="h-10 rounded-lg" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Max Age</Label>
+                  <Input type="number" value={editBatchAgeMax} onChange={(e) => setEditBatchAgeMax(e.target.value)} className="h-10 rounded-lg" />
+                </div>
+              </div>
+            )}
+
+            {isAcademy && trainers && trainers.length > 0 && (
               <div className="space-y-1">
-                <Label className="text-xs">Registration Fee (₹)</Label>
-                <Input type="number" value={editBatchRegFee} onChange={(e) => setEditBatchRegFee(e.target.value)} placeholder="0" className="h-10 rounded-lg" />
+                <Label className="text-xs">Assign Trainer</Label>
+                <Select value={editBatchTrainerId} onValueChange={setEditBatchTrainerId}>
+                  <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select trainer" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {trainers.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Schedule */}
+            <div className="space-y-2">
+              <Label className="text-xs">Schedule</Label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 1, label: "Mon" },
+                  { value: 2, label: "Tue" },
+                  { value: 3, label: "Wed" },
+                  { value: 4, label: "Thu" },
+                  { value: 5, label: "Fri" },
+                  { value: 6, label: "Sat" },
+                  { value: 0, label: "Sun" },
+                ].map((d) => (
+                  <button
+                    key={d.value}
+                    type="button"
+                    onClick={() => toggleEditDay(d.value)}
+                    className={`h-9 w-9 rounded-lg text-xs font-semibold transition-all ${
+                      editBatchDays.includes(d.value)
+                        ? "bg-provider text-white"
+                        : "bg-muted text-muted-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Start Time</Label>
+                  <Input type="time" value={editBatchStartTime} onChange={(e) => setEditBatchStartTime(e.target.value)} className="h-10 rounded-lg" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">End Time</Label>
+                  <Input type="time" value={editBatchEndTime} onChange={(e) => setEditBatchEndTime(e.target.value)} className="h-10 rounded-lg" />
+                </div>
               </div>
             </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Max Batch Size</Label>
+              <Input type="number" value={editBatchCapacity} onChange={(e) => setEditBatchCapacity(e.target.value)} className="h-10 rounded-lg" />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Class Fee (₹)</Label>
@@ -752,6 +900,12 @@ const ProviderClassDetail = () => {
                 </Select>
               </div>
             </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Registration Fee (₹)</Label>
+              <Input type="number" value={editBatchRegFee} onChange={(e) => setEditBatchRegFee(e.target.value)} placeholder="0" className="h-10 rounded-lg" />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Start Date</Label>
@@ -762,10 +916,41 @@ const ProviderClassDetail = () => {
                 <Input type="date" value={editBatchEndDate} onChange={(e) => setEditBatchEndDate(e.target.value)} className="h-10 rounded-lg" />
               </div>
             </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Total Sessions</Label>
+              <Input type="number" value={editBatchTotalSessions} onChange={(e) => setEditBatchTotalSessions(e.target.value)} placeholder="Optional" className="h-10 rounded-lg" />
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg border">
+              <div>
+                <p className="text-xs font-medium">Registration Mode</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {editBatchRegMode === "auto" ? "Auto-accept enrollments" : "Manual approval required"}
+                </p>
+              </div>
+              <Select value={editBatchRegMode} onValueChange={setEditBatchRegMode}>
+                <SelectTrigger className="w-24 h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto</SelectItem>
+                  <SelectItem value="manual">Manual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg border">
+              <div>
+                <p className="text-xs font-medium">Auto-Waitlist</p>
+                <p className="text-[10px] text-muted-foreground">Add to waitlist when full</p>
+              </div>
+              <Switch checked={editBatchAutoWaitlist} onCheckedChange={setEditBatchAutoWaitlist} />
+            </div>
+
             <div className="space-y-1">
               <Label className="text-xs">Notes</Label>
               <Textarea value={editBatchNotes} onChange={(e) => setEditBatchNotes(e.target.value)} rows={2} className="rounded-lg" />
             </div>
+
             <Button onClick={handleSaveBatch} disabled={!editBatchName.trim() || updateBatch.isPending} className="w-full bg-provider text-white rounded-lg">
               {updateBatch.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save Changes"}
             </Button>
