@@ -8,7 +8,7 @@ import {
   usePendingEnrollments,
   useProviderPendingTerms,
 } from "@/hooks/useProvider";
-import { useProviderFeaturedRequests } from "@/hooks/useFeatured";
+import { useProviderFeaturedRequests, useProviderRespondToFeaturedFee } from "@/hooks/useFeatured";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { Card } from "@/components/ui/card";
@@ -50,6 +50,8 @@ const ProviderDashboard = () => {
   const { data: pendingEnrollments } = usePendingEnrollments(providerId, approvedRegIds);
   const { data: pendingTerms } = useProviderPendingTerms(providerId);
   const { data: featuredRequests } = useProviderFeaturedRequests(providerId, approvedRegIds);
+
+  const respondToFee = useProviderRespondToFeaturedFee();
 
   // Featured listings with fee proposed (need provider acceptance)
   const pendingFeaturedFees = featuredRequests?.filter((r) => r.fee_status === "fee_proposed") ?? [];
@@ -168,19 +170,40 @@ const ProviderDashboard = () => {
 
               {/* Featured listing fee acceptance */}
               {pendingFeaturedFees.map((f) => (
-                <Card key={f.id} className="flex items-center gap-3 p-3 border-amber-200 bg-amber-50/50">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100">
-                    <Star size={16} className="text-purple-600" />
+                <Card key={f.id} className="p-3 border-purple-200 bg-purple-50/50 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100">
+                      <Star size={16} className="text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{(f.classes as any)?.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Ad fee: <span className="font-semibold text-purple-700">₹{f.ad_fee}</span>
+                        {f.valid_from && f.valid_until && (
+                          <> · {new Date(f.valid_from).toLocaleDateString()} — {new Date(f.valid_until).toLocaleDateString()}</>
+                        )}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Featured listing fee: ₹{f.ad_fee}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {(f.classes as any)?.title}
-                    </p>
+                  <div className="flex gap-2 pl-11">
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs flex-1 bg-provider hover:bg-provider/90 text-white"
+                      disabled={respondToFee.isPending}
+                      onClick={() => respondToFee.mutate({ listingId: f.id, accept: true })}
+                    >
+                      Accept Fee
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs flex-1"
+                      disabled={respondToFee.isPending}
+                      onClick={() => respondToFee.mutate({ listingId: f.id, accept: false })}
+                    >
+                      Reject
+                    </Button>
                   </div>
-                  <Button size="sm" variant="outline" className="h-7 text-xs border-purple-400 text-purple-700 hover:bg-purple-100" onClick={() => navigate("/provider/featured")}>
-                    Accept
-                  </Button>
                 </Card>
               ))}
 
