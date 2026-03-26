@@ -45,6 +45,7 @@ import {
   XCircle,
   AlertCircle,
 } from "lucide-react";
+import { useCategories } from "@/hooks/useClasses";
 import { toast } from "sonner";
 
 const AdminProviderDetail = () => {
@@ -53,6 +54,21 @@ const AdminProviderDetail = () => {
   const { profile } = useUser();
 
   const { data: detail, isLoading } = useAdminProviderDetail(registrationId);
+  const { data: allCategories } = useCategories();
+
+  const getCategoryNames = (ids: string[] | null): string[] => {
+    if (!ids || !allCategories) return [];
+    return ids
+      .map((id) => {
+        const cat = allCategories.find((c) => c.id === id);
+        if (!cat) return null;
+        const parent = cat.parent_category_id
+          ? allCategories.find((p) => p.id === cat.parent_category_id)
+          : null;
+        return parent ? `${parent.name} › ${cat.name}` : cat.name;
+      })
+      .filter(Boolean) as string[];
+  };
   const updateTerms = useUpdateCommercialTerms();
   const suspendProvider = useSuspendProvider();
   const reinstateProvider = useReinstateProvider();
@@ -371,18 +387,22 @@ const AdminProviderDetail = () => {
                 <p className="text-sm">{prov.qualifications}</p>
               </div>
             )}
-            {prov?.specializations && prov.specializations.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-muted-foreground">Specializations</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {prov.specializations.map((s: string) => (
-                    <Badge key={s} variant="outline" className="text-xs">
-                      {s}
-                    </Badge>
-                  ))}
+            {(() => {
+              const catNames = getCategoryNames(prov?.specialization_category_ids);
+              const display = catNames.length > 0 ? catNames : (prov?.specializations ?? []);
+              return display.length > 0 ? (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">Categories & Specializations</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {display.map((s: string) => (
+                      <Badge key={s} variant="outline" className="text-xs">
+                        {s}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : null;
+            })()}
           </div>
         </Card>
 

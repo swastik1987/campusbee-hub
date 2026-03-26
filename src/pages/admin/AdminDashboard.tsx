@@ -9,6 +9,7 @@ import {
   useRejectProvider,
 } from "@/hooks/useAdmin";
 import { useAdminFeaturedRequests } from "@/hooks/useFeatured";
+import { useCategories } from "@/hooks/useClasses";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -55,7 +56,22 @@ const AdminDashboard = () => {
   const { data: pendingRegs } = useAdminProviderRegistrations(aptId, "pending");
   const { data: topClasses } = useTopClassesByEnrollment(aptId);
   const { data: featuredRequests } = useAdminFeaturedRequests(aptId);
+  const { data: allCategories } = useCategories();
   const pendingFeaturedCount = featuredRequests?.filter((r) => r.status === "pending_approval").length ?? 0;
+
+  const getCategoryNames = (ids: string[] | null): string[] => {
+    if (!ids || !allCategories) return [];
+    return ids
+      .map((id) => {
+        const cat = allCategories.find((c) => c.id === id);
+        if (!cat) return null;
+        const parent = cat.parent_category_id
+          ? allCategories.find((p) => p.id === cat.parent_category_id)
+          : null;
+        return parent ? `${parent.name} › ${cat.name}` : cat.name;
+      })
+      .filter(Boolean) as string[];
+  };
 
   const approveProvider = useApproveProvider();
   const rejectProvider = useRejectProvider();
@@ -174,13 +190,20 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                     </div>
-                    {prov?.specializations?.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {prov.specializations.slice(0, 4).map((s: string) => (
-                          <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>
-                        ))}
-                      </div>
-                    )}
+                    {(() => {
+                      const catNames = getCategoryNames(prov?.specialization_category_ids);
+                      const display = catNames.length > 0 ? catNames : (prov?.specializations ?? []);
+                      return display.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {display.slice(0, 6).map((s: string) => (
+                            <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>
+                          ))}
+                          {display.length > 6 && (
+                            <Badge variant="outline" className="text-[10px]">+{display.length - 6} more</Badge>
+                          )}
+                        </div>
+                      ) : null;
+                    })()}
                     <div className="flex gap-2">
                       <Button
                         size="sm"

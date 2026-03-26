@@ -42,6 +42,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { useCategories } from "@/hooks/useClasses";
 import { toast } from "sonner";
 
 const AdminProviders = () => {
@@ -51,6 +52,21 @@ const AdminProviders = () => {
 
   const [tab, setTab] = useState("active");
   const { data: registrations, isLoading } = useAdminProviderRegistrations(aptId, tab === "active" ? "approved" : tab);
+  const { data: allCategories } = useCategories();
+
+  const getCategoryNames = (ids: string[] | null): string[] => {
+    if (!ids || !allCategories) return [];
+    return ids
+      .map((id) => {
+        const cat = allCategories.find((c) => c.id === id);
+        if (!cat) return null;
+        const parent = cat.parent_category_id
+          ? allCategories.find((p) => p.id === cat.parent_category_id)
+          : null;
+        return parent ? `${parent.name} › ${cat.name}` : cat.name;
+      })
+      .filter(Boolean) as string[];
+  };
 
   const approveProvider = useApproveProvider();
   const rejectProvider = useRejectProvider();
@@ -201,13 +217,20 @@ const AdminProviders = () => {
         {/* Terms status badge */}
         {renderTermsStatusBadge(reg)}
 
-        {prov?.specializations?.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {prov.specializations.slice(0, 4).map((s: string) => (
-              <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>
-            ))}
-          </div>
-        )}
+        {(() => {
+          const catNames = getCategoryNames(prov?.specialization_category_ids);
+          const display = catNames.length > 0 ? catNames : (prov?.specializations ?? []);
+          return display.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {display.slice(0, 6).map((s: string) => (
+                <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>
+              ))}
+              {display.length > 6 && (
+                <Badge variant="outline" className="text-[10px]">+{display.length - 6} more</Badge>
+              )}
+            </div>
+          ) : null;
+        })()}
 
         {/* Fee info for approved */}
         {reg.status === "approved" && reg.admin_fee_type && (

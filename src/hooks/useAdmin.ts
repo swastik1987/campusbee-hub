@@ -57,7 +57,8 @@ export function useAdminProviderRegistrations(apartmentId: string | undefined, s
           created_at, approved_at, suspended_at, suspension_reason,
           service_providers(
             id, user_id, provider_type, business_name, bio, experience_years,
-            qualifications, specializations, whatsapp_number, is_verified,
+            qualifications, specializations, specialization_category_ids,
+            whatsapp_number, is_verified,
             users(full_name, avatar_url, email)
           )
         `)
@@ -365,7 +366,7 @@ export function useAdminProviderDetail(registrationId: string | undefined) {
           apartment_id,
           service_providers(
             id, user_id, provider_type, business_name, bio,
-            experience_years, qualifications, specializations,
+            experience_years, qualifications, specializations, specialization_category_ids,
             whatsapp_number, is_verified,
             users(full_name, avatar_url, email, mobile_number)
           )
