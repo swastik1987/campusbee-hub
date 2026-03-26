@@ -63,6 +63,11 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/" replace />;
   }
 
+  // Allow /become-provider for existing providers (re-apply after rejection)
+  if (path === "/become-provider" && profile?.is_provider) {
+    return <>{children}</>;
+  }
+
   // For routes that require family/apartment context, redirect to landing hub
   // (which shows the "Complete Your Setup" card) if onboarding isn't done
   if (!family && REQUIRES_FAMILY_PREFIXES.some((r) => path.startsWith(r))) {
