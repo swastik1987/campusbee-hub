@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useProviderRegistrations } from "@/hooks/useProvider";
+import { useProviderRegistrations, useTrainers } from "@/hooks/useProvider";
 import { useCategories, useCreateClass, useCreateBatch, useUploadClassImage } from "@/hooks/useClasses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,19 +77,30 @@ const CreateClass = () => {
 
   // Step 5: Batch
   const [batchName, setBatchName] = useState("");
+  const [batchType, setBatchType] = useState("custom");
+  const [batchSkillLevel, setBatchSkillLevel] = useState("");
+  const [batchAgeMin, setBatchAgeMin] = useState("");
+  const [batchAgeMax, setBatchAgeMax] = useState("");
+  const [batchTrainerId, setBatchTrainerId] = useState("");
   const [maxBatchSize, setMaxBatchSize] = useState("");
   const [feeAmount, setFeeAmount] = useState("");
   const [feeFrequency, setFeeFrequency] = useState("monthly");
   const [registrationFee, setRegistrationFee] = useState("");
+  const [batchStartDate, setBatchStartDate] = useState("");
+  const [batchEndDate, setBatchEndDate] = useState("");
+  const [batchTotalSessions, setBatchTotalSessions] = useState("");
   const [registrationMode, setRegistrationMode] = useState("auto");
+  const [autoWaitlist, setAutoWaitlist] = useState(true);
   const [daySchedules, setDaySchedules] = useState<DaySchedule[]>(
     DAY_NAMES.map(() => ({ enabled: false, startTime: "09:00", endTime: "10:00" }))
   );
 
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const isAcademy = providerProfile?.provider_type === "academy";
   const { data: registrations } = useProviderRegistrations(providerProfile?.id);
   const { data: allCategories } = useCategories();
+  const { data: trainers } = useTrainers(providerProfile?.id);
   const createClass = useCreateClass();
   const createBatch = useCreateBatch();
   const uploadImage = useUploadClassImage();
@@ -184,20 +195,21 @@ const CreateClass = () => {
       if (batchValid && result?.id) {
         await createBatch.mutateAsync({
           classId: result.id,
-          trainerId: null,
+          trainerId: batchTrainerId || null,
           batchName: batchName.trim(),
-          batchType: "custom",
-          skillLevel: skillLevels.length === 1 ? skillLevels[0] : null,
-          ageGroupMin: ageMin ? parseInt(ageMin) : null,
-          ageGroupMax: ageMax ? parseInt(ageMax) : null,
+          batchType,
+          skillLevel: batchSkillLevel || (skillLevels.length === 1 ? skillLevels[0] : null),
+          ageGroupMin: batchAgeMin ? parseInt(batchAgeMin) : (ageMin ? parseInt(ageMin) : null),
+          ageGroupMax: batchAgeMax ? parseInt(batchAgeMax) : (ageMax ? parseInt(ageMax) : null),
           maxBatchSize: parseInt(maxBatchSize),
           feeAmount: parseFloat(feeAmount),
           feeFrequency,
-          startDate: null,
-          endDate: null,
-          totalSessions: null,
+          registrationFee: registrationFee ? parseFloat(registrationFee) : 0,
+          startDate: batchStartDate || null,
+          endDate: batchEndDate || null,
+          totalSessions: batchTotalSessions ? parseInt(batchTotalSessions) : null,
           registrationMode,
-          autoWaitlist: true,
+          autoWaitlist,
           notes: "",
           status: status === "published" ? "active" : "draft",
           schedules: selectedSchedules.map((s) => ({
@@ -454,6 +466,62 @@ const CreateClass = () => {
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Batch Type</Label>
+                <Select value={batchType} onValueChange={setBatchType}>
+                  <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="level">Level</SelectItem>
+                    <SelectItem value="age_group">Age Group</SelectItem>
+                    <SelectItem value="time_slot">Time Slot</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {batchType === "level" && (
+                <div className="space-y-2">
+                  <Label>Skill Level</Label>
+                  <Select value={batchSkillLevel} onValueChange={setBatchSkillLevel}>
+                    <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="beginner">Beginner</SelectItem>
+                      <SelectItem value="intermediate">Intermediate</SelectItem>
+                      <SelectItem value="advanced">Advanced</SelectItem>
+                      <SelectItem value="all_levels">All Levels</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {batchType === "age_group" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Min Age</Label>
+                  <Input type="number" value={batchAgeMin} onChange={(e) => setBatchAgeMin(e.target.value)} className="h-11 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Max Age</Label>
+                  <Input type="number" value={batchAgeMax} onChange={(e) => setBatchAgeMax(e.target.value)} className="h-11 rounded-xl" />
+                </div>
+              </div>
+            )}
+
+            {isAcademy && trainers && trainers.length > 0 && (
+              <div className="space-y-2">
+                <Label>Assign Trainer</Label>
+                <Select value={batchTrainerId} onValueChange={setBatchTrainerId}>
+                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select trainer" /></SelectTrigger>
+                  <SelectContent>
+                    {trainers.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Schedule Builder */}
             <div className="space-y-3">
               <Label>Schedule</Label>
@@ -540,6 +608,22 @@ const CreateClass = () => {
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input type="date" value={batchStartDate} onChange={(e) => setBatchStartDate(e.target.value)} className="h-11 rounded-xl" />
+              </div>
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input type="date" value={batchEndDate} onChange={(e) => setBatchEndDate(e.target.value)} className="h-11 rounded-xl" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Total Sessions</Label>
+              <Input type="number" value={batchTotalSessions} onChange={(e) => setBatchTotalSessions(e.target.value)} placeholder="Optional" className="h-11 rounded-xl" />
+            </div>
+
             <div className="space-y-2">
               <Label>Registration Mode</Label>
               <RadioGroup value={registrationMode} onValueChange={setRegistrationMode} className="flex gap-4">
@@ -552,6 +636,14 @@ const CreateClass = () => {
                   <label htmlFor="reg-manual" className="text-sm cursor-pointer">Manual approval</label>
                 </div>
               </RadioGroup>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-xl border">
+              <div>
+                <p className="text-sm font-medium">Auto-Waitlist</p>
+                <p className="text-xs text-muted-foreground">Add to waitlist when batch is full</p>
+              </div>
+              <Switch checked={autoWaitlist} onCheckedChange={setAutoWaitlist} />
             </div>
 
             <Button
