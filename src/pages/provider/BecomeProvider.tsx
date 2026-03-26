@@ -60,6 +60,9 @@ const BecomeProvider = () => {
   const [selectedApartments, setSelectedApartments] = useState<string[]>(
     family?.apartment_id ? [family.apartment_id] : []
   );
+  const [availableApartments, setAvailableApartments] = useState<
+    { id: string; name: string; locality: string; city: string }[]
+  >([]);
 
   // Pre-fill from existing provider profile (re-application after rejection)
   useEffect(() => {
@@ -67,7 +70,7 @@ const BecomeProvider = () => {
     const loadExisting = async () => {
       const { data: sp } = await supabase
         .from("service_providers")
-        .select("provider_type, business_name, bio, experience_years, qualifications, specializations, specialization_category_ids, intro_video_url, whatsapp_number, upi_id, upi_qr_image_url")
+        .select("id, provider_type, business_name, bio, experience_years, qualifications, specializations, specialization_category_ids, intro_video_url, whatsapp_number, upi_id, upi_qr_image_url")
         .eq("user_id", profile.id)
         .maybeSingle();
       if (sp) {
@@ -82,6 +85,23 @@ const BecomeProvider = () => {
         setWhatsappNumber(sp.whatsapp_number || profile.mobile_number || "");
         setUpiId(sp.upi_id || "");
         setUpiQrUrl(sp.upi_qr_image_url || "");
+
+        // Load previously registered apartments for re-apply
+        const { data: regs } = await supabase
+          .from("provider_apartment_registrations")
+          .select("apartment_id, status, apartment_complexes:apartment_complexes(id, name, locality, city)")
+          .eq("provider_id", sp.id);
+        if (regs && regs.length > 0) {
+          const apartments = regs
+            .map((r) => {
+              const apt = r.apartment_complexes as any;
+              return apt ? { id: apt.id, name: apt.name, locality: apt.locality, city: apt.city } : null;
+            })
+            .filter(Boolean) as { id: string; name: string; locality: string; city: string }[];
+          setAvailableApartments(apartments);
+          // Pre-select all previously registered apartments
+          setSelectedApartments(apartments.map((a) => a.id));
+        }
       }
       setPrefilled(true);
     };
@@ -316,7 +336,7 @@ const BecomeProvider = () => {
           <div className="space-y-5 animate-fade-up">
             <h2 className="text-xl font-bold">Select Apartments</h2>
             <p className="text-sm text-muted-foreground">Choose where you want to teach. Apartment admins will review your application.</p>
-            {family && (
+            {family && !availableApartments.find((a) => a.id === family.apartment_id) && (
               <Card className="p-4">
                 <div className="flex items-center gap-3">
                   <Checkbox
@@ -337,6 +357,27 @@ const BecomeProvider = () => {
                 </div>
               </Card>
             )}
+            {availableApartments.map((apt) => (
+              <Card key={apt.id} className="p-4">
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    checked={selectedApartments.includes(apt.id)}
+                    onCheckedChange={(checked) => {
+                      setSelectedApartments((prev) =>
+                        checked ? [...prev, apt.id] : prev.filter((id) => id !== apt.id)
+                      );
+                    }}
+                  />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-provider/10">
+                    <Building2 size={18} className="text-provider" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{apt.name}</p>
+                    <p className="text-xs text-muted-foreground">{apt.locality}, {apt.city}</p>
+                  </div>
+                </div>
+              </Card>
+            ))}
             <Button
               onClick={handleSubmit}
               disabled={selectedApartments.length === 0 || createProvider.isPending}
