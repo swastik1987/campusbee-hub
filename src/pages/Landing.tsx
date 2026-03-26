@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Tabs import removed — using custom colored tab buttons
 import { toast } from "sonner";
 
 const features = [
@@ -99,17 +99,33 @@ const LoggedInLanding = () => {
     { label: "Platform Analytics", desc: "Growth & city-wise metrics", icon: BarChart3, path: "/platform/analytics", color: "text-emerald-600", bgColor: "bg-emerald-500/10" },
   ];
 
-  // Build tabs in precedence order
+  // Build tabs in precedence order with accent colors
   const tabs = useMemo(() => {
-    const t: { id: string; label: string; icon: typeof Home }[] = [];
-    if (profile?.is_platform_admin) t.push({ id: "platform", label: "Platform", icon: Shield });
-    if (profile?.is_apartment_admin) t.push({ id: "admin", label: "Admin", icon: Building2 });
-    if (profile?.is_provider) t.push({ id: "provider", label: "Provider", icon: GraduationCap });
-    t.push({ id: "resident", label: "Resident", icon: Home });
+    const t: { id: string; label: string; icon: typeof Home; activeClass: string; inactiveClass: string }[] = [];
+    if (profile?.is_platform_admin) t.push({
+      id: "platform", label: "Platform", icon: Shield,
+      activeClass: "bg-emerald-600 text-white shadow-sm shadow-emerald-200",
+      inactiveClass: "text-emerald-700 bg-emerald-50 hover:bg-emerald-100",
+    });
+    if (profile?.is_apartment_admin) t.push({
+      id: "admin", label: "Admin", icon: Building2,
+      activeClass: "bg-indigo-600 text-white shadow-sm shadow-indigo-200",
+      inactiveClass: "text-indigo-700 bg-indigo-50 hover:bg-indigo-100",
+    });
+    if (profile?.is_provider) t.push({
+      id: "provider", label: "Provider", icon: GraduationCap,
+      activeClass: "bg-indigo-600 text-white shadow-sm shadow-indigo-200",
+      inactiveClass: "text-indigo-700 bg-indigo-50 hover:bg-indigo-100",
+    });
+    t.push({
+      id: "resident", label: "Resident", icon: Home,
+      activeClass: "bg-primary text-primary-foreground shadow-sm shadow-primary/20",
+      inactiveClass: "text-primary bg-primary/10 hover:bg-primary/15",
+    });
     return t;
   }, [profile]);
 
-  const defaultTab = tabs[0]?.id ?? "resident";
+  const [activeTab, setActiveTab] = useState(tabs[0]?.id ?? "resident");
 
   const renderActionList = (actions: ActionItem[]) => (
     <div className="space-y-2">
@@ -211,72 +227,79 @@ const LoggedInLanding = () => {
 
         {/* Role-based tabs */}
         {tabs.length > 1 ? (
-          <Tabs defaultValue={defaultTab}>
-            <TabsList className="w-full">
-              {tabs.map((t) => (
-                <TabsTrigger key={t.id} value={t.id} className="flex-1 gap-1.5 text-xs">
-                  <t.icon size={14} />
-                  {t.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+          <div className="space-y-4">
+            {/* Tab buttons */}
+            <div className="flex gap-2 rounded-xl bg-muted/50 p-1.5">
+              {tabs.map((t) => {
+                const isActive = activeTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setActiveTab(t.id)}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+                      isActive ? t.activeClass : t.inactiveClass
+                    }`}
+                  >
+                    <t.icon size={14} />
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
 
-            {profile?.is_platform_admin && (
-              <TabsContent value="platform" className="mt-4 space-y-4">
-                {renderActionList(platformActions)}
-              </TabsContent>
+            {/* Tab content */}
+            {activeTab === "platform" && profile?.is_platform_admin && (
+              <div className="space-y-4">{renderActionList(platformActions)}</div>
             )}
 
-            {profile?.is_apartment_admin && (
-              <TabsContent value="admin" className="mt-4 space-y-4">
-                {renderActionList(adminActions)}
-              </TabsContent>
+            {activeTab === "admin" && profile?.is_apartment_admin && (
+              <div className="space-y-4">{renderActionList(adminActions)}</div>
             )}
 
-            {profile?.is_provider && (
-              <TabsContent value="provider" className="mt-4 space-y-4">
-                {renderActionList(providerActions)}
-              </TabsContent>
+            {activeTab === "provider" && profile?.is_provider && (
+              <div className="space-y-4">{renderActionList(providerActions)}</div>
             )}
 
-            <TabsContent value="resident" className="mt-4 space-y-4">
-              {!family && (
-                <button
-                  onClick={() => navigate("/onboarding")}
-                  className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-primary/30 p-4 text-left transition-colors hover:border-primary hover:bg-primary/5 active:scale-[0.98]"
-                >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                    <ClipboardList size={20} className="text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-primary">Complete Your Setup</p>
-                    <p className="text-xs text-muted-foreground">
-                      Select your apartment & add family members to discover classes
-                    </p>
-                  </div>
-                  <ChevronRight size={16} className="text-primary" />
-                </button>
-              )}
-              {family && renderActionList(residentActions)}
-              {!profile?.is_provider && family && (
-                <button
-                  onClick={() => navigate("/become-provider")}
-                  className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-indigo-300 p-4 text-left transition-colors hover:border-indigo-500 hover:bg-indigo-50 active:scale-[0.98]"
-                >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10">
-                    <GraduationCap size={20} className="text-indigo-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-indigo-600">Start Teaching</p>
-                    <p className="text-xs text-muted-foreground">
-                      Become a provider on CampusBee
-                    </p>
-                  </div>
-                  <ChevronRight size={16} className="text-indigo-400" />
-                </button>
-              )}
-            </TabsContent>
-          </Tabs>
+            {activeTab === "resident" && (
+              <div className="space-y-4">
+                {!family && (
+                  <button
+                    onClick={() => navigate("/onboarding")}
+                    className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-primary/30 p-4 text-left transition-colors hover:border-primary hover:bg-primary/5 active:scale-[0.98]"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <ClipboardList size={20} className="text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-primary">Complete Your Setup</p>
+                      <p className="text-xs text-muted-foreground">
+                        Select your apartment & add family members to discover classes
+                      </p>
+                    </div>
+                    <ChevronRight size={16} className="text-primary" />
+                  </button>
+                )}
+                {family && renderActionList(residentActions)}
+                {!profile?.is_provider && family && (
+                  <button
+                    onClick={() => navigate("/become-provider")}
+                    className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-indigo-300 p-4 text-left transition-colors hover:border-indigo-500 hover:bg-indigo-50 active:scale-[0.98]"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10">
+                      <GraduationCap size={20} className="text-indigo-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-indigo-600">Start Teaching</p>
+                      <p className="text-xs text-muted-foreground">
+                        Become a provider on CampusBee
+                      </p>
+                    </div>
+                    <ChevronRight size={16} className="text-indigo-400" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         ) : (
           /* Single role — no tabs needed, just show resident content */
           <div className="space-y-4">
