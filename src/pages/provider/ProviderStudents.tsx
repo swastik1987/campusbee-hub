@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useProviderRegistrations } from "@/hooks/useProvider";
 import { useProviderEnrollments, useUpdateEnrollmentStatus } from "@/hooks/useEngagement";
@@ -13,7 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Check, Clock, CreditCard, Filter, Home, Users, X } from "lucide-react";
+import { Calendar, Check, Clock, CreditCard, Filter, Home, MessageCircle, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -51,6 +52,7 @@ function getAge(dob: string | null): string | null {
 }
 
 const ProviderStudents = () => {
+  const navigate = useNavigate();
   const { providerProfile } = useUser();
   const [tab, setTab] = useState("all");
   const [classFilter, setClassFilter] = useState("all");
@@ -182,6 +184,7 @@ const ProviderStudents = () => {
               <div className="space-y-3">
                 {enrollments.map((enrollment) => {
                   const member = enrollment.family_members as any;
+                  const enrolledUser = (enrollment as any).enrolled_user;
                   const batch = enrollment.batches as any;
                   const cls = batch?.classes;
                   const schedules = batch?.batch_schedules ?? [];
@@ -212,6 +215,15 @@ const ProviderStudents = () => {
                             <Badge className={`text-[9px] border-0 shrink-0 ${STATUS_COLORS[enrollment.status ?? ""] ?? "bg-gray-100"}`}>
                               {enrollment.status}
                             </Badge>
+                            {enrolledUser?.id && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); navigate(`/chat?with=${enrolledUser.id}`); }}
+                                className="ml-auto shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-indigo-500/10 transition-colors hover:bg-indigo-500/20"
+                                title={`Chat with ${enrolledUser.full_name ?? "parent"}`}
+                              >
+                                <MessageCircle size={14} className="text-indigo-600" />
+                              </button>
+                            )}
                           </div>
                           <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground mt-0.5">
                             {member?.relationship && <span>{member.relationship}</span>}

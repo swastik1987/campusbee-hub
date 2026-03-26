@@ -6,10 +6,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { UserProvider } from "@/contexts/UserContext";
 import AuthGuard from "@/components/AuthGuard";
 
+import { Navigate } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/seeker/Onboarding";
-import SeekerHome from "./pages/seeker/SeekerHome";
 import Explore from "./pages/seeker/Explore";
 import MyClasses from "./pages/seeker/MyClasses";
 import ClassDetail from "./pages/seeker/ClassDetail";
@@ -64,7 +64,7 @@ const App = () => (
 
             {/* Protected seeker routes */}
             <Route path="/onboarding" element={<AuthGuard><Onboarding /></AuthGuard>} />
-            <Route path="/home" element={<AuthGuard><SeekerHome /></AuthGuard>} />
+            <Route path="/home" element={<Navigate to="/explore" replace />} />
             <Route path="/explore" element={<AuthGuard><Explore /></AuthGuard>} />
             <Route path="/my-classes" element={<AuthGuard><MyClasses /></AuthGuard>} />
             <Route path="/class/:classId" element={<AuthGuard><ClassDetail /></AuthGuard>} />

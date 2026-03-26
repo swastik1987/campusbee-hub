@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
 import PersonaSwitcher from "./PersonaSwitcher";
-import { Bell } from "lucide-react";
+import { Bell, Home } from "lucide-react";
 
 interface HeaderProps {
   showPersonaSwitcher?: boolean;
@@ -16,10 +16,13 @@ const Header = ({ showPersonaSwitcher = true }: HeaderProps) => {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4">
-        {/* Logo + Apartment */}
-        <div className="flex items-center gap-2">
+        {/* Logo + Apartment — clickable to home */}
+        <button
+          onClick={() => navigate("/")}
+          className="flex items-center gap-2 transition-opacity active:opacity-70"
+        >
           <img src="/logo-icon.png" alt="CampusBee" className="h-8 w-8 object-contain" />
-          <div className="leading-tight">
+          <div className="leading-tight text-left">
             <h1 className="text-sm font-extrabold gradient-primary-text">
               CampusBee
             </h1>
@@ -29,7 +32,7 @@ const Header = ({ showPersonaSwitcher = true }: HeaderProps) => {
               </p>
             )}
           </div>
-        </div>
+        </button>
 
         {/* Right side */}
         <div className="flex items-center gap-2">

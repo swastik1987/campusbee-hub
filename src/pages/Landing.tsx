@@ -73,8 +73,7 @@ const LoggedInLanding = () => {
   type ActionItem = { label: string; desc: string; icon: typeof Home; path: string; color: string; bgColor: string };
 
   const residentActions: ActionItem[] = [
-    { label: "Home", desc: "Browse classes in your community", icon: Home, path: "/home", color: "text-primary", bgColor: "bg-primary/10" },
-    { label: "Explore Classes", desc: "Search & discover new classes", icon: Search, path: "/explore", color: "text-primary", bgColor: "bg-primary/10" },
+    { label: "Explore Classes", desc: "Browse, search & discover classes in your community", icon: Search, path: "/explore", color: "text-primary", bgColor: "bg-primary/10" },
     { label: "My Classes", desc: "View enrollments & schedules", icon: BookOpen, path: "/my-classes", color: "text-primary", bgColor: "bg-primary/10" },
     { label: "Messages", desc: "Chat with providers", icon: MessageCircle, path: "/chat", color: "text-primary", bgColor: "bg-primary/10" },
   ];

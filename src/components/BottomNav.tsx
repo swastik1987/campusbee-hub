@@ -1,10 +1,9 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, Search, BookOpen, MessageCircle, User, LayoutDashboard, Users, Wallet, FileBarChart, Shield, Building2, BarChart3, FolderTree } from "lucide-react";
+import { Search, BookOpen, MessageCircle, User, LayoutDashboard, Users, Wallet, FileBarChart, Shield, Building2, BarChart3, FolderTree } from "lucide-react";
 
 type Persona = "seeker" | "provider" | "admin" | "platform_admin";
 
 const seekerTabs = [
-  { path: "/home", icon: Home, label: "Home" },
   { path: "/explore", icon: Search, label: "Explore" },
   { path: "/my-classes", icon: BookOpen, label: "Classes" },
   { path: "/chat", icon: MessageCircle, label: "Chat" },

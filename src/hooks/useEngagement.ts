@@ -88,6 +88,7 @@ export function useProviderEnrollments(batchIds: string[], status?: string) {
           family_members(id, name, relationship, avatar_url, date_of_birth, age_group,
             families(flat_number, block_tower)
           ),
+          enrolled_user:users!enrollments_enrolled_by_fkey(id, full_name, avatar_url),
           batches(id, batch_name, class_id, fee_amount, fee_frequency, start_date, end_date, status,
             classes(id, title),
             batch_schedules(day_of_week, start_time, end_time)
@@ -214,8 +215,8 @@ export function useChatConversations(userId: string | undefined) {
         .from("chat_conversations")
         .select(`
           id, participant_1, participant_2, last_message_at, last_message_preview,
-          user1:users!chat_conversations_participant_1_fkey(id, full_name, avatar_url, families(flat_number, block_tower)),
-          user2:users!chat_conversations_participant_2_fkey(id, full_name, avatar_url, families(flat_number, block_tower))
+          user1:users!chat_conversations_participant_1_fkey(id, full_name, avatar_url, is_provider, families(flat_number, block_tower)),
+          user2:users!chat_conversations_participant_2_fkey(id, full_name, avatar_url, is_provider, families(flat_number, block_tower))
         `)
         .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
         .order("last_message_at", { ascending: false, nullsFirst: false });

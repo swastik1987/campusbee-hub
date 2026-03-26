@@ -13,7 +13,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Home, MessageCircle, Send } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, GraduationCap, Home, MessageCircle, Send } from "lucide-react";
 
 const Chat = () => {
   const navigate = useNavigate();
@@ -68,13 +69,27 @@ const Chat = () => {
   const getFlatInfo = (user: any): string | null => {
     const fam = user?.families;
     if (!fam) return null;
-    // families is returned as array from nested select
     const f = Array.isArray(fam) ? fam[0] : fam;
     if (!f) return null;
     const parts: string[] = [];
     if (f.flat_number) parts.push(`Flat ${f.flat_number}`);
     if (f.block_tower) parts.push(f.block_tower);
     return parts.length > 0 ? parts.join(", ") : null;
+  };
+
+  const RoleBadge = ({ user }: { user: any }) => {
+    if (user?.is_provider) {
+      return (
+        <Badge className="text-[9px] border-0 bg-indigo-100 text-indigo-700 gap-0.5 px-1.5 py-0">
+          <GraduationCap size={9} /> Provider
+        </Badge>
+      );
+    }
+    return (
+      <Badge className="text-[9px] border-0 bg-primary/10 text-primary gap-0.5 px-1.5 py-0">
+        <Home size={9} /> Resident
+      </Badge>
+    );
   };
 
   // Conversation detail view
@@ -96,7 +111,10 @@ const Chat = () => {
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-bold truncate">{other?.full_name ?? "Chat"}</h1>
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-sm font-bold truncate">{other?.full_name ?? "Chat"}</h1>
+              {other && <RoleBadge user={other} />}
+            </div>
             {otherFlat && (
               <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
                 <Home size={9} />
@@ -189,7 +207,10 @@ const Chat = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold truncate">{other?.full_name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-semibold truncate">{other?.full_name}</p>
+                          {other && <RoleBadge user={other} />}
+                        </div>
                         {flatInfo && (
                           <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
                             <Home size={9} />
