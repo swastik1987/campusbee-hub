@@ -94,7 +94,8 @@ const CreateClass = () => {
   const createBatch = useCreateBatch();
   const uploadImage = useUploadClassImage();
 
-  const approvedRegs = registrations?.filter((r) => r.status === "approved") ?? [];
+  const approvedRegs = registrations?.filter((r) => r.status === "approved" && r.terms_status === "accepted") ?? [];
+  const pendingTermsRegs = registrations?.filter((r) => r.status === "approved" && r.terms_status !== "accepted") ?? [];
 
   // Filter categories based on provider's specialization_category_ids
   const specializationIds = providerProfile?.specialization_category_ids ?? [];
@@ -244,6 +245,11 @@ const CreateClass = () => {
 
             <div className="space-y-2">
               <Label>Select Apartment</Label>
+              {approvedRegs.length === 0 && pendingTermsRegs.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  You have been approved but need to accept the commercial terms before creating classes. Please check your provider dashboard.
+                </div>
+              )}
               <Select value={selectedRegId} onValueChange={setSelectedRegId}>
                 <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Choose apartment" /></SelectTrigger>
                 <SelectContent>

@@ -143,7 +143,7 @@ export function useProviderRegistrations(providerId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("provider_apartment_registrations")
-        .select("id, provider_id, apartment_id, status, admin_fee_type, admin_fee_amount, created_at, apartment_complexes(id, name, city, locality)")
+        .select("id, provider_id, apartment_id, status, terms_status, admin_fee_type, admin_fee_amount, created_at, apartment_complexes(id, name, city, locality)")
         .eq("provider_id", providerId!);
       if (error) throw error;
       return data;

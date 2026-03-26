@@ -292,7 +292,10 @@ const BecomeProvider = () => {
                 );
               })}
             </div>
-            <Button onClick={() => setStep(2)} className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl">
+            {selectedCategoryIds.length === 0 && (
+              <p className="text-xs text-destructive">Please select at least one sub-category to continue.</p>
+            )}
+            <Button disabled={selectedCategoryIds.length === 0} onClick={() => setStep(2)} className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl">
               Continue
             </Button>
           </div>
