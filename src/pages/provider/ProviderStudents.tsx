@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useUser } from "@/contexts/UserContext";
 import { useProviderRegistrations } from "@/hooks/useProvider";
 import { useProviderEnrollments, useUpdateEnrollmentStatus } from "@/hooks/useEngagement";
@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Check, Clock, CreditCard, Home, Loader2, Users, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar, Check, Clock, CreditCard, Filter, Home, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -51,30 +52,61 @@ function getAge(dob: string | null): string | null {
 
 const ProviderStudents = () => {
   const { providerProfile } = useUser();
-  const [tab, setTab] = useState("active");
+  const [tab, setTab] = useState("all");
+  const [classFilter, setClassFilter] = useState("all");
+  const [batchFilter, setBatchFilter] = useState("all");
 
   const { data: registrations } = useProviderRegistrations(providerProfile?.id);
   const approvedRegIds = registrations?.filter((r) => r.status === "approved").map((r) => r.id) ?? [];
 
-  const { data: batchIds } = useQuery({
-    queryKey: ["provider-batch-ids", approvedRegIds],
+  // Fetch all classes and batches for this provider (for filters + batch IDs)
+  const { data: providerClasses } = useQuery({
+    queryKey: ["provider-classes-for-filter", approvedRegIds],
     enabled: approvedRegIds.length > 0,
     queryFn: async () => {
-      const { data: classes } = await supabase
+      const { data, error } = await supabase
         .from("classes")
-        .select("id")
-        .in("provider_registration_id", approvedRegIds);
-      if (!classes?.length) return [];
-      const { data: batches } = await supabase
-        .from("batches")
-        .select("id")
-        .in("class_id", classes.map((c) => c.id));
-      return batches?.map((b) => b.id) ?? [];
+        .select("id, title")
+        .in("provider_registration_id", approvedRegIds)
+        .order("title");
+      if (error) throw error;
+      return data ?? [];
     },
   });
 
+  const classIds = classFilter === "all"
+    ? providerClasses?.map((c) => c.id) ?? []
+    : [classFilter];
+
+  const { data: providerBatches } = useQuery({
+    queryKey: ["provider-batches-for-filter", classIds],
+    enabled: classIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("batches")
+        .select("id, batch_name, class_id")
+        .in("class_id", classIds)
+        .order("batch_name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Reset batch filter when class filter changes
+  const handleClassChange = (val: string) => {
+    setClassFilter(val);
+    setBatchFilter("all");
+  };
+
+  // Determine which batch IDs to query enrollments for
+  const activeBatchIds = useMemo(() => {
+    if (!providerBatches?.length) return [];
+    if (batchFilter !== "all") return [batchFilter];
+    return providerBatches.map((b) => b.id);
+  }, [providerBatches, batchFilter]);
+
   const statusFilter = tab === "pending" ? "pending" : tab === "active" ? "active" : "all";
-  const { data: enrollments, isLoading } = useProviderEnrollments(batchIds ?? [], statusFilter);
+  const { data: enrollments, isLoading } = useProviderEnrollments(activeBatchIds, statusFilter);
   const updateStatus = useUpdateEnrollmentStatus();
 
   const handleApprove = async (enrollmentId: string) => {
@@ -102,11 +134,41 @@ const ProviderStudents = () => {
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-4">
         <h2 className="text-lg font-bold">Students</h2>
 
+        {/* Class & Batch Filters */}
+        <div className="flex gap-2">
+          <Select value={classFilter} onValueChange={handleClassChange}>
+            <SelectTrigger className="flex-1 h-9 text-xs">
+              <div className="flex items-center gap-1.5">
+                <Filter size={12} className="text-muted-foreground shrink-0" />
+                <SelectValue placeholder="All Classes" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Classes</SelectItem>
+              {providerClasses?.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={batchFilter} onValueChange={setBatchFilter}>
+            <SelectTrigger className="flex-1 h-9 text-xs">
+              <SelectValue placeholder="All Batches" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Batches</SelectItem>
+              {providerBatches?.map((b) => (
+                <SelectItem key={b.id} value={b.id}>{b.batch_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full">
+            <TabsTrigger value="all" className="flex-1">All</TabsTrigger>
             <TabsTrigger value="active" className="flex-1">Active</TabsTrigger>
             <TabsTrigger value="pending" className="flex-1">Pending</TabsTrigger>
-            <TabsTrigger value="all" className="flex-1">All</TabsTrigger>
           </TabsList>
 
           <TabsContent value={tab} className="mt-4">

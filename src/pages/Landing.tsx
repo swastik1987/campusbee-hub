@@ -143,6 +143,15 @@ const LoggedInLanding = () => {
       bgColor: "bg-indigo-500/10",
       show: !!profile?.is_provider,
     },
+    {
+      label: "Messages",
+      desc: "Chat with students & parents",
+      icon: MessageCircle,
+      path: "/chat",
+      color: "text-indigo-600",
+      bgColor: "bg-indigo-500/10",
+      show: !!profile?.is_provider,
+    },
     // Apartment Admin actions
     {
       label: "Admin Dashboard",
