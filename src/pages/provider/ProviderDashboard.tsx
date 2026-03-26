@@ -8,6 +8,7 @@ import {
   usePendingEnrollments,
   useProviderPendingTerms,
 } from "@/hooks/useProvider";
+import { useProviderFeaturedRequests } from "@/hooks/useFeatured";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { Card } from "@/components/ui/card";
@@ -25,6 +26,9 @@ import {
   GraduationCap,
   Megaphone,
   CalendarDays,
+  FileCheck,
+  Star,
+  Building2,
 } from "lucide-react";
 
 const ProviderDashboard = () => {
@@ -45,6 +49,19 @@ const ProviderDashboard = () => {
   const { data: upcomingSchedule } = useProviderUpcomingSchedule(providerId, approvedRegIds);
   const { data: pendingEnrollments } = usePendingEnrollments(providerId, approvedRegIds);
   const { data: pendingTerms } = useProviderPendingTerms(providerId);
+  const { data: featuredRequests } = useProviderFeaturedRequests(providerId, approvedRegIds);
+
+  // Featured listings with fee proposed (need provider acceptance)
+  const pendingFeaturedFees = featuredRequests?.filter((r) => r.fee_status === "fee_proposed") ?? [];
+  // Featured listings pending admin approval
+  const pendingFeaturedApproval = featuredRequests?.filter((r) => r.status === "pending_approval") ?? [];
+
+  // Total actionable count
+  const actionCount =
+    (pendingTerms?.length ?? 0) +
+    pendingFeaturedFees.length +
+    (pendingEnrollments?.length ?? 0) +
+    pendingRegs.length;
 
   // Pending state — no approved apartments yet
   if (!regsLoading && !hasApproved) {
@@ -120,20 +137,108 @@ const ProviderDashboard = () => {
       <Header />
 
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-6">
-        {/* Pending Terms Banner */}
-        {(pendingTerms?.length ?? 0) > 0 && (
-          <Card className="flex items-center gap-3 border-amber-300 bg-amber-50 p-3">
-            <AlertCircle size={20} className="shrink-0 text-amber-600" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800">
-                {pendingTerms!.length} commercial term{pendingTerms!.length > 1 ? "s" : ""} to review
-              </p>
-              <p className="text-xs text-amber-600">Accept terms to start listing classes</p>
+        {/* Pending Actionables */}
+        {actionCount > 0 && (
+          <div>
+            <h2 className="mb-3 text-base font-bold flex items-center gap-2">
+              <AlertCircle size={18} className="text-amber-500" />
+              Action Required
+              <Badge className="bg-amber-500 text-white text-[10px] h-5 px-1.5">
+                {actionCount}
+              </Badge>
+            </h2>
+            <div className="space-y-2">
+              {/* Commercial terms acceptance */}
+              {(pendingTerms ?? []).map((t) => (
+                <Card key={t.id} className="flex items-center gap-3 p-3 border-amber-200 bg-amber-50/50">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
+                    <FileCheck size={16} className="text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Commercial terms to accept</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(t.apartment_complexes as any)?.name}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-7 text-xs border-amber-400 text-amber-700 hover:bg-amber-100" onClick={() => navigate("/provider/terms")}>
+                    Review
+                  </Button>
+                </Card>
+              ))}
+
+              {/* Featured listing fee acceptance */}
+              {pendingFeaturedFees.map((f) => (
+                <Card key={f.id} className="flex items-center gap-3 p-3 border-amber-200 bg-amber-50/50">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100">
+                    <Star size={16} className="text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Featured listing fee: ₹{f.ad_fee}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(f.classes as any)?.title}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-7 text-xs border-purple-400 text-purple-700 hover:bg-purple-100" onClick={() => navigate("/provider/featured")}>
+                    Accept
+                  </Button>
+                </Card>
+              ))}
+
+              {/* Pending apartment approvals */}
+              {pendingRegs.map((r) => (
+                <Card key={r.id} className="flex items-center gap-3 p-3 border-amber-200 bg-amber-50/50">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
+                    <Building2 size={16} className="text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Awaiting admin approval</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(r.apartment_complexes as any)?.name} · {(r.apartment_complexes as any)?.locality}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
+                    Pending
+                  </Badge>
+                </Card>
+              ))}
+
+              {/* Pending enrollment requests */}
+              {(pendingEnrollments ?? []).map((e) => (
+                <Card key={e.enrollmentId} className="flex items-center gap-3 p-3 border-amber-200 bg-amber-50/50">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
+                    <Users size={16} className="text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{e.memberName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {e.classTitle} · {e.batchName}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
+                    Review
+                  </Badge>
+                </Card>
+              ))}
+
+              {/* Featured listings pending admin approval (info only) */}
+              {pendingFeaturedApproval.map((f) => (
+                <Card key={f.id} className="flex items-center gap-3 p-3 opacity-70">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
+                    <Star size={16} className="text-gray-500" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Featured request under review</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(f.classes as any)?.title}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-gray-500 border-gray-300 text-xs">
+                    Waiting
+                  </Badge>
+                </Card>
+              ))}
             </div>
-            <Button size="sm" variant="outline" className="border-amber-400 text-amber-700 hover:bg-amber-100" onClick={() => navigate("/provider/terms")}>
-              Review
-            </Button>
-          </Card>
+          </div>
         )}
 
         {/* Quick Stats */}
@@ -240,33 +345,7 @@ const ProviderDashboard = () => {
           </div>
         )}
 
-        {/* Action Required */}
-        {pendingEnrollments && pendingEnrollments.length > 0 && (
-          <div>
-            <h2 className="mb-3 text-base font-bold flex items-center gap-2">
-              <AlertCircle size={18} className="text-amber-500" />
-              Action Required
-            </h2>
-            <div className="space-y-2">
-              {pendingEnrollments.map((e) => (
-                <Card key={e.enrollmentId} className="flex items-center gap-3 p-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
-                    <Users size={16} className="text-amber-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{e.memberName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {e.classTitle} · {e.batchName}
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
-                    Review
-                  </Badge>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* No pending actions placeholder */}
       </div>
 
       {/* FAB */}
