@@ -42,10 +42,12 @@ import AdminProviders from "./pages/admin/AdminProviders";
 import AdminProviderDetail from "./pages/admin/AdminProviderDetail";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminFeatured from "./pages/admin/AdminFeatured";
+import AdminResidents from "./pages/admin/AdminResidents";
 import PlatformLayout from "./pages/platform/PlatformLayout";
 import PlatformDashboard from "./pages/platform/PlatformDashboard";
 import PlatformApartments from "./pages/platform/PlatformApartments";
 import PlatformCategories from "./pages/platform/PlatformCategories";
+import PlatformApartmentDetail from "./pages/platform/PlatformApartmentDetail";
 import PlatformAnalytics from "./pages/platform/PlatformAnalytics";
 import NotFound from "./pages/NotFound";
 
@@ -103,11 +105,13 @@ const App = () => (
             <Route path="/admin/providers/:registrationId" element={<AuthGuard><AdminProviderDetail /></AuthGuard>} />
             <Route path="/admin/reports" element={<AuthGuard><AdminReports /></AuthGuard>} />
             <Route path="/admin/featured" element={<AuthGuard><AdminFeatured /></AuthGuard>} />
+            <Route path="/admin/residents" element={<AuthGuard><AdminResidents /></AuthGuard>} />
 
             {/* Platform admin routes (nested layout) */}
             <Route path="/platform" element={<AuthGuard><PlatformLayout /></AuthGuard>}>
               <Route index element={<PlatformDashboard />} />
               <Route path="apartments" element={<PlatformApartments />} />
+              <Route path="apartments/:id" element={<PlatformApartmentDetail />} />
               <Route path="categories" element={<PlatformCategories />} />
               <Route path="analytics" element={<PlatformAnalytics />} />
             </Route>

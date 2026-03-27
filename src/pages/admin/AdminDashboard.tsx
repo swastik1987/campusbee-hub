@@ -238,13 +238,20 @@ const AdminDashboard = () => {
         )}
 
         {/* Quick links */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           <Card
             className="p-4 cursor-pointer hover:shadow-md transition-all text-center"
             onClick={() => navigate("/admin/providers")}
           >
             <Users size={20} className="mx-auto text-provider mb-1" />
             <p className="text-xs font-semibold">Providers</p>
+          </Card>
+          <Card
+            className="p-4 cursor-pointer hover:shadow-md transition-all text-center"
+            onClick={() => navigate("/admin/residents")}
+          >
+            <HomeIcon size={20} className="mx-auto text-emerald-600 mb-1" />
+            <p className="text-xs font-semibold">Residents</p>
           </Card>
           <Card
             className="p-4 cursor-pointer hover:shadow-md transition-all text-center relative"

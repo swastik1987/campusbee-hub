@@ -8,6 +8,13 @@ export function useAdminStats(apartmentId: string | undefined) {
     queryKey: ["admin-stats", apartmentId],
     enabled: !!apartmentId,
     queryFn: async () => {
+      // First get registration IDs for this apartment
+      const { data: regs } = await supabase
+        .from("provider_apartment_registrations")
+        .select("id")
+        .eq("apartment_id", apartmentId!);
+      const regIds = (regs ?? []).map((r) => r.id);
+
       const [familiesRes, providersRes, classesRes, enrollmentsRes] = await Promise.all([
         supabase
           .from("families")
@@ -20,14 +27,17 @@ export function useAdminStats(apartmentId: string | undefined) {
           .eq("status", "approved"),
         supabase
           .from("classes")
-          .select("id, provider_apartment_registrations!inner(apartment_id)", { count: "exact", head: true })
-          .eq("provider_apartment_registrations.apartment_id", apartmentId!)
+          .select("id", { count: "exact", head: true })
+          .in("provider_registration_id", regIds.length > 0 ? regIds : ["__none__"])
           .eq("status", "published"),
-        supabase
-          .from("enrollments")
-          .select("id, batches!inner(classes!inner(provider_apartment_registrations!inner(apartment_id)))", { count: "exact", head: true })
-          .eq("batches.classes.provider_apartment_registrations.apartment_id", apartmentId!)
-          .in("status", ["active", "pending"]),
+        // Count enrollments via batches → classes → registrations for this apartment
+        regIds.length > 0
+          ? supabase
+              .from("enrollments")
+              .select("id, batches!inner(classes!inner(provider_registration_id))", { count: "exact", head: true })
+              .in("batches.classes.provider_registration_id", regIds)
+              .in("status", ["active", "pending"])
+          : Promise.resolve({ count: 0 }),
       ]);
 
       return {
@@ -490,6 +500,52 @@ export function useUpdateCommercialTerms() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-provider-regs"] });
       qc.invalidateQueries({ queryKey: ["admin-provider-detail"] });
+    },
+  });
+}
+
+// ---- Resident Management ----
+
+export function useAdminResidents(apartmentId: string | undefined) {
+  return useQuery({
+    queryKey: ["admin-residents", apartmentId],
+    enabled: !!apartmentId,
+    queryFn: async () => {
+      // Fetch families with members and primary user info
+      const { data: families, error } = await supabase
+        .from("families")
+        .select(`
+          id, flat_number, block_tower, created_at,
+          users!families_primary_user_id_fkey(id, full_name, email, mobile_number, avatar_url),
+          family_members(id, name, age_group, relationship, is_active)
+        `)
+        .eq("apartment_id", apartmentId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+
+      // Get enrollments for all family members in this apartment
+      const memberIds = (families ?? []).flatMap((f) =>
+        ((f.family_members as any[]) ?? []).map((m: any) => m.id)
+      );
+
+      let enrollments: any[] = [];
+      if (memberIds.length > 0) {
+        const { data } = await supabase
+          .from("enrollments")
+          .select(`
+            id, status, family_member_id,
+            batches(id, batch_name, classes(id, title, category_id,
+              provider_apartment_registrations(provider_id,
+                service_providers(business_name, users(full_name))
+              )
+            ))
+          `)
+          .in("family_member_id", memberIds)
+          .in("status", ["active", "pending", "completed"]);
+        enrollments = data ?? [];
+      }
+
+      return { families: families ?? [], enrollments };
     },
   });
 }

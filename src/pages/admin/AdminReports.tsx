@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useAdminFeePayments, useAdminProviderRegistrations, useConfirmFeePaid } from "@/hooks/useAdmin";
+import { useAdminFeaturedRequests } from "@/hooks/useFeatured";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,7 @@ import {
   Download,
   FileBarChart,
   Loader2,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -49,7 +51,17 @@ const AdminReports = () => {
 
   const { data: feePayments, isLoading: feesLoading } = useAdminFeePayments(aptId, selectedMonth, selectedYear);
   const { data: providers } = useAdminProviderRegistrations(aptId, "approved");
+  const { data: featuredRequests } = useAdminFeaturedRequests(aptId);
   const confirmFee = useConfirmFeePaid();
+
+  // Featured ad fees - filter by status (accepted/active have paid fees)
+  const featuredWithFees = (featuredRequests ?? []).filter((f) => f.ad_fee && f.ad_fee > 0);
+  const totalAdFees = featuredWithFees
+    .filter((f) => f.fee_status === "accepted" || f.status === "active")
+    .reduce((sum, f) => sum + (f.ad_fee ?? 0), 0);
+  const pendingAdFees = featuredWithFees
+    .filter((f) => f.fee_status === "fee_proposed")
+    .reduce((sum, f) => sum + (f.ad_fee ?? 0), 0);
 
   const handleConfirm = async (feeId: string) => {
     try {
@@ -239,6 +251,68 @@ const AdminReports = () => {
               <p className="text-xs text-muted-foreground">
                 Fee records are created when providers make payments
               </p>
+            </div>
+          )}
+        </div>
+
+        {/* Featured Ad Fees Section */}
+        <div>
+          <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
+            <Star size={14} className="text-purple-500" /> Featured Ad Fees
+          </h3>
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <Card className="p-3">
+              <p className="text-[10px] text-muted-foreground">Collected</p>
+              <p className="text-lg font-bold text-purple-600">₹{totalAdFees.toLocaleString("en-IN")}</p>
+            </Card>
+            <Card className="p-3">
+              <p className="text-[10px] text-muted-foreground">Pending Acceptance</p>
+              <p className="text-lg font-bold text-amber-600">₹{pendingAdFees.toLocaleString("en-IN")}</p>
+            </Card>
+          </div>
+
+          {featuredWithFees.length > 0 ? (
+            <div className="space-y-2">
+              {featuredWithFees.map((f) => {
+                const provReg = f.provider_apartment_registrations as any;
+                const provName = provReg?.service_providers?.business_name || provReg?.service_providers?.users?.full_name || "Provider";
+                const className = (f.classes as any)?.title || "Class";
+                const statusColor = f.fee_status === "accepted" || f.status === "active"
+                  ? "bg-green-100 text-green-700"
+                  : f.fee_status === "fee_proposed"
+                  ? "bg-amber-100 text-amber-700"
+                  : f.fee_status === "rejected"
+                  ? "bg-red-100 text-red-700"
+                  : "bg-gray-100 text-gray-600";
+
+                return (
+                  <Card key={f.id} className="p-3 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold truncate">{className}</p>
+                      <Badge className={`text-[10px] border-0 ${statusColor}`}>
+                        {f.fee_status === "accepted" ? "Paid" : f.fee_status ?? f.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{provName}</p>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-purple-700">₹{f.ad_fee}</span>
+                      {f.valid_from && f.valid_until && (
+                        <span className="text-muted-foreground">
+                          {new Date(f.valid_from).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                          {" — "}
+                          {new Date(f.valid_until).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                        </span>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2 py-8 text-center">
+              <Star size={24} className="text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">No featured ad fees yet</p>
             </div>
           )}
         </div>

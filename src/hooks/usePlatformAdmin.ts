@@ -33,7 +33,8 @@ export function usePlatformApartments() {
       const { data, error } = await supabase
         .from("apartment_complexes")
         .select(`
-          id, name, city, locality, status, logo_url, created_at,
+          id, name, city, locality, status, logo_url, pin_code, total_units, created_at,
+          registered_by_user:users!apartment_complexes_registered_by_fkey(id, full_name, email, mobile_number),
           apartment_admins(id, user_id, users(full_name, email))
         `)
         .order("created_at", { ascending: false });
@@ -54,12 +55,16 @@ export function usePlatformApartments() {
               .eq("apartment_id", apt.id),
           ]);
           const admin = (apt.apartment_admins as any)?.[0];
+          const requester = (apt as any).registered_by_user;
           return {
             ...apt,
             providerCount: provCount.count ?? 0,
             familyCount: famCount.count ?? 0,
             adminName: admin?.users?.full_name ?? null,
             adminEmail: admin?.users?.email ?? null,
+            requesterName: requester?.full_name ?? null,
+            requesterEmail: requester?.email ?? null,
+            requesterPhone: requester?.mobile_number ?? null,
           };
         })
       );
@@ -91,6 +96,30 @@ export function useRejectApartment() {
         .from("apartment_complexes")
         .update({ status: "rejected" })
         .eq("id", apartmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-apartments"] }),
+  });
+}
+
+export function useCreateApartment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      name: string;
+      city: string;
+      locality: string;
+      pinCode?: string;
+      totalUnits?: number;
+    }) => {
+      const { error } = await supabase.from("apartment_complexes").insert({
+        name: input.name,
+        city: input.city,
+        locality: input.locality,
+        pin_code: input.pinCode || null,
+        total_units: input.totalUnits || null,
+        status: "approved", // Auto-approved when created by platform admin
+      });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-apartments"] }),
@@ -213,6 +242,7 @@ export function useUpdateCategory() {
       iconName?: string;
       displayOrder?: number;
       isActive?: boolean;
+      parentCategoryId?: string | null;
     }) => {
       const payload: any = {};
       if (updates.name !== undefined) payload.name = updates.name;
@@ -220,6 +250,7 @@ export function useUpdateCategory() {
       if (updates.iconName !== undefined) payload.icon_name = updates.iconName;
       if (updates.displayOrder !== undefined) payload.display_order = updates.displayOrder;
       if (updates.isActive !== undefined) payload.is_active = updates.isActive;
+      if (updates.parentCategoryId !== undefined) payload.parent_category_id = updates.parentCategoryId;
 
       const { error } = await supabase
         .from("class_categories")

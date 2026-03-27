@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   usePlatformApartments,
   useApproveApartment,
   useRejectApartment,
+  useCreateApartment,
   useSearchUsers,
   useAssignAdmin,
   useUnassignAdmin,
@@ -25,7 +27,10 @@ import {
   Check,
   Loader2,
   MapPin,
+  Phone,
+  Plus,
   Search,
+  User,
   UserCog,
   Users,
   X,
@@ -40,16 +45,44 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const PlatformApartments = () => {
+  const navigate = useNavigate();
   const { data: apartments, isLoading, isError, refetch } = usePlatformApartments();
   const approveApt = useApproveApartment();
   const rejectApt = useRejectApartment();
+  const createApt = useCreateApartment();
   const assignAdmin = useAssignAdmin();
   const unassignAdmin = useUnassignAdmin();
 
   const [tab, setTab] = useState("all");
-  const [adminSheet, setAdminSheet] = useState<string | null>(null); // apartmentId
+  const [adminSheet, setAdminSheet] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const { data: searchResults } = useSearchUsers(searchTerm);
+
+  // Create apartment state
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newCity, setNewCity] = useState("");
+  const [newLocality, setNewLocality] = useState("");
+  const [newPinCode, setNewPinCode] = useState("");
+  const [newTotalUnits, setNewTotalUnits] = useState("");
+
+  const handleCreate = async () => {
+    if (!newName.trim() || !newCity.trim() || !newLocality.trim()) return;
+    try {
+      await createApt.mutateAsync({
+        name: newName.trim(),
+        city: newCity.trim(),
+        locality: newLocality.trim(),
+        pinCode: newPinCode.trim() || undefined,
+        totalUnits: newTotalUnits ? parseInt(newTotalUnits) : undefined,
+      });
+      toast.success("Apartment created (auto-approved)");
+      setShowCreate(false);
+      setNewName(""); setNewCity(""); setNewLocality(""); setNewPinCode(""); setNewTotalUnits("");
+    } catch {
+      toast.error("Failed to create apartment");
+    }
+  };
 
   const handleApprove = async (id: string) => {
     try {
@@ -98,9 +131,14 @@ const PlatformApartments = () => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold flex items-center gap-2">
-        <Building2 size={22} /> Apartments
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <Building2 size={22} /> Apartments
+        </h2>
+        <Button size="sm" className="gap-1" onClick={() => setShowCreate(true)}>
+          <Plus size={14} /> Add Apartment
+        </Button>
+      </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
@@ -131,7 +169,10 @@ const PlatformApartments = () => {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-sm font-semibold truncate">{apt.name}</h3>
+                        <h3
+                          className="text-sm font-semibold truncate text-primary cursor-pointer hover:underline"
+                          onClick={() => navigate(`/platform/apartments/${apt.id}`)}
+                        >{apt.name}</h3>
                         <Badge className={`text-[10px] border-0 ${STATUS_COLORS[apt.status ?? "pending"]}`}>
                           {apt.status}
                         </Badge>
@@ -153,6 +194,23 @@ const PlatformApartments = () => {
                       </span>
                     )}
                   </div>
+
+                  {/* Requester details */}
+                  {apt.requesterName && (
+                    <div className="mt-2 p-2 bg-blue-50 rounded-lg text-xs space-y-0.5">
+                      <p className="font-medium text-blue-700 flex items-center gap-1">
+                        <User size={11} /> Requested by: {apt.requesterName}
+                      </p>
+                      {apt.requesterEmail && (
+                        <p className="text-blue-600/80">{apt.requesterEmail}</p>
+                      )}
+                      {apt.requesterPhone && (
+                        <p className="text-blue-600/80 flex items-center gap-1">
+                          <Phone size={10} /> {apt.requesterPhone}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2 mt-3">
                     {apt.status === "pending" && (
@@ -194,6 +252,47 @@ const PlatformApartments = () => {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Create Apartment Sheet */}
+      <Sheet open={showCreate} onOpenChange={() => setShowCreate(false)}>
+        <SheetContent side="bottom" className="rounded-t-2xl md:max-w-lg md:mx-auto">
+          <SheetHeader><SheetTitle>Add Apartment</SheetTitle></SheetHeader>
+          <div className="space-y-3 py-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Name *</Label>
+              <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g., Prestige Lakeside" className="h-10 rounded-lg" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">City *</Label>
+                <Input value={newCity} onChange={(e) => setNewCity(e.target.value)} placeholder="e.g., Bangalore" className="h-10 rounded-lg" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Locality *</Label>
+                <Input value={newLocality} onChange={(e) => setNewLocality(e.target.value)} placeholder="e.g., Whitefield" className="h-10 rounded-lg" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Pin Code</Label>
+                <Input value={newPinCode} onChange={(e) => setNewPinCode(e.target.value)} placeholder="560066" className="h-10 rounded-lg" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Total Units</Label>
+                <Input type="number" value={newTotalUnits} onChange={(e) => setNewTotalUnits(e.target.value)} placeholder="500" className="h-10 rounded-lg" />
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground">Apartment will be auto-approved when added by platform admin.</p>
+            <Button
+              onClick={handleCreate}
+              disabled={!newName.trim() || !newCity.trim() || !newLocality.trim() || createApt.isPending}
+              className="w-full rounded-lg"
+            >
+              {createApt.isPending ? <Loader2 size={16} className="animate-spin" /> : "Create Apartment"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Assign Admin Sheet */}
       <Sheet open={!!adminSheet} onOpenChange={() => setAdminSheet(null)}>

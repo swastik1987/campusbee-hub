@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   usePlatformCategories,
   useCreateCategory,
@@ -28,11 +28,192 @@ import {
   ChevronRight,
   Edit2,
   FolderTree,
+  GripVertical,
   Loader2,
+  MoveRight,
   Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import ErrorState from "@/components/shared/ErrorState";
+
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+type Category = {
+  id: string;
+  name: string;
+  slug: string;
+  icon_name: string | null;
+  parent_category_id: string | null;
+  display_order: number;
+  is_active: boolean | null;
+};
+
+// Sortable parent card
+function SortableParentCard({
+  parent,
+  children,
+  onToggle,
+  onEdit,
+  onEditChild,
+  onToggleChild,
+  onMoveChild,
+  parentCategories,
+}: {
+  parent: Category;
+  children: Category[];
+  onToggle: (id: string, active: boolean) => void;
+  onEdit: (cat: Category) => void;
+  onEditChild: (cat: Category) => void;
+  onToggleChild: (id: string, active: boolean) => void;
+  onMoveChild: (childId: string, newParentId: string) => void;
+  parentCategories: Category[];
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: parent.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <Card ref={setNodeRef} style={style} className="overflow-hidden">
+      <div className="flex items-center justify-between p-4 border-b border-border/50 last:border-0">
+        <div className="flex items-center gap-3">
+          <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none text-muted-foreground hover:text-foreground">
+            <GripVertical size={16} />
+          </button>
+          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+            {parent.display_order}
+          </div>
+          <div>
+            <p className="text-sm font-semibold">{parent.name}</p>
+            <p className="text-[10px] text-muted-foreground font-mono">{parent.slug}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {children.length > 0 && (
+            <Badge variant="secondary" className="text-[10px]">{children.length} sub</Badge>
+          )}
+          <Switch
+            checked={parent.is_active ?? true}
+            onCheckedChange={() => onToggle(parent.id, parent.is_active ?? true)}
+          />
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(parent)}>
+            <Edit2 size={14} />
+          </Button>
+        </div>
+      </div>
+
+      {children.length > 0 && (
+        <SortableContext items={children.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+          <div className="bg-muted/30">
+            {children.map((child) => (
+              <SortableChildRow
+                key={child.id}
+                child={child}
+                onToggle={onToggleChild}
+                onEdit={onEditChild}
+                onMove={onMoveChild}
+                parentCategories={parentCategories}
+                currentParentId={parent.id}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      )}
+    </Card>
+  );
+}
+
+// Sortable child row
+function SortableChildRow({
+  child,
+  onToggle,
+  onEdit,
+  onMove,
+  parentCategories,
+  currentParentId,
+}: {
+  child: Category;
+  onToggle: (id: string, active: boolean) => void;
+  onEdit: (cat: Category) => void;
+  onMove: (childId: string, newParentId: string) => void;
+  parentCategories: Category[];
+  currentParentId: string;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: child.id });
+  const [showMove, setShowMove] = useState(false);
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center justify-between px-4 py-2.5 pl-8 border-b border-border/30 last:border-0"
+    >
+      <div className="flex items-center gap-2">
+        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none text-muted-foreground hover:text-foreground">
+          <GripVertical size={12} />
+        </button>
+        <ChevronRight size={12} className="text-muted-foreground" />
+        <p className="text-xs font-medium">{child.name}</p>
+        <span className="text-[10px] text-muted-foreground font-mono">{child.slug}</span>
+      </div>
+      <div className="flex items-center gap-1">
+        {showMove ? (
+          <Select
+            value=""
+            onValueChange={(val) => {
+              onMove(child.id, val);
+              setShowMove(false);
+            }}
+          >
+            <SelectTrigger className="h-6 w-28 text-[10px] rounded">
+              <SelectValue placeholder="Move to..." />
+            </SelectTrigger>
+            <SelectContent>
+              {parentCategories
+                .filter((p) => p.id !== currentParentId)
+                .map((p) => (
+                  <SelectItem key={p.id} value={p.id} className="text-xs">{p.name}</SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Button size="icon" variant="ghost" className="h-6 w-6" title="Move to another category" onClick={() => setShowMove(true)}>
+            <MoveRight size={12} />
+          </Button>
+        )}
+        <Switch
+          checked={child.is_active ?? true}
+          onCheckedChange={() => onToggle(child.id, child.is_active ?? true)}
+        />
+        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onEdit(child)}>
+          <Edit2 size={12} />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 const PlatformCategories = () => {
   const { data: categories, isLoading, isError, refetch } = usePlatformCategories();
@@ -47,18 +228,20 @@ const PlatformCategories = () => {
   const [parentId, setParentId] = useState<string>("none");
   const [displayOrder, setDisplayOrder] = useState("0");
 
-  const parentCategories = (categories ?? []).filter((c) => !c.parent_category_id);
-  const getChildren = (parentId: string) =>
-    (categories ?? []).filter((c) => c.parent_category_id === parentId);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  const parentCategories = useMemo(
+    () => (categories ?? []).filter((c) => !c.parent_category_id).sort((a, b) => a.display_order - b.display_order),
+    [categories]
+  );
+  const getChildren = (pid: string) =>
+    (categories ?? []).filter((c) => c.parent_category_id === pid).sort((a, b) => a.display_order - b.display_order);
 
   const resetForm = () => {
-    setName("");
-    setSlug("");
-    setIconName("");
-    setParentId("none");
-    setDisplayOrder("0");
-    setShowAdd(false);
-    setEditId(null);
+    setName(""); setSlug(""); setIconName(""); setParentId("none"); setDisplayOrder("0");
+    setShowAdd(false); setEditId(null);
   };
 
   const handleCreate = async () => {
@@ -87,7 +270,7 @@ const PlatformCategories = () => {
     }
   };
 
-  const openEdit = (cat: NonNullable<typeof categories>[number]) => {
+  const openEdit = (cat: Category) => {
     setEditId(cat.id);
     setName(cat.name);
     setSlug(cat.slug);
@@ -114,6 +297,63 @@ const PlatformCategories = () => {
     }
   };
 
+  const handleMoveChild = async (childId: string, newParentId: string) => {
+    try {
+      await updateCategory.mutateAsync({ id: childId, parentCategoryId: newParentId });
+      toast.success("Sub-category moved");
+    } catch {
+      toast.error("Failed to move");
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    // Check if both are parents
+    const activeParent = parentCategories.find((p) => p.id === activeId);
+    const overParent = parentCategories.find((p) => p.id === overId);
+
+    if (activeParent && overParent) {
+      // Reorder parents
+      const oldIndex = parentCategories.findIndex((p) => p.id === activeId);
+      const newIndex = parentCategories.findIndex((p) => p.id === overId);
+      const reordered = arrayMove(parentCategories, oldIndex, newIndex);
+
+      // Batch update display_order
+      for (let i = 0; i < reordered.length; i++) {
+        if (reordered[i].display_order !== i + 1) {
+          await updateCategory.mutateAsync({ id: reordered[i].id, displayOrder: i + 1 });
+        }
+      }
+      toast.success("Order updated");
+      return;
+    }
+
+    // Check if both are children of the same parent
+    for (const parent of parentCategories) {
+      const children = getChildren(parent.id);
+      const activeChild = children.find((c) => c.id === activeId);
+      const overChild = children.find((c) => c.id === overId);
+      if (activeChild && overChild) {
+        const oldIndex = children.findIndex((c) => c.id === activeId);
+        const newIndex = children.findIndex((c) => c.id === overId);
+        const reordered = arrayMove(children, oldIndex, newIndex);
+
+        for (let i = 0; i < reordered.length; i++) {
+          if (reordered[i].display_order !== i + 1) {
+            await updateCategory.mutateAsync({ id: reordered[i].id, displayOrder: i + 1 });
+          }
+        }
+        toast.success("Order updated");
+        return;
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -123,10 +363,7 @@ const PlatformCategories = () => {
         <Button
           size="sm"
           className="gap-1"
-          onClick={() => {
-            resetForm();
-            setShowAdd(true);
-          }}
+          onClick={() => { resetForm(); setShowAdd(true); }}
         >
           <Plus size={14} /> Add Category
         </Button>
@@ -141,66 +378,25 @@ const PlatformCategories = () => {
       ) : isError ? (
         <ErrorState onRetry={() => refetch()} />
       ) : (
-        <div className="space-y-3">
-          {parentCategories.map((parent) => {
-            const children = getChildren(parent.id);
-            return (
-              <Card key={parent.id} className="overflow-hidden">
-                {/* Parent row */}
-                <div className="flex items-center justify-between p-4 border-b border-border/50 last:border-0">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                      {parent.display_order}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">{parent.name}</p>
-                      <p className="text-[10px] text-muted-foreground font-mono">{parent.slug}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {children.length > 0 && (
-                      <Badge variant="secondary" className="text-[10px]">{children.length} sub</Badge>
-                    )}
-                    <Switch
-                      checked={parent.is_active ?? true}
-                      onCheckedChange={() => handleToggleActive(parent.id, parent.is_active ?? true)}
-                    />
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(parent)}>
-                      <Edit2 size={14} />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Children */}
-                {children.length > 0 && (
-                  <div className="bg-muted/30">
-                    {children.map((child) => (
-                      <div
-                        key={child.id}
-                        className="flex items-center justify-between px-4 py-2.5 pl-12 border-b border-border/30 last:border-0"
-                      >
-                        <div className="flex items-center gap-2">
-                          <ChevronRight size={12} className="text-muted-foreground" />
-                          <p className="text-xs font-medium">{child.name}</p>
-                          <span className="text-[10px] text-muted-foreground font-mono">{child.slug}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={child.is_active ?? true}
-                            onCheckedChange={() => handleToggleActive(child.id, child.is_active ?? true)}
-                          />
-                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => openEdit(child)}>
-                            <Edit2 size={12} />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-            );
-          })}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={parentCategories.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3">
+              {parentCategories.map((parent) => (
+                <SortableParentCard
+                  key={parent.id}
+                  parent={parent}
+                  children={getChildren(parent.id)}
+                  onToggle={handleToggleActive}
+                  onEdit={openEdit}
+                  onEditChild={openEdit}
+                  onToggleChild={handleToggleActive}
+                  onMoveChild={handleMoveChild}
+                  parentCategories={parentCategories}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* Add/Edit Category Sheet */}
