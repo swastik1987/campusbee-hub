@@ -357,8 +357,7 @@ const PlatformApartments = () => {
                         variant="outline"
                         className="text-xs text-destructive"
                         onClick={() => {
-                          const admin = (apt as any).apartment_admins?.[0];
-                          if (admin) handleUnassign(admin.user_id, apt.id);
+                          if (apt.adminUserId) handleUnassign(apt.adminUserId, apt.id);
                         }}
                       >
                         Unassign

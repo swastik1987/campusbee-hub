@@ -30,19 +30,13 @@ export function usePlatformApartments() {
   return useQuery({
     queryKey: ["platform-apartments"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("apartment_complexes")
-        .select(`
-          id, name, city, locality, status, logo_url, pin_code, total_units, created_at,
-          registered_by_user:users!apartment_complexes_registered_by_fkey(id, full_name, email, mobile_number),
-          apartment_admins(id, user_id, users(full_name, email))
-        `)
-        .order("created_at", { ascending: false });
+      // Use SECURITY DEFINER RPC to get apartments with admin/requester details
+      const { data, error } = await supabase.rpc("platform_get_apartments");
       if (error) throw error;
 
       // Get counts per apartment
       const enriched = await Promise.all(
-        (data ?? []).map(async (apt) => {
+        (data ?? []).map(async (apt: any) => {
           const [provCount, famCount] = await Promise.all([
             supabase
               .from("provider_apartment_registrations")
@@ -54,17 +48,17 @@ export function usePlatformApartments() {
               .select("id", { count: "exact", head: true })
               .eq("apartment_id", apt.id),
           ]);
-          const admin = (apt.apartment_admins as any)?.[0];
-          const requester = (apt as any).registered_by_user;
           return {
             ...apt,
             providerCount: provCount.count ?? 0,
             familyCount: famCount.count ?? 0,
-            adminName: admin?.users?.full_name ?? null,
-            adminEmail: admin?.users?.email ?? null,
-            requesterName: requester?.full_name ?? null,
-            requesterEmail: requester?.email ?? null,
-            requesterPhone: requester?.mobile_number ?? null,
+            adminName: apt.admin_name ?? null,
+            adminEmail: apt.admin_email ?? null,
+            adminPhone: apt.admin_phone ?? null,
+            adminUserId: apt.admin_user_id ?? null,
+            requesterName: apt.requester_name ?? null,
+            requesterEmail: apt.requester_email ?? null,
+            requesterPhone: apt.requester_phone ?? null,
           };
         })
       );

@@ -30,21 +30,16 @@ function useApartmentDetail(id: string | undefined) {
     queryKey: ["platform-apartment-detail", id],
     enabled: !!id,
     queryFn: async () => {
-      const { data: apt, error } = await supabase
-        .from("apartment_complexes")
-        .select(`
-          id, name, city, locality, pin_code, total_units, status, logo_url, created_at,
-          registered_by_user:users!apartment_complexes_registered_by_fkey(id, full_name, email, mobile_number),
-          apartment_admins(id, user_id, users(full_name, email, mobile_number))
-        `)
-        .eq("id", id!)
-        .single();
-      if (error) throw error;
+      // Use SECURITY DEFINER RPC for admin/requester details (bypasses users RLS)
+      const { data: rpcData, error: rpcError } = await supabase.rpc("platform_get_apartment_detail", { apt_id: id! });
+      if (rpcError) throw rpcError;
+      const apt = (rpcData as any)?.[0];
+      if (!apt) throw new Error("Apartment not found");
 
       // Get counts
       const [famRes, provRes, classRes, enrollRes] = await Promise.all([
         supabase.from("families").select("id", { count: "exact", head: true }).eq("apartment_id", id!),
-        supabase.from("provider_apartment_registrations").select("id, status", { count: "exact", head: true }).eq("apartment_id", id!),
+        supabase.from("provider_apartment_registrations").select("id", { count: "exact", head: true }).eq("apartment_id", id!),
         supabase.from("provider_apartment_registrations").select("id").eq("apartment_id", id!).then(async (regs) => {
           const regIds = (regs.data ?? []).map((r) => r.id);
           if (regIds.length === 0) return { count: 0 };
@@ -71,21 +66,18 @@ function useApartmentDetail(id: string | undefined) {
         .eq("apartment_id", id!)
         .order("created_at", { ascending: false });
 
-      const admin = (apt.apartment_admins as any)?.[0];
-      const requester = (apt as any).registered_by_user;
-
       return {
         ...apt,
         familyCount: famRes.count ?? 0,
         providerCount: provRes.count ?? 0,
         classCount: classRes.count ?? 0,
         enrollmentCount: enrollRes.count ?? 0,
-        adminName: admin?.users?.full_name ?? null,
-        adminEmail: admin?.users?.email ?? null,
-        adminPhone: admin?.users?.mobile_number ?? null,
-        requesterName: requester?.full_name ?? null,
-        requesterEmail: requester?.email ?? null,
-        requesterPhone: requester?.mobile_number ?? null,
+        adminName: apt.admin_name ?? null,
+        adminEmail: apt.admin_email ?? null,
+        adminPhone: apt.admin_phone ?? null,
+        requesterName: apt.requester_name ?? null,
+        requesterEmail: apt.requester_email ?? null,
+        requesterPhone: apt.requester_phone ?? null,
         providers: providers ?? [],
       };
     },
