@@ -146,6 +146,12 @@ export function useAssignAdmin() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ userId, apartmentId }: { userId: string; apartmentId: string }) => {
+      // Delete existing admin for this apartment first (UNIQUE constraint on apartment_id)
+      await supabase
+        .from("apartment_admins")
+        .delete()
+        .eq("apartment_id", apartmentId);
+
       // Create apartment_admins row
       const { error: adminErr } = await supabase
         .from("apartment_admins")
