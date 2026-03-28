@@ -6,6 +6,8 @@ import {
   useBatchAttendanceForDate,
   useSubmitAttendance,
 } from "@/hooks/useEngagement";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,8 +32,23 @@ const TakeAttendance = () => {
 
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
+  const isPastDate = date < today;
 
-  const { data: students, isLoading } = useBatchEnrolledStudents(batchId);
+  // Fetch batch info for header display
+  const { data: batchInfo } = useQuery({
+    queryKey: ["batch-info", batchId],
+    enabled: !!batchId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("batches")
+        .select("batch_name, classes(title)")
+        .eq("id", batchId!)
+        .single();
+      return data;
+    },
+  });
+
+  const { data: students, isLoading } = useBatchEnrolledStudents(batchId, date);
   const { data: existingRecords } = useBatchAttendanceForDate(batchId, date);
   const submitAttendance = useSubmitAttendance();
 
@@ -89,9 +106,18 @@ const TakeAttendance = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card px-4 py-3">
-        <button onClick={() => navigate(-1)} className="p-1"><ArrowLeft size={20} /></button>
-        <h1 className="text-lg font-bold flex-1">Take Attendance</h1>
+      <header className="sticky top-0 z-40 border-b border-border bg-card px-4 py-3">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate(-1)} className="p-1"><ArrowLeft size={20} /></button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-bold truncate">Take Attendance</h1>
+            {batchInfo && (
+              <p className="text-[11px] text-muted-foreground truncate">
+                {(batchInfo.classes as any)?.title} · {batchInfo.batch_name}
+              </p>
+            )}
+          </div>
+        </div>
       </header>
 
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-4">
@@ -108,6 +134,11 @@ const TakeAttendance = () => {
             <CheckCheck size={14} className="mr-1" /> All Present
           </Button>
         </div>
+        {isPastDate && (
+          <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs w-fit">
+            Marking attendance for a past date
+          </Badge>
+        )}
 
         {/* Summary */}
         <div className="flex gap-3">

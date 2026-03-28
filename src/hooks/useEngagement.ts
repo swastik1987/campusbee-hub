@@ -3,21 +3,47 @@ import { supabase } from "@/integrations/supabase/client";
 
 // ---- Attendance (Provider) ----
 
-export function useBatchEnrolledStudents(batchId: string | undefined) {
+export function useBatchEnrolledStudents(batchId: string | undefined, date?: string) {
+  const today = new Date().toISOString().split("T")[0];
+  const isPast = !!date && date < today;
+
   return useQuery({
-    queryKey: ["batch-students", batchId],
+    queryKey: ["batch-students", batchId, date],
     enabled: !!batchId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("enrollments")
         .select(`
-          id, status,
+          id, status, enrolled_at, dropped_at, approved_at,
           family_members(id, name, relationship, avatar_url)
         `)
         .eq("batch_id", batchId!)
-        .eq("status", "active")
         .order("created_at");
+
+      if (isPast) {
+        // For past dates: include students who were enrolled on that date
+        // (active, completed, or dropped after the target date)
+        query = query
+          .in("status", ["active", "completed", "dropped", "paused"])
+          .lte("enrolled_at", `${date}T23:59:59`);
+      } else {
+        // For today: only currently active students
+        query = query.eq("status", "active");
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
+
+      if (isPast && data) {
+        // Filter out students who were dropped before the target date
+        return data.filter((e) => {
+          if (e.status === "dropped" && e.dropped_at) {
+            return e.dropped_at.split("T")[0] >= date!;
+          }
+          return true;
+        });
+      }
+
       return data;
     },
   });

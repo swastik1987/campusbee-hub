@@ -7,6 +7,7 @@ import {
   useProviderUpcomingSchedule,
   usePendingEnrollments,
   useProviderPendingTerms,
+  useProviderActiveBatches,
 } from "@/hooks/useProvider";
 import { useProviderFeaturedRequests, useProviderRespondToFeaturedFee } from "@/hooks/useFeatured";
 import Header from "@/components/layout/Header";
@@ -15,6 +16,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { useState } from "react";
 import {
   Users,
   BookOpen,
@@ -51,7 +59,9 @@ const ProviderDashboard = () => {
   const { data: pendingTerms } = useProviderPendingTerms(providerId);
   const { data: featuredRequests } = useProviderFeaturedRequests(providerId, approvedRegIds);
 
+  const { data: allBatches } = useProviderActiveBatches(providerId, approvedRegIds);
   const respondToFee = useProviderRespondToFeaturedFee();
+  const [showBatchPicker, setShowBatchPicker] = useState(false);
 
   // Featured listings with fee proposed (need provider acceptance)
   const pendingFeaturedFees = featuredRequests?.filter((r) => r.fee_status === "fee_proposed") ?? [];
@@ -344,7 +354,12 @@ const ProviderDashboard = () => {
                     <p className="text-sm font-semibold">{s.classTitle}</p>
                     <p className="text-xs text-muted-foreground">{s.batchName}</p>
                   </div>
-                  <Button size="sm" variant="outline" className="text-xs h-8 border-provider text-provider">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-8 border-provider text-provider"
+                    onClick={() => navigate(`/provider/attendance/${s.batchId}`)}
+                  >
                     <ClipboardCheck size={14} className="mr-1" />
                     Attendance
                   </Button>
@@ -357,6 +372,20 @@ const ProviderDashboard = () => {
             </Card>
           )}
         </div>
+
+        {/* Mark Past Attendance */}
+        {allBatches && allBatches.length > 0 && (
+          <div>
+            <Button
+              variant="outline"
+              className="w-full text-xs h-10 border-provider/30 text-provider hover:bg-provider/5"
+              onClick={() => setShowBatchPicker(true)}
+            >
+              <ClipboardCheck size={14} className="mr-2" />
+              Mark Past Attendance
+            </Button>
+          </div>
+        )}
 
         {/* Upcoming 3-Day Schedule */}
         {upcomingSchedule && upcomingSchedule.some((d) => d.schedules.length > 0) && (
@@ -408,6 +437,35 @@ const ProviderDashboard = () => {
           <Plus size={24} />
         </Button>
       </div>
+
+      {/* Batch Picker Sheet for Past Attendance */}
+      <Sheet open={showBatchPicker} onOpenChange={setShowBatchPicker}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[70vh] overflow-y-auto">
+          <SheetHeader className="pb-3">
+            <SheetTitle>Select Batch for Attendance</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-2 pb-6">
+            {allBatches?.map((b) => (
+              <Card
+                key={b.batchId}
+                className="flex items-center gap-3 p-3 cursor-pointer hover:bg-accent/50 active:scale-[0.99] transition-all"
+                onClick={() => {
+                  setShowBatchPicker(false);
+                  navigate(`/provider/attendance/${b.batchId}`);
+                }}
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-provider/10">
+                  <ClipboardCheck size={16} className="text-provider" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{b.classTitle}</p>
+                  <p className="text-xs text-muted-foreground">{b.batchName}</p>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <BottomNav persona="provider" />
     </div>

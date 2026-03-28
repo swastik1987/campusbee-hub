@@ -495,3 +495,39 @@ export function useRespondToTerms() {
     },
   });
 }
+
+// ---- Provider: All active batches (for attendance picker) ----
+
+export function useProviderActiveBatches(providerId: string | undefined, apartmentRegIds: string[]) {
+  return useQuery({
+    queryKey: ["provider-active-batches", providerId, apartmentRegIds],
+    enabled: !!providerId && apartmentRegIds.length > 0,
+    queryFn: async () => {
+      const { data: classes } = await supabase
+        .from("classes")
+        .select("id, title")
+        .in("provider_registration_id", apartmentRegIds)
+        .eq("status", "published");
+      if (!classes?.length) return [];
+
+      const classIds = classes.map((c) => c.id);
+      const { data: batches, error } = await supabase
+        .from("batches")
+        .select("id, batch_name, class_id, status")
+        .in("class_id", classIds)
+        .in("status", ["active", "full"])
+        .order("batch_name");
+      if (error) throw error;
+
+      return (batches ?? []).map((b) => {
+        const cls = classes.find((c) => c.id === b.class_id);
+        return {
+          batchId: b.id,
+          batchName: b.batch_name,
+          classTitle: cls?.title ?? "",
+          classId: b.class_id,
+        };
+      });
+    },
+  });
+}
