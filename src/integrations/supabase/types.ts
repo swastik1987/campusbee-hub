@@ -1202,6 +1202,9 @@ export type Database = {
           banner_image_url: string
           class_id: string
           created_at: string | null
+          deactivated_at: string | null
+          deactivated_by: string | null
+          deactivation_reason: string | null
           display_order: number | null
           fee_accepted_at: string | null
           fee_status: string | null
@@ -1223,6 +1226,9 @@ export type Database = {
           banner_image_url: string
           class_id: string
           created_at?: string | null
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          deactivation_reason?: string | null
           display_order?: number | null
           fee_accepted_at?: string | null
           fee_status?: string | null
@@ -1244,6 +1250,9 @@ export type Database = {
           banner_image_url?: string
           class_id?: string
           created_at?: string | null
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          deactivation_reason?: string | null
           display_order?: number | null
           fee_accepted_at?: string | null
           fee_status?: string | null
@@ -1271,6 +1280,13 @@ export type Database = {
             columns: ["class_id"]
             isOneToOne: false
             referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "featured_class_listings_deactivated_by_fkey"
+            columns: ["deactivated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {

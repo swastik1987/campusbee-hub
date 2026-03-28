@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Search, BookOpen, MessageCircle, User, LayoutDashboard, Users, Wallet, FileBarChart, Shield, Building2, BarChart3, FolderTree, Home } from "lucide-react";
 
@@ -34,7 +35,7 @@ const platformAdminTabs = [
   { path: "/profile", icon: User, label: "Profile" },
 ];
 
-const BottomNav = ({ persona = "seeker" }: { persona?: Persona }) => {
+const BottomNav = React.forwardRef<HTMLElement, { persona?: Persona }>(({ persona = "seeker" }, ref) => {
   const location = useLocation();
   const navigate = useNavigate();
   const tabs = persona === "platform_admin"
@@ -54,7 +55,7 @@ const BottomNav = ({ persona = "seeker" }: { persona?: Persona }) => {
     : "hsl(var(--primary))";
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card safe-bottom">
+    <nav ref={ref} className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card safe-bottom">
       <div className="mx-auto flex max-w-lg items-center justify-around">
         {tabs.map((tab) => {
           const active = location.pathname === tab.path;
@@ -85,6 +86,8 @@ const BottomNav = ({ persona = "seeker" }: { persona?: Persona }) => {
       </div>
     </nav>
   );
-};
+});
+
+BottomNav.displayName = "BottomNav";
 
 export default BottomNav;
