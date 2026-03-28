@@ -1971,8 +1971,11 @@ export type Database = {
           name: string
         }[]
       }
+      get_admin_apartment_batch_ids: { Args: never; Returns: string[] }
+      get_admin_apartment_family_member_ids: { Args: never; Returns: string[] }
       get_chat_partner_family_ids: { Args: never; Returns: string[] }
       get_chat_partner_family_ids_v2: { Args: never; Returns: string[] }
+      get_chat_partner_user_ids: { Args: never; Returns: string[] }
       get_family_co_links: {
         Args: { for_family_id: string }
         Returns: {
@@ -1987,6 +1990,7 @@ export type Database = {
       }
       get_provider_enrolled_family_ids: { Args: never; Returns: string[] }
       get_provider_enrolled_member_ids: { Args: never; Returns: string[] }
+      get_provider_enrolled_user_ids: { Args: never; Returns: string[] }
       get_user_apartment_ids: { Args: { _auth_uid: string }; Returns: string[] }
       get_user_id: { Args: never; Returns: string }
       is_apartment_admin_for_any: {
@@ -1994,6 +1998,48 @@ export type Database = {
         Returns: string[]
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      platform_get_apartment_detail: {
+        Args: { apt_id: string }
+        Returns: {
+          admin_email: string
+          admin_name: string
+          admin_phone: string
+          admin_user_id: string
+          city: string
+          created_at: string
+          id: string
+          locality: string
+          logo_url: string
+          name: string
+          pin_code: string
+          requester_email: string
+          requester_name: string
+          requester_phone: string
+          status: string
+          total_units: number
+        }[]
+      }
+      platform_get_apartments: {
+        Args: never
+        Returns: {
+          admin_email: string
+          admin_name: string
+          admin_phone: string
+          admin_user_id: string
+          city: string
+          created_at: string
+          id: string
+          locality: string
+          logo_url: string
+          name: string
+          pin_code: string
+          requester_email: string
+          requester_name: string
+          requester_phone: string
+          status: string
+          total_units: number
+        }[]
+      }
       search_apartment_users: {
         Args: { apt_id: string; search_query: string }
         Returns: {
