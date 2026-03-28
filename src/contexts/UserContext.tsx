@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -107,6 +108,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [activePersona, setActivePersona] = useState<Persona>("seeker");
   const [familyRole, setFamilyRole] = useState<"primary" | "member" | null>(null);
   const [familyLinkId, setFamilyLinkId] = useState<string | null>(null);
+  const lastSyncedPersona = useRef<Persona>("seeker");
 
   const fetchFamily = useCallback(async (userId: string, isAdmin: boolean = false) => {
     let foundApartment = false;
@@ -316,6 +318,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   const activatePersona = useCallback(async (persona: Persona) => {
     setActivePersona(persona);
+    lastSyncedPersona.current = persona;
     if (profile) {
       await supabase
         .from("users")
@@ -323,6 +326,39 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         .eq("id", profile.id);
     }
   }, [profile]);
+
+  // ── Route-based persona sync ──
+  // When the user navigates to a persona-specific route (e.g. /admin/*),
+  // update activePersona to match, so the header reflects the correct role.
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!profile) return;
+
+    const path = location.pathname;
+    let routePersona: Persona | null = null;
+
+    if (path.startsWith("/admin/") || path === "/admin") {
+      if (profile.is_apartment_admin) routePersona = "apartment_admin";
+    } else if (path.startsWith("/provider/") || path === "/provider") {
+      if (profile.is_provider) routePersona = "provider";
+    } else if (path.startsWith("/platform")) {
+      if (profile.is_platform_admin) routePersona = "platform_admin";
+    } else if (
+      path.startsWith("/explore") ||
+      path.startsWith("/my-classes") ||
+      path.startsWith("/class/") ||
+      path.startsWith("/enroll/") ||
+      path.startsWith("/enrollment/")
+    ) {
+      routePersona = "seeker";
+    }
+
+    if (routePersona && routePersona !== activePersona && routePersona !== lastSyncedPersona.current) {
+      lastSyncedPersona.current = routePersona;
+      activatePersona(routePersona);
+    }
+  }, [location.pathname, profile, activePersona, activatePersona]);
 
   useEffect(() => {
     let isMounted = true;
