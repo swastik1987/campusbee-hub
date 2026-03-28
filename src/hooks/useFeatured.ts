@@ -44,6 +44,7 @@ export function useProviderFeaturedRequests(
           banner_image_url, requested_at, requested_by,
           ad_fee, valid_from, valid_until, admin_notes,
           responded_by, responded_at, fee_status, status,
+          deactivation_reason, deactivated_at,
           display_order, created_at, updated_at,
           classes(title)
         `)
@@ -108,6 +109,7 @@ export function useAdminFeaturedRequests(apartmentId: string | undefined) {
           banner_image_url, requested_at, requested_by,
           ad_fee, valid_from, valid_until, admin_notes,
           responded_by, responded_at, fee_status, status,
+          deactivation_reason, deactivated_at,
           display_order, created_at, updated_at,
           classes(title, cover_image_url),
           provider_apartment_registrations(
@@ -237,6 +239,137 @@ export function useProviderRespondToFeaturedFee() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["provider-featured"] });
       queryClient.invalidateQueries({ queryKey: ["admin-featured"] });
+      queryClient.invalidateQueries({ queryKey: ["featured-listings"] });
+    },
+  });
+}
+
+// ---- Admin: Deactivate an Active Featured Listing ----
+
+interface AdminDeactivateInput {
+  listingId: string;
+  reason?: string;
+  deactivatedBy: string;
+}
+
+export function useAdminDeactivateFeatured() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: AdminDeactivateInput) => {
+      // Fetch listing to get provider user id for notification
+      const { data: listing } = await supabase
+        .from("featured_class_listings")
+        .select(`
+          id, class_id,
+          classes(title),
+          provider_apartment_registrations(
+            service_providers(user_id)
+          )
+        `)
+        .eq("id", input.listingId)
+        .single();
+
+      const { data, error } = await supabase
+        .from("featured_class_listings")
+        .update({
+          status: "inactive",
+          deactivation_reason: input.reason || null,
+          deactivated_at: new Date().toISOString(),
+          deactivated_by: input.deactivatedBy,
+        })
+        .eq("id", input.listingId)
+        .select()
+        .single();
+      if (error) throw error;
+
+      // Notify the provider
+      const providerUserId = (listing as any)?.provider_apartment_registrations?.service_providers?.user_id;
+      const classTitle = (listing as any)?.classes?.title ?? "your class";
+      if (providerUserId) {
+        await supabase.rpc("send_notification", {
+          p_user_id: providerUserId,
+          p_title: "Featured Listing Deactivated",
+          p_body: `Your featured listing for "${classTitle}" has been deactivated by the apartment admin.${input.reason ? ` Reason: ${input.reason}` : ""}`,
+          p_type: "featured_deactivated",
+          p_ref_type: "featured_class_listing",
+          p_ref_id: input.listingId,
+        });
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-featured"] });
+      queryClient.invalidateQueries({ queryKey: ["provider-featured"] });
+      queryClient.invalidateQueries({ queryKey: ["featured-listings"] });
+    },
+  });
+}
+
+// ---- Admin: Reactivate an Inactive Featured Listing ----
+
+interface AdminReactivateInput {
+  listingId: string;
+  validUntil?: string; // optional new end date
+  reactivatedBy: string;
+}
+
+export function useAdminReactivateFeatured() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: AdminReactivateInput) => {
+      // Fetch listing to get provider user id and current valid_until
+      const { data: listing } = await supabase
+        .from("featured_class_listings")
+        .select(`
+          id, class_id, valid_until,
+          classes(title),
+          provider_apartment_registrations(
+            service_providers(user_id)
+          )
+        `)
+        .eq("id", input.listingId)
+        .single();
+
+      const updates: Record<string, any> = {
+        status: "active",
+        deactivation_reason: null,
+        deactivated_at: null,
+        deactivated_by: null,
+      };
+      if (input.validUntil) {
+        updates.valid_until = input.validUntil;
+      }
+
+      const { data, error } = await supabase
+        .from("featured_class_listings")
+        .update(updates)
+        .eq("id", input.listingId)
+        .select()
+        .single();
+      if (error) throw error;
+
+      // Notify the provider
+      const providerUserId = (listing as any)?.provider_apartment_registrations?.service_providers?.user_id;
+      const classTitle = (listing as any)?.classes?.title ?? "your class";
+      if (providerUserId) {
+        await supabase.rpc("send_notification", {
+          p_user_id: providerUserId,
+          p_title: "Featured Listing Reactivated",
+          p_body: `Your featured listing for "${classTitle}" has been reactivated by the apartment admin.`,
+          p_type: "featured_reactivated",
+          p_ref_type: "featured_class_listing",
+          p_ref_id: input.listingId,
+        });
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-featured"] });
+      queryClient.invalidateQueries({ queryKey: ["provider-featured"] });
       queryClient.invalidateQueries({ queryKey: ["featured-listings"] });
     },
   });

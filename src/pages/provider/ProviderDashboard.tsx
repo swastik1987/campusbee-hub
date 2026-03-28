@@ -57,11 +57,14 @@ const ProviderDashboard = () => {
   const pendingFeaturedFees = featuredRequests?.filter((r) => r.fee_status === "fee_proposed") ?? [];
   // Featured listings pending admin approval
   const pendingFeaturedApproval = featuredRequests?.filter((r) => r.status === "pending_approval") ?? [];
+  // Featured listings deactivated by admin
+  const deactivatedFeatured = featuredRequests?.filter((r) => r.status === "inactive") ?? [];
 
   // Total actionable count
   const actionCount =
     (pendingTerms?.length ?? 0) +
     pendingFeaturedFees.length +
+    deactivatedFeatured.length +
     (pendingEnrollments?.length ?? 0) +
     pendingRegs.length;
 
@@ -258,6 +261,31 @@ const ProviderDashboard = () => {
                   <Badge variant="outline" className="text-gray-500 border-gray-300 text-xs">
                     Waiting
                   </Badge>
+                </Card>
+              ))}
+
+              {/* Featured listings deactivated by admin (info only) */}
+              {deactivatedFeatured.map((f) => (
+                <Card key={f.id} className="p-3 border-orange-200 bg-orange-50/50 space-y-1">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100">
+                      <Star size={16} className="text-orange-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Featured listing deactivated</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(f.classes as any)?.title}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-orange-600 border-orange-300 text-xs">
+                      Inactive
+                    </Badge>
+                  </div>
+                  {(f as any).deactivation_reason && (
+                    <p className="text-[11px] text-orange-700 pl-11">
+                      Reason: {(f as any).deactivation_reason}
+                    </p>
+                  )}
                 </Card>
               ))}
             </div>
