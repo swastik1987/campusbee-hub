@@ -15,6 +15,26 @@ export function useAdminStats(apartmentId: string | undefined) {
         .eq("apartment_id", apartmentId!);
       const regIds = (regs ?? []).map((r) => r.id);
 
+      // Get class IDs for this apartment
+      let classIds: string[] = [];
+      if (regIds.length > 0) {
+        const { data: classData } = await supabase
+          .from("classes")
+          .select("id")
+          .in("provider_registration_id", regIds);
+        classIds = (classData ?? []).map((c) => c.id);
+      }
+
+      // Get batch IDs for these classes
+      let batchIds: string[] = [];
+      if (classIds.length > 0) {
+        const { data: batchData } = await supabase
+          .from("batches")
+          .select("id")
+          .in("class_id", classIds);
+        batchIds = (batchData ?? []).map((b) => b.id);
+      }
+
       const [familiesRes, providersRes, classesRes, enrollmentsRes] = await Promise.all([
         supabase
           .from("families")
@@ -30,12 +50,12 @@ export function useAdminStats(apartmentId: string | undefined) {
           .select("id", { count: "exact", head: true })
           .in("provider_registration_id", regIds.length > 0 ? regIds : ["__none__"])
           .eq("status", "published"),
-        // Count enrollments via batches → classes → registrations for this apartment
-        regIds.length > 0
+        // Count enrollments directly via batch IDs
+        batchIds.length > 0
           ? supabase
               .from("enrollments")
-              .select("id, batches!inner(classes!inner(provider_registration_id))", { count: "exact", head: true })
-              .in("batches.classes.provider_registration_id", regIds)
+              .select("id", { count: "exact", head: true })
+              .in("batch_id", batchIds)
               .in("status", ["active", "pending"])
           : Promise.resolve({ count: 0 }),
       ]);

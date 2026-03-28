@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Search, BookOpen, MessageCircle, User, LayoutDashboard, Users, Wallet, FileBarChart, Shield, Building2, BarChart3, FolderTree } from "lucide-react";
+import { Search, BookOpen, MessageCircle, User, LayoutDashboard, Users, Wallet, FileBarChart, Shield, Building2, BarChart3, FolderTree, Home } from "lucide-react";
 
 type Persona = "seeker" | "provider" | "admin" | "platform_admin";
 
@@ -20,6 +20,7 @@ const providerTabs = [
 
 const adminTabs = [
   { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { path: "/admin/residents", icon: Home, label: "Residents" },
   { path: "/admin/providers", icon: Users, label: "Providers" },
   { path: "/admin/reports", icon: FileBarChart, label: "Reports" },
   { path: "/profile", icon: User, label: "Profile" },
