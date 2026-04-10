@@ -225,9 +225,20 @@ export function useSuspendProvider() {
         })
         .eq("id", registrationId);
       if (error) throw error;
+
+      // Suspend all published classes for this registration
+      const { error: classError } = await supabase
+        .from("classes")
+        .update({ status: "paused" })
+        .eq("provider_registration_id", registrationId)
+        .eq("status", "published");
+      if (classError) throw classError;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-provider-regs"] });
+      qc.invalidateQueries({ queryKey: ["admin-all-classes"] });
+      qc.invalidateQueries({ queryKey: ["admin-classes-by-reg"] });
+      qc.invalidateQueries({ queryKey: ["admin-stats"] });
     },
   });
 }
@@ -245,9 +256,20 @@ export function useReinstateProvider() {
         })
         .eq("id", registrationId);
       if (error) throw error;
+
+      // Restore all paused classes for this registration back to published
+      const { error: classError } = await supabase
+        .from("classes")
+        .update({ status: "published" })
+        .eq("provider_registration_id", registrationId)
+        .eq("status", "paused");
+      if (classError) throw classError;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-provider-regs"] });
+      qc.invalidateQueries({ queryKey: ["admin-all-classes"] });
+      qc.invalidateQueries({ queryKey: ["admin-classes-by-reg"] });
+      qc.invalidateQueries({ queryKey: ["admin-stats"] });
     },
   });
 }
