@@ -129,7 +129,6 @@ const AdminClasses = React.forwardRef<HTMLDivElement, Record<string, never>>((_p
   const handleSuspend = async () => {
     if (!suspendTarget || !suspendReason.trim()) return;
     const { providerUserId } = getProviderUser(suspendTarget);
-    if (!providerUserId) return;
     try {
       await updateClassStatus.mutateAsync({
         classId: suspendTarget.id,
@@ -147,7 +146,6 @@ const AdminClasses = React.forwardRef<HTMLDivElement, Record<string, never>>((_p
 
   const handleReactivate = async (cls: any) => {
     const { providerUserId } = getProviderUser(cls);
-    if (!providerUserId) return;
     try {
       await updateClassStatus.mutateAsync({
         classId: cls.id,

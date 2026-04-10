@@ -312,7 +312,7 @@ export function useAdminUpdateClassStatus() {
     }: {
       classId: string;
       status: "paused" | "published";
-      providerUserId: string;
+      providerUserId?: string;
       reason?: string;
     }) => {
       const { error } = await supabase
@@ -321,24 +321,27 @@ export function useAdminUpdateClassStatus() {
         .eq("id", classId);
       if (error) throw error;
 
-      const title = status === "paused" ? "Class Suspended" : "Class Reactivated";
-      const body =
-        status === "paused"
-          ? `Your class has been suspended by the society admin${reason ? `: ${reason}` : "."}`
-          : "Your class has been reactivated by the society admin and is now visible to residents.";
+      if (providerUserId) {
+        const title = status === "paused" ? "Class Suspended" : "Class Reactivated";
+        const body =
+          status === "paused"
+            ? `Your class has been suspended by the society admin${reason ? `: ${reason}` : "."}`
+            : "Your class has been reactivated by the society admin and is now visible to residents.";
 
-      await supabase.rpc("send_notification", {
-        p_user_id: providerUserId,
-        p_title: title,
-        p_body: body,
-        p_type: status === "paused" ? "class_suspended" : "class_reactivated",
-        p_ref_type: "class",
-        p_ref_id: classId,
-      });
+        await supabase.rpc("send_notification", {
+          p_user_id: providerUserId,
+          p_title: title,
+          p_body: body,
+          p_type: status === "paused" ? "class_suspended" : "class_reactivated",
+          p_ref_type: "class",
+          p_ref_id: classId,
+        });
+      }
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-classes-by-reg"] });
       qc.invalidateQueries({ queryKey: ["admin-provider-detail"] });
+      qc.invalidateQueries({ queryKey: ["admin-all-classes"] });
     },
   });
 }
