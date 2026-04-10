@@ -13,7 +13,7 @@ export function useFeaturedClasses(apartmentId: string | undefined) {
         .select(`
           id, title, short_description, cover_image_url, class_type,
           total_rating, rating_count, trial_available, trial_fee,
-          is_featured, created_at,
+          is_featured, created_at, requires_common_area,
           class_categories(id, name, slug),
           provider_apartment_registrations!inner(
             id, apartment_id,
@@ -25,7 +25,7 @@ export function useFeaturedClasses(apartmentId: string | undefined) {
         .eq("status", "published")
         .eq("is_featured", true)
         .eq("provider_apartment_registrations.apartment_id", apartmentId!)
-        .eq("provider_apartment_registrations.status", "approved")
+        .in("provider_apartment_registrations.status", ["pending", "approved"])
         .limit(10);
       if (error) throw error;
       return data;
@@ -45,7 +45,7 @@ export function useNewClasses(apartmentId: string | undefined) {
         .from("classes")
         .select(`
           id, title, short_description, cover_image_url, class_type,
-          total_rating, rating_count, created_at,
+          total_rating, rating_count, created_at, requires_common_area,
           class_categories(id, name, slug),
           provider_apartment_registrations!inner(
             id, apartment_id,
@@ -56,7 +56,7 @@ export function useNewClasses(apartmentId: string | undefined) {
         `)
         .eq("status", "published")
         .eq("provider_apartment_registrations.apartment_id", apartmentId!)
-        .eq("provider_apartment_registrations.status", "approved")
+        .in("provider_apartment_registrations.status", ["pending", "approved"])
         .gte("created_at", thirtyDaysAgo.toISOString())
         .order("created_at", { ascending: false })
         .limit(10);
@@ -75,7 +75,7 @@ export function usePopularClasses(apartmentId: string | undefined) {
         .from("classes")
         .select(`
           id, title, short_description, cover_image_url, class_type,
-          total_rating, rating_count, created_at,
+          total_rating, rating_count, created_at, requires_common_area,
           class_categories(id, name, slug),
           provider_apartment_registrations!inner(
             id, apartment_id,
@@ -86,7 +86,7 @@ export function usePopularClasses(apartmentId: string | undefined) {
         `)
         .eq("status", "published")
         .eq("provider_apartment_registrations.apartment_id", apartmentId!)
-        .eq("provider_apartment_registrations.status", "approved")
+        .in("provider_apartment_registrations.status", ["pending", "approved"])
         .order("rating_count", { ascending: false })
         .limit(5);
       if (error) throw error;
@@ -114,7 +114,7 @@ export function useExploreClasses(filters: {
         .select(`
           id, title, short_description, cover_image_url, class_type,
           skill_level, age_group_min, age_group_max, total_rating, rating_count,
-          trial_available, trial_fee, created_at, category_id,
+          trial_available, trial_fee, created_at, category_id, requires_common_area,
           class_categories!inner(id, name, slug, parent_category_id),
           provider_apartment_registrations!inner(
             id, apartment_id,
@@ -128,7 +128,7 @@ export function useExploreClasses(filters: {
         `)
         .eq("status", "published")
         .eq("provider_apartment_registrations.apartment_id", filters.apartmentId!)
-        .eq("provider_apartment_registrations.status", "approved");
+        .in("provider_apartment_registrations.status", ["pending", "approved"]);
 
       if (filters.categoryIds && filters.categoryIds.length > 0) {
         query = query.in("category_id", filters.categoryIds);

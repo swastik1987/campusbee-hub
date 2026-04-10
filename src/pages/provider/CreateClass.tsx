@@ -65,6 +65,7 @@ const CreateClass = () => {
   const [ageMax, setAgeMax] = useState("");
   const [venue, setVenue] = useState("");
   const [whatToBring, setWhatToBring] = useState("");
+  const [requiresCommonArea, setRequiresCommonArea] = useState(true);
 
   // Step 3: Media
   const [coverUrl, setCoverUrl] = useState("");
@@ -107,6 +108,10 @@ const CreateClass = () => {
 
   const approvedRegs = registrations?.filter((r) => r.status === "approved" && r.terms_status === "accepted") ?? [];
   const pendingTermsRegs = registrations?.filter((r) => r.status === "approved" && r.terms_status !== "accepted") ?? [];
+  // All registrations eligible to appear in the dropdown (not rejected or suspended)
+  const eligibleRegs = registrations?.filter((r) => r.status !== "rejected" && r.status !== "suspended") ?? [];
+  const selectedReg = eligibleRegs.find((r) => r.id === selectedRegId);
+  const selectedRegIsFullyApproved = selectedReg?.status === "approved" && selectedReg?.terms_status === "accepted";
 
   // Filter categories based on provider's specialization_category_ids
   const specializationIds = providerProfile?.specialization_category_ids ?? [];
@@ -169,6 +174,15 @@ const CreateClass = () => {
 
   const handleSave = async (status: string) => {
     if (!selectedRegId || !selectedCategoryId || !title.trim()) return;
+
+    // Common-area classes can only be published once admin has approved and terms are accepted
+    if (status === "published" && requiresCommonArea && !selectedRegIsFullyApproved) {
+      toast.error(
+        "This class uses common areas and requires admin approval + accepted commercial terms before publishing. Save as draft instead."
+      );
+      return;
+    }
+
     try {
       // 1. Create the class
       const result = await createClass.mutateAsync({
@@ -189,6 +203,7 @@ const CreateClass = () => {
         trialAvailable,
         trialFee: parseFloat(trialFee) || 0,
         status,
+        requiresCommonArea,
       });
 
       // 2. Create the batch + schedules
@@ -257,17 +272,23 @@ const CreateClass = () => {
 
             <div className="space-y-2">
               <Label>Select Apartment</Label>
-              {approvedRegs.length === 0 && pendingTermsRegs.length > 0 && (
+              {eligibleRegs.length === 0 && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  You have been approved but need to accept the commercial terms before creating classes. Please check your provider dashboard.
+                  You don't have any active registrations. Please register for an apartment first.
+                </div>
+              )}
+              {selectedRegId && !selectedRegIsFullyApproved && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  This registration is pending admin approval. You can only create <span className="font-semibold">home-based classes</span> (no common area) until approved.
                 </div>
               )}
               <Select value={selectedRegId} onValueChange={setSelectedRegId}>
                 <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Choose apartment" /></SelectTrigger>
                 <SelectContent>
-                  {approvedRegs.map((r) => (
+                  {eligibleRegs.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       {(r.apartment_complexes as any)?.name}
+                      {(r.status !== "approved" || r.terms_status !== "accepted") ? " (pending)" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -375,6 +396,39 @@ const CreateClass = () => {
               <Label>Venue Details</Label>
               <Input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Community Hall, Block A" className="h-11 rounded-xl" />
             </div>
+
+            <div className="space-y-2">
+              <Label>Class Location</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRequiresCommonArea(false)}
+                  className={`flex flex-col items-center gap-1.5 rounded-xl border-2 p-4 text-sm transition-all ${
+                    !requiresCommonArea
+                      ? "border-provider bg-provider/5 text-provider font-medium"
+                      : "border-border hover:border-provider/40"
+                  }`}
+                >
+                  <span className="text-xl">🏠</span>
+                  <span>My home / own premises</span>
+                  <span className="text-[10px] text-muted-foreground text-center leading-tight">No admin approval needed</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRequiresCommonArea(true)}
+                  className={`flex flex-col items-center gap-1.5 rounded-xl border-2 p-4 text-sm transition-all ${
+                    requiresCommonArea
+                      ? "border-provider bg-provider/5 text-provider font-medium"
+                      : "border-border hover:border-provider/40"
+                  }`}
+                >
+                  <span className="text-xl">🏢</span>
+                  <span>Society common area</span>
+                  <span className="text-[10px] text-muted-foreground text-center leading-tight">Requires admin approval</span>
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>What to Bring</Label>
               <Input value={whatToBring} onChange={(e) => setWhatToBring(e.target.value)} placeholder="Racquet, sportswear" className="h-11 rounded-xl" />
@@ -682,6 +736,9 @@ const CreateClass = () => {
                 </p>
               )}
               {venue && <p className="text-xs text-muted-foreground">Venue: {venue}</p>}
+              <p className="text-xs text-muted-foreground">
+                Location: {requiresCommonArea ? "🏢 Society common area" : "🏠 Home-based / own premises"}
+              </p>
               {trialAvailable && <p className="text-xs text-muted-foreground">Trial: ₹{trialFee}</p>}
             </Card>
 
@@ -710,6 +767,11 @@ const CreateClass = () => {
               </p>
             </Card>
 
+            {requiresCommonArea && !selectedRegIsFullyApproved && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                This class uses society common areas and requires admin approval. It will be auto-published once your registration is approved and you accept the commercial terms.
+              </div>
+            )}
             <div className="flex gap-3">
               <Button
                 variant="outline"
@@ -721,8 +783,8 @@ const CreateClass = () => {
               </Button>
               <Button
                 onClick={() => handleSave("published")}
-                disabled={isSaving}
-                className="flex-1 h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
+                disabled={isSaving || (requiresCommonArea && !selectedRegIsFullyApproved)}
+                className="flex-1 h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl disabled:opacity-40"
               >
                 {isSaving ? <Loader2 size={20} className="animate-spin" /> : "Publish"}
               </Button>

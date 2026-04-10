@@ -488,10 +488,34 @@ export function useRespondToTerms() {
           p_ref_id: registrationId,
         });
       }
+
+      // Auto-publish common-area draft classes that were waiting for approval
+      if (accept) {
+        const { data: draftClasses } = await supabase
+          .from("classes")
+          .select("id")
+          .eq("provider_registration_id", registrationId)
+          .eq("requires_common_area", true)
+          .eq("status", "draft");
+
+        if (draftClasses && draftClasses.length > 0) {
+          const classIds = draftClasses.map((c) => c.id);
+          await supabase
+            .from("classes")
+            .update({ status: "published" })
+            .in("id", classIds);
+          await supabase
+            .from("batches")
+            .update({ status: "active" })
+            .in("class_id", classIds)
+            .eq("status", "draft");
+        }
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["provider-pending-terms"] });
       qc.invalidateQueries({ queryKey: ["provider-registrations"] });
+      qc.invalidateQueries({ queryKey: ["provider-classes"] });
     },
   });
 }

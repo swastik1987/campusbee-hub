@@ -100,6 +100,7 @@ export function useCreateClass() {
       trialAvailable: boolean;
       trialFee: number;
       status: string;
+      requiresCommonArea: boolean;
     }) => {
       const { data, error } = await supabase
         .from("classes")
@@ -121,6 +122,7 @@ export function useCreateClass() {
           trial_available: input.trialAvailable,
           trial_fee: input.trialFee,
           status: input.status,
+          requires_common_area: input.requiresCommonArea,
         })
         .select("id")
         .single();

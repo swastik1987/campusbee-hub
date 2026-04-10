@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, Star } from "lucide-react";
+import { BookOpen, Home, Star } from "lucide-react";
 
 type ClassCardProps = {
   cls: {
@@ -12,6 +12,7 @@ type ClassCardProps = {
     class_type?: string | null;
     total_rating?: number | null;
     rating_count?: number | null;
+    requires_common_area?: boolean | null;
     class_categories?: { name: string; slug: string } | null;
     provider_apartment_registrations?: {
       service_providers?: {
@@ -81,7 +82,13 @@ const ClassCard = ({ cls, variant = "horizontal" }: ClassCardProps) => {
         <div className="p-2.5 space-y-1">
           <h4 className="text-xs font-semibold truncate">{cls.title}</h4>
           <p className="text-[10px] text-muted-foreground truncate">{providerName}</p>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {cls.requires_common_area === false && (
+              <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                <Home size={9} />
+                Home-based
+              </span>
+            )}
             {(cls.rating_count ?? 0) > 0 && (
               <span className="flex items-center gap-0.5 text-[10px]">
                 <Star size={10} className="text-amber-500 fill-amber-500" />
@@ -121,9 +128,17 @@ const ClassCard = ({ cls, variant = "horizontal" }: ClassCardProps) => {
             <Badge variant="secondary" className="ml-1 text-[9px] px-1 py-0">Academy</Badge>
           )}
         </p>
-        {cls.class_categories?.name && (
-          <Badge variant="outline" className="mt-1 text-[10px]">{cls.class_categories.name}</Badge>
-        )}
+        <div className="flex items-center gap-1.5 flex-wrap mt-1">
+          {cls.class_categories?.name && (
+            <Badge variant="outline" className="text-[10px]">{cls.class_categories.name}</Badge>
+          )}
+          {cls.requires_common_area === false && (
+            <Badge variant="secondary" className="text-[10px] gap-0.5 px-1.5">
+              <Home size={10} />
+              Home-based
+            </Badge>
+          )}
+        </div>
         <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground">
           {(cls.rating_count ?? 0) > 0 && (
             <span className="flex items-center gap-0.5">

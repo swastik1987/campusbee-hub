@@ -6,6 +6,8 @@ import {
   useUpdateCommercialTerms,
   useSuspendProvider,
   useReinstateProvider,
+  useAdminClassesByRegistration,
+  useAdminUpdateClassStatus,
 } from "@/hooks/useAdmin";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +46,8 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Home,
+  Play,
 } from "lucide-react";
 import { useCategories } from "@/hooks/useClasses";
 import { toast } from "sonner";
@@ -72,6 +76,8 @@ const AdminProviderDetail = () => {
   const updateTerms = useUpdateCommercialTerms();
   const suspendProvider = useSuspendProvider();
   const reinstateProvider = useReinstateProvider();
+  const { data: providerClasses, isLoading: classesLoading } = useAdminClassesByRegistration(registrationId);
+  const updateClassStatus = useAdminUpdateClassStatus();
 
   // Edit terms sheet
   const [editTermsOpen, setEditTermsOpen] = useState(false);
@@ -83,9 +89,14 @@ const AdminProviderDetail = () => {
   const [freeTrialDays, setFreeTrialDays] = useState("0");
   const [commercialNotes, setCommercialNotes] = useState("");
 
-  // Suspend sheet
+  // Provider suspend sheet
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [suspendReason, setSuspendReason] = useState("");
+
+  // Class suspend sheet
+  const [classSuspendOpen, setClassSuspendOpen] = useState(false);
+  const [classSuspendId, setClassSuspendId] = useState("");
+  const [classSuspendReason, setClassSuspendReason] = useState("");
 
   const prov = (detail as any)?.service_providers as any;
   const user = prov?.users;
@@ -144,6 +155,41 @@ const AdminProviderDetail = () => {
       toast.success("Provider reinstated");
     } catch {
       toast.error("Failed to reinstate provider");
+    }
+  };
+
+  const handleSuspendClass = async () => {
+    if (!classSuspendId || !classSuspendReason.trim()) return;
+    const providerUserId = user?.id;
+    if (!providerUserId) return;
+    try {
+      await updateClassStatus.mutateAsync({
+        classId: classSuspendId,
+        status: "paused",
+        providerUserId,
+        reason: classSuspendReason.trim(),
+      });
+      toast.success("Class suspended");
+      setClassSuspendOpen(false);
+      setClassSuspendReason("");
+      setClassSuspendId("");
+    } catch {
+      toast.error("Failed to suspend class");
+    }
+  };
+
+  const handleReactivateClass = async (classId: string) => {
+    const providerUserId = user?.id;
+    if (!providerUserId) return;
+    try {
+      await updateClassStatus.mutateAsync({
+        classId,
+        status: "published",
+        providerUserId,
+      });
+      toast.success("Class reactivated");
+    } catch {
+      toast.error("Failed to reactivate class");
     }
   };
 
@@ -565,6 +611,85 @@ const AdminProviderDetail = () => {
           </div>
         </Card>
 
+        {/* Classes */}
+        <Card className="p-4 space-y-3">
+          <h4 className="text-sm font-semibold flex items-center gap-2">
+            <BookOpen size={16} className="text-emerald-600" />
+            Classes
+          </h4>
+          {classesLoading ? (
+            <div className="space-y-2">
+              <div className="h-10 rounded-lg bg-muted animate-pulse" />
+              <div className="h-10 rounded-lg bg-muted animate-pulse" />
+            </div>
+          ) : !providerClasses || providerClasses.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No classes yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {providerClasses.map((cls: any) => (
+                <div
+                  key={cls.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                >
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-sm font-medium truncate">{cls.title}</p>
+                      {cls.requires_common_area === false && (
+                        <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground shrink-0">
+                          <Home size={10} />
+                          Home-based
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {cls.class_categories?.name && (
+                        <span className="text-[10px] text-muted-foreground">{cls.class_categories.name}</span>
+                      )}
+                      <span
+                        className={`text-[10px] font-medium capitalize ${
+                          cls.status === "published"
+                            ? "text-emerald-600"
+                            : cls.status === "paused"
+                            ? "text-red-600"
+                            : "text-amber-600"
+                        }`}
+                      >
+                        {cls.status}
+                      </span>
+                    </div>
+                  </div>
+                  {cls.status === "published" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs shrink-0"
+                      onClick={() => {
+                        setClassSuspendId(cls.id);
+                        setClassSuspendReason("");
+                        setClassSuspendOpen(true);
+                      }}
+                    >
+                      <Ban size={12} className="mr-1" />
+                      Suspend
+                    </Button>
+                  )}
+                  {cls.status === "paused" && (
+                    <Button
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs shrink-0"
+                      onClick={() => handleReactivateClass(cls.id)}
+                      disabled={updateClassStatus.isPending}
+                    >
+                      <Play size={12} className="mr-1" />
+                      Reactivate
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
         {/* Action Buttons */}
         <div className="flex gap-3 pt-1">
           {detail.status === "approved" && (
@@ -702,7 +827,7 @@ const AdminProviderDetail = () => {
         </SheetContent>
       </Sheet>
 
-      {/* Suspend Sheet */}
+      {/* Suspend Provider Sheet */}
       <Sheet open={suspendOpen} onOpenChange={setSuspendOpen}>
         <SheetContent side="bottom" className="rounded-t-2xl">
           <SheetHeader>
@@ -732,6 +857,37 @@ const AdminProviderDetail = () => {
               className="w-full bg-red-600 hover:bg-red-700 text-white rounded-lg"
             >
               {suspendProvider.isPending ? "Suspending..." : "Suspend Provider"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Suspend Class Sheet */}
+      <Sheet open={classSuspendOpen} onOpenChange={setClassSuspendOpen}>
+        <SheetContent side="bottom" className="rounded-t-2xl">
+          <SheetHeader>
+            <SheetTitle>Suspend Class</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              This class will be hidden from residents. The provider will be notified.
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Reason for Suspension</Label>
+              <Textarea
+                value={classSuspendReason}
+                onChange={(e) => setClassSuspendReason(e.target.value)}
+                placeholder="e.g. Safety concern, complaint received..."
+                rows={3}
+                className="rounded-lg"
+              />
+            </div>
+            <Button
+              onClick={handleSuspendClass}
+              disabled={!classSuspendReason.trim() || updateClassStatus.isPending}
+              className="w-full bg-red-600 hover:bg-red-700 text-white rounded-lg"
+            >
+              {updateClassStatus.isPending ? "Suspending..." : "Suspend Class"}
             </Button>
           </div>
         </SheetContent>
