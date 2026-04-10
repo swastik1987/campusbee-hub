@@ -29,6 +29,7 @@ import {
   Award,
   BookOpen,
   Users,
+  DollarSign,
   Ban,
   RotateCcw,
   Clock,
