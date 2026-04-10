@@ -80,23 +80,24 @@ export function useCreateProvider() {
         // Only create registrations for apartments not already registered
         const newAptIds = input.apartmentIds.filter((id) => !existingAptIds.has(id));
 
-        // Re-activate rejected registrations for selected apartments
-        const rejectedAptIds = input.apartmentIds.filter(
-          (id) => existingRegs?.find((r) => r.apartment_id === id && r.status === "rejected")
+        // Re-activate rejected/suspended registrations for selected apartments (auto-approved)
+        const reactivateAptIds = input.apartmentIds.filter(
+          (id) => existingRegs?.find((r) => r.apartment_id === id && (r.status === "rejected" || r.status === "suspended"))
         );
-        if (rejectedAptIds.length > 0) {
+        if (reactivateAptIds.length > 0) {
           await supabase
             .from("provider_apartment_registrations")
-            .update({ status: "pending", terms_status: null })
+            .update({ status: "approved", approved_at: new Date().toISOString() })
             .eq("provider_id", providerId)
-            .in("apartment_id", rejectedAptIds);
+            .in("apartment_id", reactivateAptIds);
         }
 
         if (newAptIds.length > 0) {
           const regs = newAptIds.map((aptId) => ({
             provider_id: providerId,
             apartment_id: aptId,
-            status: "pending" as const,
+            status: "approved" as const,
+            approved_at: new Date().toISOString(),
           }));
           const { error: rErr } = await supabase
             .from("provider_apartment_registrations")
@@ -515,6 +516,71 @@ export function useRespondToTerms() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["provider-pending-terms"] });
       qc.invalidateQueries({ queryKey: ["provider-registrations"] });
+      qc.invalidateQueries({ queryKey: ["provider-classes"] });
+    },
+  });
+}
+
+// ---- Provider: Class-level action items (pending approval, terms to accept, rejections) ----
+
+export function useProviderClassActionItems(registrationIds: string[]) {
+  return useQuery({
+    queryKey: ["provider-class-actions", registrationIds],
+    enabled: registrationIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("classes")
+        .select(`
+          id, title, status, requires_common_area,
+          common_area_approval_status, common_area_rejection_reason,
+          class_terms_status, class_fee_type, class_fee_amount,
+          class_revenue_share_pct, class_payment_frequency, class_commercial_notes
+        `)
+        .in("provider_registration_id", registrationIds)
+        .or("status.eq.pending_approval,class_terms_status.eq.pending_acceptance,common_area_approval_status.eq.rejected");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+// ---- Provider: Accept or Reject Class-level Terms ----
+
+export function useRespondToClassTerms() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ classId, accept }: { classId: string; accept: boolean }) => {
+      const { error } = await supabase.rpc("accept_class_terms", {
+        p_class_id: classId,
+        p_accept: accept,
+      });
+      if (error) throw error;
+
+      // Notify the admin who proposed the terms
+      const { data: cls } = await supabase
+        .from("classes")
+        .select("title, class_terms_proposed_by")
+        .eq("id", classId)
+        .single();
+
+      const adminUserId = (cls as any)?.class_terms_proposed_by;
+      const classTitle = (cls as any)?.title ?? "a class";
+
+      if (adminUserId) {
+        await supabase.rpc("send_notification", {
+          p_user_id: adminUserId,
+          p_title: accept ? "Class Terms Accepted" : "Class Terms Rejected",
+          p_body: accept
+            ? `The provider has accepted the commercial terms for "${classTitle}".`
+            : `The provider has rejected the commercial terms for "${classTitle}". You may want to renegotiate.`,
+          p_type: accept ? "terms_accepted" : "terms_rejected",
+          p_ref_type: "class",
+          p_ref_id: classId,
+        });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["provider-class-actions"] });
       qc.invalidateQueries({ queryKey: ["provider-classes"] });
     },
   });

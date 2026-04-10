@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import {
   useAdminProviderDetail,
-  useUpdateCommercialTerms,
   useSuspendProvider,
   useReinstateProvider,
   useAdminClassesByRegistration,
@@ -13,8 +12,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -24,13 +21,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   ArrowLeft,
   Building2,
   Phone,
@@ -38,14 +28,10 @@ import {
   Award,
   BookOpen,
   Users,
-  DollarSign,
-  Edit,
   Ban,
   RotateCcw,
   Clock,
   CheckCircle2,
-  XCircle,
-  AlertCircle,
   Home,
   Play,
 } from "lucide-react";
@@ -73,21 +59,10 @@ const AdminProviderDetail = () => {
       })
       .filter(Boolean) as string[];
   };
-  const updateTerms = useUpdateCommercialTerms();
   const suspendProvider = useSuspendProvider();
   const reinstateProvider = useReinstateProvider();
   const { data: providerClasses, isLoading: classesLoading } = useAdminClassesByRegistration(registrationId);
   const updateClassStatus = useAdminUpdateClassStatus();
-
-  // Edit terms sheet
-  const [editTermsOpen, setEditTermsOpen] = useState(false);
-  const [feeType, setFeeType] = useState("flat");
-  const [feeAmount, setFeeAmount] = useState("0");
-  const [minGuaranteedFee, setMinGuaranteedFee] = useState("0");
-  const [revenueSharePct, setRevenueSharePct] = useState("0");
-  const [paymentFrequency, setPaymentFrequency] = useState("monthly");
-  const [freeTrialDays, setFreeTrialDays] = useState("0");
-  const [commercialNotes, setCommercialNotes] = useState("");
 
   // Provider suspend sheet
   const [suspendOpen, setSuspendOpen] = useState(false);
@@ -100,38 +75,6 @@ const AdminProviderDetail = () => {
 
   const prov = (detail as any)?.service_providers as any;
   const user = prov?.users;
-
-  const openEditTerms = () => {
-    if (!detail) return;
-    setFeeType(detail.admin_fee_type ?? "flat");
-    setFeeAmount(String(detail.admin_fee_amount ?? 0));
-    setMinGuaranteedFee(String(detail.min_guaranteed_fee ?? 0));
-    setRevenueSharePct(String(detail.revenue_share_pct ?? 0));
-    setPaymentFrequency(detail.payment_frequency ?? "monthly");
-    setFreeTrialDays(String(detail.free_trial_days ?? 0));
-    setCommercialNotes(detail.commercial_notes ?? "");
-    setEditTermsOpen(true);
-  };
-
-  const handleUpdateTerms = async () => {
-    if (!registrationId) return;
-    try {
-      await updateTerms.mutateAsync({
-        registrationId,
-        feeType,
-        feeAmount: parseFloat(feeAmount) || 0,
-        minGuaranteedFee: parseFloat(minGuaranteedFee) || 0,
-        revenueSharePct: parseFloat(revenueSharePct) || 0,
-        paymentFrequency,
-        freeTrialDays: parseInt(freeTrialDays) || 0,
-        commercialNotes: commercialNotes.trim() || undefined,
-      });
-      toast.success("Commercial terms updated");
-      setEditTermsOpen(false);
-    } catch {
-      toast.error("Failed to update terms");
-    }
-  };
 
   const handleSuspend = async () => {
     if (!registrationId || !suspendReason.trim()) return;
@@ -210,39 +153,6 @@ const AdminProviderDetail = () => {
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
-
-  const getTermsStatusBadge = (status: string | null | undefined) => {
-    switch (status) {
-      case "pending_acceptance":
-        return (
-          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
-            <AlertCircle size={12} className="mr-1" />
-            Pending Acceptance
-          </Badge>
-        );
-      case "accepted":
-        return (
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-            <CheckCircle2 size={12} className="mr-1" />
-            Accepted
-          </Badge>
-        );
-      case "rejected":
-        return (
-          <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
-            <XCircle size={12} className="mr-1" />
-            Rejected
-          </Badge>
-        );
-      default:
-        return (
-          <Badge variant="secondary">
-            <Clock size={12} className="mr-1" />
-            Not Set
-          </Badge>
-        );
-    }
   };
 
   const getStatusBadge = (status: string | undefined) => {
@@ -452,70 +362,6 @@ const AdminProviderDetail = () => {
           </div>
         </Card>
 
-        {/* Commercial Terms */}
-        <Card className="p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold flex items-center gap-2">
-              <DollarSign size={16} className="text-emerald-600" />
-              Commercial Terms
-            </h4>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs h-8"
-              onClick={openEditTerms}
-            >
-              <Edit size={14} className="mr-1" />
-              Edit Terms
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {getTermsStatusBadge(detail.terms_status)}
-            {detail.terms_version != null && (
-              <span className="text-xs text-muted-foreground">v{detail.terms_version}</span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="space-y-0.5">
-              <p className="text-xs text-muted-foreground">Fee Type</p>
-              <p className="font-medium capitalize">{detail.admin_fee_type ?? "Not set"}</p>
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs text-muted-foreground">Fee Amount</p>
-              <p className="font-medium">
-                {detail.admin_fee_type === "percentage"
-                  ? `${detail.admin_fee_amount ?? 0}%`
-                  : formatCurrency(detail.admin_fee_amount ?? 0)}
-              </p>
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs text-muted-foreground">Min Guaranteed Fee</p>
-              <p className="font-medium">{formatCurrency(detail.min_guaranteed_fee ?? 0)}</p>
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs text-muted-foreground">Revenue Share</p>
-              <p className="font-medium">{detail.revenue_share_pct ?? 0}%</p>
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs text-muted-foreground">Payment Frequency</p>
-              <p className="font-medium capitalize">{detail.payment_frequency ?? "Not set"}</p>
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs text-muted-foreground">Free Trial Days</p>
-              <p className="font-medium">{detail.free_trial_days ?? 0}</p>
-            </div>
-          </div>
-
-          {detail.commercial_notes && (
-            <div className="space-y-1 pt-1 border-t">
-              <p className="text-xs text-muted-foreground">Notes</p>
-              <p className="text-sm">{detail.commercial_notes}</p>
-            </div>
-          )}
-        </Card>
-
         {/* Registration Timeline */}
         <Card className="p-4 space-y-3">
           <h4 className="text-sm font-semibold flex items-center gap-2">
@@ -558,33 +404,6 @@ const AdminProviderDetail = () => {
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {formatDate(detail.approved_at) ?? "Pending"}
-                </p>
-              </div>
-            </div>
-
-            {/* Terms Accepted */}
-            <div className="relative">
-              <div
-                className={`absolute -left-6 top-0.5 h-[18px] w-[18px] rounded-full flex items-center justify-center ${
-                  detail.terms_accepted_at ? "bg-emerald-100" : "bg-muted"
-                }`}
-              >
-                <div
-                  className={`h-2 w-2 rounded-full ${
-                    detail.terms_accepted_at ? "bg-emerald-600" : "bg-muted-foreground/30"
-                  }`}
-                />
-              </div>
-              <div>
-                <p
-                  className={`text-sm font-medium ${
-                    !detail.terms_accepted_at ? "text-muted-foreground" : ""
-                  }`}
-                >
-                  Terms Accepted
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formatDate(detail.terms_accepted_at) ?? "Pending"}
                 </p>
               </div>
             </div>
@@ -717,115 +536,6 @@ const AdminProviderDetail = () => {
           )}
         </div>
       </div>
-
-      {/* Edit Terms Sheet */}
-      <Sheet open={editTermsOpen} onOpenChange={setEditTermsOpen}>
-        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Edit Commercial Terms</SheetTitle>
-          </SheetHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Fee Type</Label>
-                <Select value={feeType} onValueChange={setFeeType}>
-                  <SelectTrigger className="h-10 rounded-lg">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="flat">Flat (₹/month)</SelectItem>
-                    <SelectItem value="percentage">Percentage (%)</SelectItem>
-                    <SelectItem value="custom">Custom</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">
-                  {feeType === "percentage" ? "Fee Rate (%)" : "Fee Amount (₹)"}
-                </Label>
-                <Input
-                  type="number"
-                  value={feeAmount}
-                  onChange={(e) => setFeeAmount(e.target.value)}
-                  className="h-10 rounded-lg"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Min Guaranteed Fee (₹)</Label>
-                <Input
-                  type="number"
-                  value={minGuaranteedFee}
-                  onChange={(e) => setMinGuaranteedFee(e.target.value)}
-                  className="h-10 rounded-lg"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Revenue Share %</Label>
-                <Input
-                  type="number"
-                  value={revenueSharePct}
-                  onChange={(e) => setRevenueSharePct(e.target.value)}
-                  className="h-10 rounded-lg"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Payment Frequency</Label>
-                <Select value={paymentFrequency} onValueChange={setPaymentFrequency}>
-                  <SelectTrigger className="h-10 rounded-lg">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="quarterly">Quarterly</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Free Trial Days</Label>
-                <Input
-                  type="number"
-                  value={freeTrialDays}
-                  onChange={(e) => setFreeTrialDays(e.target.value)}
-                  className="h-10 rounded-lg"
-                  min="0"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs">Commercial Notes</Label>
-              <Textarea
-                value={commercialNotes}
-                onChange={(e) => setCommercialNotes(e.target.value)}
-                placeholder="Any additional notes about the terms..."
-                rows={3}
-                className="rounded-lg"
-              />
-            </div>
-
-            <Button
-              onClick={handleUpdateTerms}
-              disabled={updateTerms.isPending}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
-            >
-              {updateTerms.isPending ? "Updating..." : "Update Terms"}
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
 
       {/* Suspend Provider Sheet */}
       <Sheet open={suspendOpen} onOpenChange={setSuspendOpen}>

@@ -43,6 +43,7 @@ import AdminProviderDetail from "./pages/admin/AdminProviderDetail";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminFeatured from "./pages/admin/AdminFeatured";
 import AdminResidents from "./pages/admin/AdminResidents";
+import AdminClasses from "./pages/admin/AdminClasses";
 import PlatformLayout from "./pages/platform/PlatformLayout";
 import PlatformDashboard from "./pages/platform/PlatformDashboard";
 import PlatformApartments from "./pages/platform/PlatformApartments";
@@ -94,7 +95,7 @@ const App = () => (
             <Route path="/provider/classes/:classId/materials" element={<AuthGuard><ProviderMaterials /></AuthGuard>} />
             <Route path="/provider/classes/:classId/demos" element={<AuthGuard><ProviderDemoSessions /></AuthGuard>} />
             <Route path="/provider/reviews" element={<AuthGuard><ProviderReviews /></AuthGuard>} />
-            <Route path="/provider/terms" element={<AuthGuard><ProviderTerms /></AuthGuard>} />
+            <Route path="/provider/terms/:classId" element={<AuthGuard><ProviderTerms /></AuthGuard>} />
 
             {/* Notifications */}
             <Route path="/notifications" element={<AuthGuard><Notifications /></AuthGuard>} />
@@ -106,6 +107,7 @@ const App = () => (
             <Route path="/admin/reports" element={<AuthGuard><AdminReports /></AuthGuard>} />
             <Route path="/admin/featured" element={<AuthGuard><AdminFeatured /></AuthGuard>} />
             <Route path="/admin/residents" element={<AuthGuard><AdminResidents /></AuthGuard>} />
+            <Route path="/admin/classes" element={<AuthGuard><AdminClasses /></AuthGuard>} />
 
             {/* Platform admin routes (nested layout) */}
             <Route path="/platform" element={<AuthGuard><PlatformLayout /></AuthGuard>}>

@@ -635,3 +635,157 @@ export function useAdminResidents(apartmentId: string | undefined) {
     },
   });
 }
+
+// ---- Admin: Pending common-area class requests ----
+
+export function useAdminPendingClasses(apartmentId: string | undefined) {
+  return useQuery({
+    queryKey: ["admin-pending-classes", apartmentId],
+    enabled: !!apartmentId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("classes")
+        .select(`
+          id, title, status, requires_common_area, common_area_approval_status,
+          venue_details, created_at,
+          class_categories(name),
+          provider_apartment_registrations!inner(
+            apartment_id,
+            service_providers(id, user_id, business_name, users(id, full_name))
+          )
+        `)
+        .eq("status", "pending_approval")
+        .eq("provider_apartment_registrations.apartment_id", apartmentId!)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+// ---- Admin: All classes (active + suspended) ----
+
+export function useAdminAllClasses(apartmentId: string | undefined) {
+  return useQuery({
+    queryKey: ["admin-all-classes", apartmentId],
+    enabled: !!apartmentId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("classes")
+        .select(`
+          id, title, status, requires_common_area, common_area_approval_status,
+          class_terms_status, total_rating, rating_count, created_at,
+          class_categories(name),
+          provider_apartment_registrations!inner(
+            apartment_id,
+            service_providers(id, user_id, business_name, users(id, full_name))
+          )
+        `)
+        .in("status", ["published", "paused"])
+        .eq("provider_apartment_registrations.apartment_id", apartmentId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+// ---- Admin: Approve a common-area class (optionally with commercial terms) ----
+
+export function useAdminApproveClass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      classId: string;
+      adminUserId: string;
+      providerUserId: string;
+      terms?: {
+        feeType: string;
+        feeAmount: number;
+        revenueSharePct: number;
+        paymentFrequency: string;
+        notes: string;
+      };
+    }) => {
+      const hasTerms = !!input.terms && input.terms.feeAmount > 0;
+
+      const updatePayload: Record<string, unknown> = {
+        common_area_approval_status: "approved",
+      };
+
+      if (hasTerms) {
+        // Propose commercial terms — provider must accept before class publishes
+        updatePayload.class_fee_type = input.terms!.feeType;
+        updatePayload.class_fee_amount = input.terms!.feeAmount;
+        updatePayload.class_revenue_share_pct = input.terms!.revenueSharePct;
+        updatePayload.class_payment_frequency = input.terms!.paymentFrequency;
+        updatePayload.class_commercial_notes = input.terms!.notes || null;
+        updatePayload.class_terms_status = "pending_acceptance";
+        updatePayload.class_terms_proposed_by = input.adminUserId;
+        // Status stays pending_approval until provider accepts
+      } else {
+        // No commercial terms — publish directly
+        updatePayload.status = "published";
+        updatePayload.class_terms_status = "not_required";
+      }
+
+      const { error } = await supabase
+        .from("classes")
+        .update(updatePayload)
+        .eq("id", input.classId);
+      if (error) throw error;
+
+      await supabase.rpc("send_notification", {
+        p_user_id: input.providerUserId,
+        p_title: hasTerms ? "Class Approved – Review Terms" : "Class Approved!",
+        p_body: hasTerms
+          ? "Your class has been approved. Please review and accept the commercial terms to go live."
+          : "Your class has been approved and is now live on CampusBee!",
+        p_type: hasTerms ? "class_approved_with_terms" : "class_approved",
+        p_ref_type: "class",
+        p_ref_id: input.classId,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-pending-classes"] });
+      qc.invalidateQueries({ queryKey: ["admin-all-classes"] });
+      qc.invalidateQueries({ queryKey: ["admin-classes-by-reg"] });
+    },
+  });
+}
+
+// ---- Admin: Reject a common-area class request ----
+
+export function useAdminRejectClass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      classId: string;
+      providerUserId: string;
+      reason: string;
+    }) => {
+      const { error } = await supabase
+        .from("classes")
+        .update({
+          common_area_approval_status: "rejected",
+          common_area_rejection_reason: input.reason,
+          status: "draft",
+        })
+        .eq("id", input.classId);
+      if (error) throw error;
+
+      await supabase.rpc("send_notification", {
+        p_user_id: input.providerUserId,
+        p_title: "Class Request Rejected",
+        p_body: `Your class submission was not approved. Reason: ${input.reason}`,
+        p_type: "class_rejected",
+        p_ref_type: "class",
+        p_ref_id: input.classId,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-pending-classes"] });
+      qc.invalidateQueries({ queryKey: ["admin-classes-by-reg"] });
+    },
+  });
+}

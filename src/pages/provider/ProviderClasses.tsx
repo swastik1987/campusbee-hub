@@ -11,12 +11,21 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookOpen, Plus, Star, Users } from "lucide-react";
 
-const STATUS_FILTERS = ["all", "draft", "published", "paused", "archived"];
+const STATUS_FILTERS = ["all", "draft", "pending_approval", "published", "paused", "archived"];
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600",
+  pending_approval: "bg-blue-100 text-blue-700",
   published: "bg-green-100 text-green-700",
   paused: "bg-amber-100 text-amber-700",
   archived: "bg-gray-200 text-gray-500",
+};
+const STATUS_LABELS: Record<string, string> = {
+  all: "All",
+  draft: "Draft",
+  pending_approval: "In Review",
+  published: "Published",
+  paused: "Paused",
+  archived: "Archived",
 };
 
 const ProviderClasses = () => {
@@ -25,9 +34,9 @@ const ProviderClasses = () => {
   const [statusFilter, setStatusFilter] = useState("all");
 
   const { data: registrations } = useProviderRegistrations(providerProfile?.id);
-  const approvedRegIds = registrations?.filter((r) => r.status === "approved").map((r) => r.id) ?? [];
+  const allRegIds = registrations?.map((r) => r.id) ?? [];
 
-  const { data: classes, isLoading } = useProviderClasses(approvedRegIds, statusFilter);
+  const { data: classes, isLoading } = useProviderClasses(allRegIds, statusFilter);
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-20">
@@ -42,13 +51,13 @@ const ProviderClasses = () => {
             <button
               key={f}
               onClick={() => setStatusFilter(f)}
-              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors capitalize ${
+              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                 statusFilter === f
                   ? "bg-provider text-white"
                   : "bg-muted text-muted-foreground hover:bg-accent"
               }`}
             >
-              {f}
+              {STATUS_LABELS[f] ?? f}
             </button>
           ))}
         </div>
@@ -83,9 +92,14 @@ const ProviderClasses = () => {
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-sm font-semibold truncate">{cls.title}</h3>
                     <Badge className={`text-[10px] ${STATUS_COLORS[cls.status ?? "draft"]} border-0 shrink-0`}>
-                      {cls.status}
+                      {STATUS_LABELS[cls.status ?? "draft"] ?? cls.status}
                     </Badge>
                   </div>
+                  {(cls as any).common_area_approval_status === "rejected" && (
+                    <p className="text-[10px] text-red-600 mt-0.5">
+                      Rejected{(cls as any).common_area_rejection_reason ? `: ${(cls as any).common_area_rejection_reason}` : ""}
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {(cls.class_categories as any)?.name} · {(cls.provider_apartment_registrations as any)?.apartment_complexes?.name}
                   </p>

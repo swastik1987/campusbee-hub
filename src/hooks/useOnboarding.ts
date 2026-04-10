@@ -166,12 +166,13 @@ export function useCreateProviderOnboarding() {
         .single();
       if (pErr) throw pErr;
 
-      // 2. Register for selected apartments
+      // 2. Register for selected apartments (auto-approved — no admin gate needed)
       if (input.apartmentIds.length > 0) {
         const regs = input.apartmentIds.map((aptId) => ({
           provider_id: provider.id,
           apartment_id: aptId,
-          status: "pending" as const,
+          status: "approved" as const,
+          approved_at: new Date().toISOString(),
         }));
         const { error: rErr } = await supabase
           .from("provider_apartment_registrations")

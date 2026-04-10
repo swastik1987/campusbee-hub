@@ -106,12 +106,8 @@ const CreateClass = () => {
   const createBatch = useCreateBatch();
   const uploadImage = useUploadClassImage();
 
-  const approvedRegs = registrations?.filter((r) => r.status === "approved" && r.terms_status === "accepted") ?? [];
-  const pendingTermsRegs = registrations?.filter((r) => r.status === "approved" && r.terms_status !== "accepted") ?? [];
   // All registrations eligible to appear in the dropdown (not rejected or suspended)
   const eligibleRegs = registrations?.filter((r) => r.status !== "rejected" && r.status !== "suspended") ?? [];
-  const selectedReg = eligibleRegs.find((r) => r.id === selectedRegId);
-  const selectedRegIsFullyApproved = selectedReg?.status === "approved" && selectedReg?.terms_status === "accepted";
 
   // Filter categories based on provider's specialization_category_ids
   const specializationIds = providerProfile?.specialization_category_ids ?? [];
@@ -172,16 +168,11 @@ const CreateClass = () => {
 
   const batchValid = batchName.trim() && maxBatchSize && feeAmount && selectedSchedules.length > 0;
 
-  const handleSave = async (status: string) => {
+  const handleSave = async (publish: boolean) => {
     if (!selectedRegId || !selectedCategoryId || !title.trim()) return;
 
-    // Common-area classes can only be published once admin has approved and terms are accepted
-    if (status === "published" && requiresCommonArea && !selectedRegIsFullyApproved) {
-      toast.error(
-        "This class uses common areas and requires admin approval + accepted commercial terms before publishing. Save as draft instead."
-      );
-      return;
-    }
+    // Common-area classes go to pending_approval, home-based publish directly
+    const status = !publish ? "draft" : requiresCommonArea ? "pending_approval" : "published";
 
     try {
       // 1. Create the class
@@ -235,7 +226,12 @@ const CreateClass = () => {
         });
       }
 
-      toast.success(status === "published" ? "Class published!" : "Draft saved!");
+      const successMsg = status === "published"
+        ? "Class published!"
+        : status === "pending_approval"
+        ? "Class submitted for admin review!"
+        : "Draft saved!";
+      toast.success(successMsg);
       navigate(`/provider/classes`, { replace: true });
     } catch {
       toast.error("Failed to save class");
@@ -277,18 +273,12 @@ const CreateClass = () => {
                   You don't have any active registrations. Please register for an apartment first.
                 </div>
               )}
-              {selectedRegId && !selectedRegIsFullyApproved && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  This registration is pending admin approval. You can only create <span className="font-semibold">home-based classes</span> (no common area) until approved.
-                </div>
-              )}
               <Select value={selectedRegId} onValueChange={setSelectedRegId}>
                 <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Choose apartment" /></SelectTrigger>
                 <SelectContent>
                   {eligibleRegs.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       {(r.apartment_complexes as any)?.name}
-                      {(r.status !== "approved" || r.terms_status !== "accepted") ? " (pending)" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -767,26 +757,26 @@ const CreateClass = () => {
               </p>
             </Card>
 
-            {requiresCommonArea && !selectedRegIsFullyApproved && (
+            {requiresCommonArea && (
               <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                This class uses society common areas and requires admin approval. It will be auto-published once your registration is approved and you accept the commercial terms.
+                This class uses society common areas. It will be sent to the apartment admin for review before going live.
               </div>
             )}
             <div className="flex gap-3">
               <Button
                 variant="outline"
-                onClick={() => handleSave("draft")}
+                onClick={() => handleSave(false)}
                 disabled={isSaving}
                 className="flex-1 h-12 rounded-xl"
               >
                 Save as Draft
               </Button>
               <Button
-                onClick={() => handleSave("published")}
-                disabled={isSaving || (requiresCommonArea && !selectedRegIsFullyApproved)}
-                className="flex-1 h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl disabled:opacity-40"
+                onClick={() => handleSave(true)}
+                disabled={isSaving}
+                className="flex-1 h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
               >
-                {isSaving ? <Loader2 size={20} className="animate-spin" /> : "Publish"}
+                {isSaving ? <Loader2 size={20} className="animate-spin" /> : requiresCommonArea ? "Submit for Review" : "Publish"}
               </Button>
             </div>
           </div>

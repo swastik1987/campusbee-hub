@@ -6,10 +6,12 @@ import {
   useProviderTodaySchedule,
   useProviderUpcomingSchedule,
   usePendingEnrollments,
-  useProviderPendingTerms,
+  useProviderClassActionItems,
+  useRespondToClassTerms,
   useProviderActiveBatches,
 } from "@/hooks/useProvider";
 import { useProviderFeaturedRequests, useProviderRespondToFeaturedFee } from "@/hooks/useFeatured";
+import { toast } from "sonner";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { Card } from "@/components/ui/card";
@@ -32,11 +34,12 @@ import {
   ClipboardCheck,
   AlertCircle,
   GraduationCap,
-  Megaphone,
   CalendarDays,
   FileCheck,
   Star,
-  Building2,
+  XCircle,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 
 const ProviderDashboard = () => {
@@ -47,21 +50,23 @@ const ProviderDashboard = () => {
   const { data: registrations, isLoading: regsLoading } = useProviderRegistrations(providerId);
 
   const approvedRegs = registrations?.filter((r) => r.status === "approved") ?? [];
-  const pendingRegs = registrations?.filter((r) => r.status === "pending") ?? [];
   const rejectedRegs = registrations?.filter((r) => r.status === "rejected") ?? [];
   const approvedRegIds = approvedRegs.map((r) => r.id);
+  const allRegIds = registrations?.map((r) => r.id) ?? [];
   const hasApproved = approvedRegs.length > 0;
 
   const { data: stats, isLoading: statsLoading } = useProviderStats(providerId, approvedRegIds);
   const { data: todaySchedule } = useProviderTodaySchedule(providerId, approvedRegIds);
   const { data: upcomingSchedule } = useProviderUpcomingSchedule(providerId, approvedRegIds);
   const { data: pendingEnrollments } = usePendingEnrollments(providerId, approvedRegIds);
-  const { data: pendingTerms } = useProviderPendingTerms(providerId);
+  const { data: classActionItems } = useProviderClassActionItems(allRegIds);
   const { data: featuredRequests } = useProviderFeaturedRequests(providerId, approvedRegIds);
 
   const { data: allBatches } = useProviderActiveBatches(providerId, approvedRegIds);
   const respondToFee = useProviderRespondToFeaturedFee();
+  const respondToClassTerms = useRespondToClassTerms();
   const [showBatchPicker, setShowBatchPicker] = useState(false);
+  const [respondingClassId, setRespondingClassId] = useState<string | null>(null);
 
   // Featured listings with fee proposed (need provider acceptance)
   const pendingFeaturedFees = featuredRequests?.filter((r) => r.fee_status === "fee_proposed") ?? [];
@@ -70,15 +75,38 @@ const ProviderDashboard = () => {
   // Featured listings deactivated by admin
   const deactivatedFeatured = featuredRequests?.filter((r) => r.status === "inactive") ?? [];
 
+  // Class-level action items
+  const classTermsPending = classActionItems?.filter((c) => c.class_terms_status === "pending_acceptance") ?? [];
+  const classesRejected = classActionItems?.filter((c) => c.common_area_approval_status === "rejected") ?? [];
+  const classesPendingReview = classActionItems?.filter(
+    (c) => c.status === "pending_approval" && c.class_terms_status !== "pending_acceptance"
+  ) ?? [];
+
+  const handleRespondToClassTerms = async (classId: string, accept: boolean) => {
+    setRespondingClassId(classId);
+    try {
+      await respondToClassTerms.mutateAsync({ classId, accept });
+      if (accept) {
+        toast.success("Terms accepted! Class is now published.");
+      } else {
+        toast.success("Terms rejected. Admin will be notified.");
+      }
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setRespondingClassId(null);
+    }
+  };
+
   // Total actionable count
   const actionCount =
-    (pendingTerms?.length ?? 0) +
+    classTermsPending.length +
+    classesRejected.length +
     pendingFeaturedFees.length +
     deactivatedFeatured.length +
-    (pendingEnrollments?.length ?? 0) +
-    pendingRegs.length;
+    (pendingEnrollments?.length ?? 0);
 
-  // Pending state — no approved apartments yet
+  // Suspended/rejected state — no approved apartments
   if (!regsLoading && !hasApproved) {
     return (
       <div className="flex min-h-screen flex-col bg-background pb-20">
@@ -87,30 +115,12 @@ const ProviderDashboard = () => {
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-provider/10">
             <GraduationCap size={36} className="text-provider" />
           </div>
-          <h2 className="text-lg font-bold">Applications Under Review</h2>
+          <h2 className="text-lg font-bold">No Active Registrations</h2>
           <p className="text-sm text-muted-foreground max-w-xs">
-            Your applications are being reviewed by apartment admins. You'll be notified once approved.
+            Your apartment registrations have been suspended or rejected. Re-apply to start offering classes.
           </p>
-          {(pendingRegs.length > 0 || rejectedRegs.length > 0) && (
+          {rejectedRegs.length > 0 && (
             <div className="w-full max-w-sm space-y-2 mt-4">
-              {pendingRegs.map((r) => (
-                <Card key={r.id} className="flex items-center gap-3 p-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
-                    <Clock size={16} className="text-amber-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">
-                      {(r.apartment_complexes as any)?.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {(r.apartment_complexes as any)?.locality}, {(r.apartment_complexes as any)?.city}
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-amber-600 border-amber-300">
-                    Pending
-                  </Badge>
-                </Card>
-              ))}
               {rejectedRegs.map((r) => (
                 <Card key={r.id} className="flex items-center gap-3 p-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100">
@@ -129,14 +139,12 @@ const ProviderDashboard = () => {
                   </Badge>
                 </Card>
               ))}
-              {rejectedRegs.length > 0 && pendingRegs.length === 0 && (
-                <Button
-                  onClick={() => navigate("/become-provider")}
-                  className="w-full mt-3 bg-provider hover:bg-provider/90 text-white"
-                >
-                  Re-apply as Provider
-                </Button>
-              )}
+              <Button
+                onClick={() => navigate("/become-provider")}
+                className="w-full mt-3 bg-provider hover:bg-provider/90 text-white"
+              >
+                Re-apply as Provider
+              </Button>
             </div>
           )}
         </div>
@@ -163,21 +171,77 @@ const ProviderDashboard = () => {
               </Badge>
             </h2>
             <div className="space-y-2">
-              {/* Commercial terms acceptance */}
-              {(pendingTerms ?? []).map((t) => (
-                <Card key={t.id} className="flex items-center gap-3 p-3 border-amber-200 bg-amber-50/50">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
-                    <FileCheck size={16} className="text-amber-600" />
+              {/* Class terms pending acceptance */}
+              {classTermsPending.map((c) => (
+                <Card key={c.id} className="p-3 border-amber-200 bg-amber-50/50 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
+                      <FileCheck size={16} className="text-amber-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Commercial terms to review</p>
+                      <p className="text-xs text-muted-foreground">{c.title}</p>
+                    </div>
+                    <Button size="sm" variant="outline" className="h-7 text-xs border-amber-400 text-amber-700 hover:bg-amber-100" onClick={() => navigate(`/provider/terms/${c.id}`)}>
+                      View
+                    </Button>
+                  </div>
+                  <div className="flex gap-2 pl-11">
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs flex-1 bg-green-600 hover:bg-green-700 text-white"
+                      disabled={respondingClassId === c.id}
+                      onClick={() => handleRespondToClassTerms(c.id, true)}
+                    >
+                      {respondingClassId === c.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} className="mr-1" />}
+                      Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs flex-1 border-red-300 text-red-600 hover:bg-red-50"
+                      disabled={respondingClassId === c.id}
+                      onClick={() => handleRespondToClassTerms(c.id, false)}
+                    >
+                      {respondingClassId === c.id ? <Loader2 size={13} className="animate-spin" /> : <XCircle size={13} className="mr-1" />}
+                      Reject
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+
+              {/* Class rejected by admin */}
+              {classesRejected.map((c) => (
+                <Card key={c.id} className="p-3 border-red-200 bg-red-50/50 space-y-1">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100">
+                      <XCircle size={16} className="text-red-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Class not approved</p>
+                      <p className="text-xs text-muted-foreground">{c.title}</p>
+                    </div>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600" onClick={() => navigate(`/provider/classes/${c.id}`)}>
+                      Edit
+                    </Button>
+                  </div>
+                  {c.common_area_rejection_reason && (
+                    <p className="text-[11px] text-red-700 pl-11">Reason: {c.common_area_rejection_reason}</p>
+                  )}
+                </Card>
+              ))}
+
+              {/* Classes pending admin review (info only) */}
+              {classesPendingReview.map((c) => (
+                <Card key={c.id} className="flex items-center gap-3 p-3 opacity-75">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
+                    <BookOpen size={16} className="text-blue-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium">Commercial terms to accept</p>
-                    <p className="text-xs text-muted-foreground">
-                      {(t.apartment_complexes as any)?.name}
-                    </p>
+                    <p className="text-sm font-medium">Awaiting admin review</p>
+                    <p className="text-xs text-muted-foreground">{c.title}</p>
                   </div>
-                  <Button size="sm" variant="outline" className="h-7 text-xs border-amber-400 text-amber-700 hover:bg-amber-100" onClick={() => navigate("/provider/terms")}>
-                    Review
-                  </Button>
+                  <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">Pending</Badge>
                 </Card>
               ))}
 
@@ -217,24 +281,6 @@ const ProviderDashboard = () => {
                       Reject
                     </Button>
                   </div>
-                </Card>
-              ))}
-
-              {/* Pending apartment approvals */}
-              {pendingRegs.map((r) => (
-                <Card key={r.id} className="flex items-center gap-3 p-3 border-amber-200 bg-amber-50/50">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
-                    <Building2 size={16} className="text-blue-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Awaiting admin approval</p>
-                    <p className="text-xs text-muted-foreground">
-                      {(r.apartment_complexes as any)?.name} · {(r.apartment_complexes as any)?.locality}
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
-                    Pending
-                  </Badge>
                 </Card>
               ))}
 

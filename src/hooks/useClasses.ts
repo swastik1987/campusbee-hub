@@ -29,6 +29,8 @@ export function useProviderClasses(registrationIds: string[], statusFilter?: str
         .from("classes")
         .select(`
           id, title, short_description, cover_image_url, class_type, status,
+          requires_common_area, common_area_approval_status, common_area_rejection_reason,
+          class_terms_status,
           is_featured, total_rating, rating_count, created_at,
           provider_registration_id,
           category_id, class_categories(name, slug, icon_name),
@@ -123,6 +125,12 @@ export function useCreateClass() {
           trial_fee: input.trialFee,
           status: input.status,
           requires_common_area: input.requiresCommonArea,
+          // Set approval status: pending_review when submitting common-area for review,
+          // not_required otherwise (home-based or saved as draft)
+          common_area_approval_status:
+            input.requiresCommonArea && input.status === "pending_approval"
+              ? "pending_review"
+              : "not_required",
         })
         .select("id")
         .single();
