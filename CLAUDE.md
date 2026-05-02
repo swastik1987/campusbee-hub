@@ -381,10 +381,11 @@ campusbee-hub/
 
 ## DATABASE MIGRATIONS
 
-v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **not run on fresh DBs**. v2 baseline:
+v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **not run on fresh DBs**. v2 reuses the existing Supabase project — `000_wipe_v1.sql` resets the public schema before the baseline lands.
 
 | # | File | Purpose |
 |---|---|---|
+| 000 | `000_wipe_v1.sql` | One-time: `DROP SCHEMA public CASCADE`, restore grants, wipe v1 storage buckets + policies. **Irreversible — take backup first.** |
 | 001 | `001_baseline_v2.sql` | Full v2 schema, enables PostGIS, GIST indexes |
 | 002 | `002_rls_v2.sql` | RLS for every table — location-aware, subscription-aware |
 | 003 | `003_storage_buckets_v2.sql` | Buckets + storage RLS |

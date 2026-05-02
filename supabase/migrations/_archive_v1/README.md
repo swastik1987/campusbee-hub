@@ -2,7 +2,7 @@
 
 These 27 migration files were the schema lineage of CampusBee v1 (apartment-scoped marketplace, Apartment Admin role, registration-based commercial terms).
 
-**They are NOT applied to fresh databases.** v2 starts from a clean baseline at `supabase/migrations/001_baseline_v2.sql` (created in Phase 1 of `IMPLEMENTATION_PLAN_V2.md`).
+**They are NOT applied to fresh databases.** v2 reuses the existing Supabase project; `supabase/migrations/000_wipe_v1.sql` resets the public schema (and v1 storage buckets) once, then the v2 baseline at `001_baseline_v2.sql` (created in Phase 1) lays down the new schema.
 
 ## Why kept?
 

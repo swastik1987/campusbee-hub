@@ -15,26 +15,31 @@
 
 ---
 
-## Pre-work (Day 0)
+## Pre-work (Day 0) — *complete*
 
-- [ ] Create branch `v2/baseline` off `main`.
-- [ ] Create new Supabase project (`campusbee-v2`) OR Supabase branch off the existing project.
-- [ ] Provision API keys & store in `.env.local` and Supabase function secrets:
-  - `VITE_MAPPLS_API_KEY`, `MAPPLS_REST_KEY` (sign up at mappls.com developer console)
-  - `SIGHTENGINE_API_USER`, `SIGHTENGINE_API_SECRET` (sightengine.com)
-  - `OPENAI_API_KEY` (Moderation API — free tier)
-- [ ] Move `supabase/migrations/001_*.sql` … `028_*.sql` → `supabase/migrations/_archive_v1/`.
-- [ ] Add `IMPLEMENTATION_PLAN_V2.md` (this file) and updated `CLAUDE.md` to the branch.
+- [x] Create branch `v2/baseline` off `main`.
+- [x] **Decision: keep the existing Supabase project** and wipe its `public` schema rather than spinning up a new one. Auth users, storage schema, realtime stay intact.
+- [x] Move v1 migrations → `supabase/migrations/_archive_v1/`.
+- [x] Add `000_wipe_v1.sql` — atomic `DROP SCHEMA public CASCADE` + restore grants + wipe v1 storage buckets/objects + clear v1 storage policies. Runs once at the start of Phase 1.
+- [x] Update `CLAUDE.md` and write this plan.
+- [x] Add `.env.example` documenting client + edge-function secrets.
+- [ ] **User action: take a Supabase Dashboard backup before running `000_wipe_v1.sql`.** Wipe is irreversible.
+- [ ] **User action: provision API keys & set Supabase secrets:**
+  - `VITE_MAPPLS_API_KEY` (client) + `MAPPLS_REST_KEY` (secret) — mappls.com
+  - `SIGHTENGINE_API_USER`, `SIGHTENGINE_API_SECRET` — sightengine.com
+  - `OPENAI_API_KEY` — platform.openai.com (Moderation API, free tier)
+  - Set via `supabase secrets set KEY=VALUE` for the existing project.
 
-**Exit criteria:** branch exists, fresh DB exists, secrets configured, plan committed.
+**Exit criteria:** branch in place, wipe migration ready, secrets configured by user, backup taken.
 
 ---
 
 ## Phase 1 — Schema & RLS Baseline (Backend foundation)
 
-**Goal:** new database is fully provisioned with PostGIS, all tables, RLS, helpers, seed categories. No frontend wired yet.
+**Goal:** existing Supabase project is wiped and reprovisioned with PostGIS, all v2 tables, RLS, helpers, seed categories. No frontend wired yet.
 
 ### Migrations (in order)
+- `000_wipe_v1.sql` *(prepared in Phase 0; apply first)* — drops public schema cascade, restores grants, wipes v1 storage buckets + policies. Atomic. Take a backup first.
 - `001_baseline_v2.sql`
   - `CREATE EXTENSION IF NOT EXISTS postgis;`
   - All v2 tables per `CLAUDE.md` § Database Schema
