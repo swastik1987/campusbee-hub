@@ -688,7 +688,17 @@ export type Database = {
           age_group_max: number | null
           age_group_min: number | null
           category_id: string
+          class_commercial_notes: string | null
+          class_fee_amount: number | null
+          class_fee_type: string | null
+          class_payment_frequency: string | null
+          class_revenue_share_pct: number | null
+          class_terms_accepted_at: string | null
+          class_terms_proposed_by: string | null
+          class_terms_status: string
           class_type: string | null
+          common_area_approval_status: string
+          common_area_rejection_reason: string | null
           cover_image_url: string | null
           created_at: string | null
           description: string | null
@@ -698,6 +708,7 @@ export type Database = {
           promo_video_url: string | null
           provider_registration_id: string
           rating_count: number | null
+          requires_common_area: boolean
           short_description: string | null
           skill_level: string[] | null
           status: string | null
@@ -713,7 +724,17 @@ export type Database = {
           age_group_max?: number | null
           age_group_min?: number | null
           category_id: string
+          class_commercial_notes?: string | null
+          class_fee_amount?: number | null
+          class_fee_type?: string | null
+          class_payment_frequency?: string | null
+          class_revenue_share_pct?: number | null
+          class_terms_accepted_at?: string | null
+          class_terms_proposed_by?: string | null
+          class_terms_status?: string
           class_type?: string | null
+          common_area_approval_status?: string
+          common_area_rejection_reason?: string | null
           cover_image_url?: string | null
           created_at?: string | null
           description?: string | null
@@ -723,6 +744,7 @@ export type Database = {
           promo_video_url?: string | null
           provider_registration_id: string
           rating_count?: number | null
+          requires_common_area?: boolean
           short_description?: string | null
           skill_level?: string[] | null
           status?: string | null
@@ -738,7 +760,17 @@ export type Database = {
           age_group_max?: number | null
           age_group_min?: number | null
           category_id?: string
+          class_commercial_notes?: string | null
+          class_fee_amount?: number | null
+          class_fee_type?: string | null
+          class_payment_frequency?: string | null
+          class_revenue_share_pct?: number | null
+          class_terms_accepted_at?: string | null
+          class_terms_proposed_by?: string | null
+          class_terms_status?: string
           class_type?: string | null
+          common_area_approval_status?: string
+          common_area_rejection_reason?: string | null
           cover_image_url?: string | null
           created_at?: string | null
           description?: string | null
@@ -748,6 +780,7 @@ export type Database = {
           promo_video_url?: string | null
           provider_registration_id?: string
           rating_count?: number | null
+          requires_common_area?: boolean
           short_description?: string | null
           skill_level?: string[] | null
           status?: string | null
@@ -765,6 +798,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "class_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classes_class_terms_proposed_by_fkey"
+            columns: ["class_terms_proposed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -1938,6 +1978,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_class_terms: {
+        Args: { p_accept: boolean; p_class_id: string }
+        Returns: undefined
+      }
       accept_provider_terms: {
         Args: { p_accept: boolean; p_registration_id: string }
         Returns: undefined
