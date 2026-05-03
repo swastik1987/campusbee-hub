@@ -60,6 +60,11 @@ declare global {
         lng: number;
         callback: (data: MapplsReverseGeocodeResult) => void;
       }) => void;
+      /** Programmatic place search / autosuggest (available via map_sdk_plugins). */
+      search?: (
+        opts: { query: string; region?: string; location?: string },
+        callback: (data: { suggestedLocations?: MapplsAutocompleteResult[] } | null) => void
+      ) => void;
     };
   }
 }
@@ -68,6 +73,7 @@ export type MapplsMap = {
   setCenter: (latLng: MapplsLatLng) => void;
   setZoom: (zoom: number) => void;
   getCenter: () => MapplsLatLng;
+  resize: () => void;
   on: (event: string, handler: (e: unknown) => void) => void;
   remove: () => void;
 };
