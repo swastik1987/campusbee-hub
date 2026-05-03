@@ -28,7 +28,7 @@
 - **Geo queries:** PostGIS `geography(Point, 4326)` columns + `ST_DWithin` / `ST_Distance` for nearby search and distance ranking. GIST indexes on every location column.
 - **Content Moderation:**
   - Images → **Sightengine** (NSFW, suggestive, weapons, drugs)
-  - Text → **OpenAI Moderation API** (free tier sufficient for MVP volumes)
+  - Text → **Google Gemini API** (`gemini-2.0-flash` safety ratings — free tier sufficient for MVP volumes)
   - Edge function `ai-moderate-content` orchestrates both
 - **Auth:** Email magic links (MVP), phone OTP (future)
 - **Payments:** **Track-only** for MVP (no real gateway). Premium grants and sponsored slots are manually toggled by platform admin via in-app workflows.
@@ -85,7 +85,10 @@
     - `score ≥ 0.85` → auto-reject (`moderation_status = rejected`), provider notified
     - `0.45 ≤ score < 0.85` → queue (`in_review`), platform admin decides
     - `score < 0.45` → auto-approve (`approved`)
-  - OpenAI Moderation API for text — flat boolean flags per category (sexual, hate, violence, self-harm). Any flag → queue.
+  - **Google Gemini API** (`gemini-2.0-flash`) for text — uses built-in `safetyRatings` returned on every `generateContent` call. Categories checked: `HARM_CATEGORY_HARASSMENT`, `HARM_CATEGORY_HATE_SPEECH`, `HARM_CATEGORY_SEXUALLY_EXPLICIT`, `HARM_CATEGORY_DANGEROUS_CONTENT`. Probability thresholds:
+    - Any category `HIGH` → auto-reject (`moderation_status = rejected`), provider notified
+    - Any category `MEDIUM` → queue (`in_review`), platform admin decides
+    - All categories `LOW` / `NEGLIGIBLE` → auto-approve (`approved`)
 - **Provider experience:** rejected items show the reason inline ("Image flagged: suggestive content"). Provider can edit & resubmit (re-runs moderation).
 - **Platform admin queue:** `/platform/moderation` lists `in_review` items with original content preview, AI scores, approve/reject/escalate actions. Reject requires reason (sent to provider via notification).
 - **Strict no-tolerance categories:** explicit/pornographic content is auto-rejected with no appeal. Repeated violations trigger account suspension.
@@ -400,7 +403,7 @@ v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **n
 
 | Function | Purpose |
 |---|---|
-| `ai-moderate-content` | **NEW.** Receives `{ref_type, ref_id, content?, image_url?}`, calls Sightengine/OpenAI, writes to `moderation_flags`, sets `moderation_status` on the source row, sends notification on rejection. |
+| `ai-moderate-content` | **NEW.** Receives `{ref_type, ref_id, content?, image_url?}`, calls Sightengine (images) / Gemini API (text), writes to `moderation_flags`, sets `moderation_status` on the source row, sends notification on rejection. |
 | `refresh-sponsored-slots` | **NEW.** Cron — expires past `valid_until`, recalculates active slot positions per region. |
 | `check-pending-invites` | Family invite monitor (unchanged) |
 | `expire-family-invites` | 24-h auto-expire (unchanged) |
@@ -584,7 +587,7 @@ VITE_MAPPLS_API_KEY=          # MapMyIndia client SDK key
 MAPPLS_REST_KEY=              # Server key (edge functions)
 SIGHTENGINE_API_USER=
 SIGHTENGINE_API_SECRET=
-OPENAI_API_KEY=               # For text moderation
+GEMINI_API_KEY=               # Google AI Studio key — for text moderation via gemini-2.0-flash
 ```
 
 ---

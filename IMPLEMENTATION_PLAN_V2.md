@@ -27,7 +27,7 @@
 - [ ] **User action: provision API keys & set Supabase secrets:**
   - `VITE_MAPPLS_API_KEY` (client) + `MAPPLS_REST_KEY` (secret) — mappls.com
   - `SIGHTENGINE_API_USER`, `SIGHTENGINE_API_SECRET` — sightengine.com
-  - `OPENAI_API_KEY` — platform.openai.com (Moderation API, free tier)
+  - `GEMINI_API_KEY` — aistudio.google.com (Gemini API, free tier — used for text moderation via `gemini-2.0-flash`)
   - Set via `supabase secrets set KEY=VALUE` for the existing project.
 
 **Exit criteria:** branch in place, wipe migration ready, secrets configured by user, backup taken.
@@ -126,8 +126,15 @@
 ### Edge Function
 - `supabase/functions/ai-moderate-content/index.ts`
   - Input: `{ ref_type, ref_id, text?, image_url?, owner_user_id }`
-  - For images: POST to Sightengine `models=nudity-2.1,offensive,weapon,recreational_drug`
-  - For text: POST to OpenAI `/v1/moderations`
+  - **For images:** POST to Sightengine `models=nudity-2.1,offensive,weapon,recreational_drug`
+    - Score thresholds: `≥ 0.85` → rejected · `0.45–0.85` → in_review · `< 0.45` → approved
+  - **For text:** POST to Google Gemini API (`gemini-2.0-flash`)
+    - Endpoint: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=GEMINI_API_KEY`
+    - Send text content as the prompt (no special system prompt needed — safety ratings are always returned)
+    - Read `candidates[0].safetyRatings` from the response, checking four categories:
+      - `HARM_CATEGORY_HARASSMENT`, `HARM_CATEGORY_HATE_SPEECH`, `HARM_CATEGORY_SEXUALLY_EXPLICIT`, `HARM_CATEGORY_DANGEROUS_CONTENT`
+    - Probability thresholds: any `HIGH` → rejected · any `MEDIUM` → in_review · all `LOW/NEGLIGIBLE` → approved
+    - Store raw `safetyRatings` array as `ai_categories` JSONB on the `moderation_flags` row
   - Apply thresholds (CLAUDE.md § Content Moderation Policy)
   - Insert `moderation_flags` row
   - Update source row's `moderation_status` (or status on `classes`/`featured_banners` etc.)
