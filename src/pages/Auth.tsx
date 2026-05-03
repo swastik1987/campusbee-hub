@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useUser } from "@/contexts/UserContext";
-import { Mail, CheckCircle2, Loader2, Shield, Building2, AlertTriangle } from "lucide-react";
+import { Mail, CheckCircle2, Loader2, Shield, AlertTriangle } from "lucide-react";
 
 const ROLE_STORAGE_KEY = "campusbee_intended_role";
 
@@ -19,7 +19,7 @@ const Auth = () => {
   const [debugInfo, setDebugInfo] = useState("");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { session, profile } = useUser();
+  const { session, profile, profileError } = useUser();
   const googleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Read intended role from URL param or localStorage
@@ -47,10 +47,6 @@ const Auth = () => {
 
     if (intendedRole === "platform_admin" && profile.is_platform_admin) {
       navigate("/platform", { replace: true });
-      return;
-    }
-    if (intendedRole === "apartment_admin" && profile.is_apartment_admin) {
-      navigate("/admin/dashboard", { replace: true });
       return;
     }
 
@@ -150,13 +146,43 @@ const Auth = () => {
     }
   };
 
-  // If already logged in but waiting for profile, show a loading state
+  // If already logged in but waiting for profile, show a loading state.
+  // If profile load errored, show the error so we can debug instead of hanging.
   if (session && !profile) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-3 max-w-md text-center">
           <img src="/logo-icon.png" alt="CampusBee" className="h-12 w-12 object-contain animate-fade-in" />
-          <p className="text-muted-foreground text-sm animate-fade-up">Setting up your profile...</p>
+          {profileError ? (
+            <>
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertTriangle size={16} />
+                <p className="text-sm font-medium">Couldn't set up your profile</p>
+              </div>
+              <p className="text-xs text-muted-foreground break-all px-4">{profileError}</p>
+              <div className="flex gap-2 mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.location.reload()}
+                >
+                  Retry
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    window.location.href = "/auth";
+                  }}
+                >
+                  Sign out
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p className="text-muted-foreground text-sm animate-fade-up">Setting up your profile...</p>
+          )}
         </div>
       </div>
     );
@@ -178,19 +204,9 @@ const Auth = () => {
                 Sign in to access the platform admin panel
               </p>
             </div>
-          ) : intendedRole === "apartment_admin" ? (
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="flex items-center gap-2 rounded-full bg-indigo-500/10 px-3 py-1">
-                <Building2 size={14} className="text-indigo-600" />
-                <span className="text-xs font-semibold text-indigo-700">Apartment Admin</span>
-              </div>
-              <p className="text-sm text-muted-foreground text-center">
-                Sign in to manage your apartment community
-              </p>
-            </div>
           ) : (
             <p className="text-sm text-muted-foreground text-center">
-              Discover classes in your apartment community
+              Discover classes near you
             </p>
           )}
         </div>

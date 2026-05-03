@@ -61,6 +61,8 @@ type UserContextType = {
   activePersona: Persona;
   familyRole: "primary" | "co_primary" | "viewer" | null;
   familyLinkId: string | null;
+  /** Last error that prevented profile load — surfaced for debugging in Auth screen. */
+  profileError: string | null;
   activatePersona: (persona: Persona) => Promise<void>;
   refreshProfile: () => Promise<void>;
   refreshFamily: () => Promise<void>;
@@ -79,6 +81,7 @@ const UserContext = createContext<UserContextType>({
   activePersona: "seeker",
   familyRole: null,
   familyLinkId: null,
+  profileError: null,
   activatePersona: async () => {},
   refreshProfile: async () => {},
   refreshFamily: async () => {},
@@ -104,6 +107,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [activePersona, setActivePersona] = useState<Persona>("seeker");
   const [familyRole, setFamilyRole] = useState<"primary" | "co_primary" | "viewer" | null>(null);
   const [familyLinkId, setFamilyLinkId] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const lastSyncedPersona = useRef<Persona>("seeker");
 
   const fetchFamily = useCallback(async (userId: string) => {
@@ -175,6 +179,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchOrCreateProfile = useCallback(
     async (authUser: User) => {
+      setProfileError(null);
       try {
         const { data: existing, error: selectError } = await supabase
           .from("users")
@@ -184,6 +189,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         if (selectError) {
           console.error("[CampusBee] fetch profile:", selectError);
+          setProfileError(`Profile load failed: ${selectError.message}`);
+          return;
         }
 
         if (existing) {
@@ -204,13 +211,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
 
         // Create new user row
+        const fallbackName =
+          authUser.user_metadata?.full_name ??
+          authUser.user_metadata?.name ??
+          (authUser.email ? authUser.email.split("@")[0] : "New User");
+
         const { data: created, error: insertError } = await supabase
           .from("users")
           .insert({
             auth_id: authUser.id,
             email: authUser.email ?? null,
-            full_name:
-              authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? "",
+            full_name: fallbackName,
           })
           .select(PROFILE_COLUMNS)
           .single();
@@ -229,8 +240,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
               setProfile(prof);
               setActivePersona((prof.last_active_persona as Persona) || "seeker");
               setIsNewUser(false);
+              return;
             }
           }
+          // Surface the error so Auth.tsx can show it instead of hanging forever
+          const detail = insertError.details ? ` (${insertError.details})` : "";
+          setProfileError(`Profile create failed: ${insertError.message}${detail}`);
           return;
         }
 
@@ -238,9 +253,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           setProfile(created as unknown as UserProfile);
           setIsNewUser(true);
           setActivePersona("seeker");
+        } else {
+          setProfileError("Profile create returned no row (no error). Check RLS / triggers.");
         }
       } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
         console.error("[CampusBee] fetchOrCreateProfile:", err);
+        setProfileError(`Unexpected error: ${msg}`);
       }
     },
     [fetchFamily, fetchProviderProfile]
@@ -383,6 +402,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         activePersona,
         familyRole,
         familyLinkId,
+        profileError,
         activatePersona,
         refreshProfile,
         refreshFamily,
