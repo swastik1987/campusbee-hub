@@ -40,6 +40,7 @@ CREATE SCHEMA public;
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL   ON SCHEMA public TO postgres, service_role;
 
+-- Privileged roles get everything on existing + future objects
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT ALL ON TABLES    TO postgres, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
@@ -48,6 +49,20 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT ALL ON FUNCTIONS TO postgres, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT ALL ON TYPES     TO postgres, service_role;
+
+-- API roles need basic privileges on future tables — RLS policies gate the
+-- per-row access, but Postgres enforces table-level GRANTs first. Without
+-- these defaults every browser query fails with "permission denied for
+-- table X" before RLS evaluates. (Existing tables also covered by
+-- 009_grant_role_privileges.sql for projects that already ran 001-007.)
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT                         ON TABLES    TO anon;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES    TO authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT USAGE, SELECT                  ON SEQUENCES TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT EXECUTE                        ON FUNCTIONS TO anon, authenticated;
 
 COMMIT;
 
