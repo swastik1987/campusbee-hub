@@ -22,13 +22,16 @@ const PLACES_SDK_URL = MAPPLS_API_KEY
 
 let loadPromise: Promise<typeof window.mappls> | null = null;
 
+/** Mappls v3 uses {lat, lng} objects throughout (NOT arrays). */
+export type MapplsLatLng = { lat: number; lng: number };
+
 declare global {
   interface Window {
     mappls?: {
       Map: new (
-        container: string | HTMLElement,
+        container: string,           // string element-ID only in v3
         opts: {
-          center: [number, number];
+          center: MapplsLatLng;
           zoom?: number;
           zoomControl?: boolean;
           location?: boolean;
@@ -36,7 +39,7 @@ declare global {
       ) => MapplsMap;
       Marker: new (opts: {
         map: MapplsMap;
-        position: [number, number];
+        position: MapplsLatLng;
         draggable?: boolean;
         icon?: string;
       }) => MapplsMarker;
@@ -56,18 +59,16 @@ declare global {
 }
 
 export type MapplsMap = {
-  setCenter: (latLng: [number, number]) => void;
+  setCenter: (latLng: MapplsLatLng) => void;
   setZoom: (zoom: number) => void;
-  on: (event: string, handler: (e: { lngLat: { lat: number; lng: number } }) => void) => void;
+  on: (event: string, handler: (e: unknown) => void) => void;
   remove: () => void;
 };
 
 export type MapplsMarker = {
-  setPosition: (latLng: [number, number]) => void;
-  on: (
-    event: string,
-    handler: (e: { lngLat?: { lat: number; lng: number }; latLng?: [number, number] }) => void
-  ) => void;
+  setPosition: (latLng: MapplsLatLng) => void;
+  getPosition: () => MapplsLatLng;
+  on: (event: string, handler: (e: unknown) => void) => void;
   remove: () => void;
 };
 

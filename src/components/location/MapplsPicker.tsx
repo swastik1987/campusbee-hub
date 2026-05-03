@@ -23,6 +23,13 @@ import {
 } from "@/integrations/mappls/client";
 import type { LocationValue } from "@/hooks/useLocation";
 
+/** Generate a stable, unique DOM id for the map container. */
+function useMapId() {
+  const id = React.useId();
+  // React.useId() returns ":r0:" style strings — strip colons for a valid HTML id.
+  return `mappls-map-${id.replace(/:/g, "")}`;
+}
+
 export type MapplsPickerProps = {
   value: LocationValue | null;
   onChange: (value: LocationValue) => void;
@@ -46,6 +53,7 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
     },
     ref
   ) => {
+    const mapContainerId = useMapId();
     const inputRef = React.useRef<HTMLInputElement | null>(null);
     const mapContainerRef = React.useRef<HTMLDivElement | null>(null);
     const mapInstanceRef = React.useRef<MapplsMap | null>(null);
@@ -77,10 +85,11 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
           const startLat = value?.lat ?? defaultCenter[0];
           const startLng = value?.lng ?? defaultCenter[1];
 
-          // Init map
+          // Init map — Mappls v3 requires a string element ID (not HTMLElement).
+          // The container div below carries this same id.
           if (showMap && mapContainerRef.current && !mapInstanceRef.current) {
-            const map = new mappls.Map(mapContainerRef.current, {
-              center: [startLat, startLng],
+            const map = new mappls.Map(mapContainerId, {
+              center: { lat: startLat, lng: startLng },
               zoom: value ? 15 : 12,
               zoomControl: true,
               location: false,
@@ -89,16 +98,18 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
 
             const marker = new mappls.Marker({
               map,
-              position: [startLat, startLng],
+              position: { lat: startLat, lng: startLng },
               draggable: true,
             });
             markerRef.current = marker;
 
-            marker.on("dragend", (e) => {
-              const lat = e.lngLat?.lat ?? e.latLng?.[0];
-              const lng = e.lngLat?.lng ?? e.latLng?.[1];
+            // dragend — Mappls v3 puts coords in e.lngLat (note: "lngLat" but has .lat/.lng)
+            marker.on("dragend", (e: unknown) => {
+              const ev = e as { lngLat?: { lat: number; lng: number } };
+              const lat = ev.lngLat?.lat;
+              const lng = ev.lngLat?.lng;
               if (lat == null || lng == null) return;
-              // Keep current address text — accurate reverse geocode lands in Phase 3
+              // Accurate reverse geocode wired in Phase 3; use coordinates as fallback label
               onChange({
                 address: text || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
                 lat,
@@ -126,9 +137,9 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
                 onChange({ address, lat, lng });
 
                 if (mapInstanceRef.current && markerRef.current) {
-                  mapInstanceRef.current.setCenter([lat, lng]);
+                  mapInstanceRef.current.setCenter({ lat, lng });
                   mapInstanceRef.current.setZoom(15);
-                  markerRef.current.setPosition([lat, lng]);
+                  markerRef.current.setPosition({ lat, lng });
                 }
               }
             );
@@ -183,6 +194,7 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
 
         {showMap && (
           <div
+            id={mapContainerId}
             ref={mapContainerRef}
             className="w-full h-56 rounded-xl bg-muted relative overflow-hidden border border-border"
           >
