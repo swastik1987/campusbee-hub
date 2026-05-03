@@ -1,32 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUser } from "@/contexts/UserContext";
 
-export function useApartments(search: string) {
-  return useQuery({
-    queryKey: ["apartments", search],
-    queryFn: async () => {
-      let query = supabase
-        .from("apartment_complexes")
-        .select("id, name, city, locality")
-        .eq("status", "approved")
-        .order("name");
+/**
+ * v2 onboarding hooks. v1 apartment search/creation/registration logic is gone.
+ * Seekers set a home location via MapMyIndia in StepLocation.
+ * Providers self-onboard into the Basic tier with no apartment binding.
+ */
 
-      if (search.trim()) {
-        const safe = search.trim().replace(/%/g, "\\%").replace(/_/g, "\\_");
-        query = query.or(`name.ilike.%${safe}%,city.ilike.%${safe}%,locality.ilike.%${safe}%`);
-      }
-
-      const { data, error } = await query.limit(20);
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
+// ---- Profile (name, avatar) ----------------------------------------------
 export function useUpdateProfile() {
   const { refreshProfile } = useUser();
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -46,81 +31,7 @@ export function useUpdateProfile() {
     },
     onSuccess: async () => {
       await refreshProfile();
-      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
-    },
-  });
-}
-
-export function useCreateFamily() {
-  return useMutation({
-    mutationFn: async ({
-      userId,
-      apartmentId,
-      flatNumber,
-      blockTower,
-    }: {
-      userId: string;
-      apartmentId: string;
-      flatNumber: string;
-      blockTower: string;
-    }) => {
-      // Use RPC to bypass RLS — handles create, duplicate check, and family_links in one call
-      const { data, error } = await supabase.rpc("create_family_for_user", {
-        p_user_id: userId,
-        p_apartment_id: apartmentId,
-        p_flat_number: flatNumber || null,
-        p_block_tower: blockTower || null,
-      });
-      if (error) throw error;
-      return { id: data as string };
-    },
-  });
-}
-
-export function useRequestApartment() {
-  const { profile } = useUser();
-
-  return useMutation({
-    mutationFn: async ({
-      name,
-      city,
-      locality,
-    }: {
-      name: string;
-      city: string;
-      locality: string;
-    }) => {
-      const { data, error } = await supabase
-        .from("apartment_complexes")
-        .insert({
-          name,
-          city,
-          locality,
-          status: "pending",
-          registered_by: profile?.id ?? null,
-        })
-        .select("id, name, city, locality")
-        .single();
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
-export function useAddFamilyMembers() {
-  return useMutation({
-    mutationFn: async (
-      members: {
-        family_id: string;
-        name: string;
-        date_of_birth: string | null;
-        age_group: string | null;
-        relationship: string;
-        gender?: string | null;
-      }[]
-    ) => {
-      const { error } = await supabase.from("family_members").insert(members);
-      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["user-profile"] });
     },
   });
 }
@@ -142,6 +53,53 @@ export function useUploadAvatar() {
   });
 }
 
+// ---- Family (no apartment binding in v2) ---------------------------------
+export function useCreateFamily() {
+  return useMutation({
+    mutationFn: async ({ userId }: { userId: string }) => {
+      // Create family with current user as primary, then a co-primary link
+      const { data: family, error: famErr } = await supabase
+        .from("families")
+        .insert({ primary_user_id: userId })
+        .select("id")
+        .single();
+      if (famErr) throw famErr;
+
+      // Add primary user as a family link too (so future helper functions
+      // see them as a member without special-casing primary_user_id)
+      const { error: linkErr } = await supabase.from("family_links").insert({
+        family_id: family.id,
+        user_id: userId,
+        role: "primary",
+        status: "active",
+        accepted_at: new Date().toISOString(),
+      });
+      if (linkErr) throw linkErr;
+
+      return { id: family.id };
+    },
+  });
+}
+
+export function useAddFamilyMembers() {
+  return useMutation({
+    mutationFn: async (
+      members: {
+        family_id: string;
+        full_name: string;
+        date_of_birth: string | null;
+        age_group: string | null;
+        relationship: string;
+        gender?: string | null;
+      }[]
+    ) => {
+      const { error } = await supabase.from("family_members").insert(members);
+      if (error) throw error;
+    },
+  });
+}
+
+// ---- Provider self-onboarding (auto-approved Basic) ----------------------
 export function useCreateProviderOnboarding() {
   const { refreshProfile } = useUser();
 
@@ -151,36 +109,30 @@ export function useCreateProviderOnboarding() {
       providerType: "individual" | "academy";
       businessName: string;
       bio: string;
-      apartmentIds: string[];
+      homeAddress?: string;
+      homeLat?: number;
+      homeLng?: number;
     }) => {
-      // 1. Create service_providers row
+      // 1. Create service_providers row, default subscription_tier='basic'
+      const providerInsert: Record<string, unknown> = {
+        user_id: input.userId,
+        provider_type: input.providerType,
+        business_name: input.businessName,
+        bio: input.bio || null,
+      };
+      if (input.homeAddress) providerInsert.home_address = input.homeAddress;
+      if (input.homeLat != null && input.homeLng != null) {
+        providerInsert.home_location = `SRID=4326;POINT(${input.homeLng} ${input.homeLat})`;
+      }
+
       const { data: provider, error: pErr } = await supabase
         .from("service_providers")
-        .insert({
-          user_id: input.userId,
-          provider_type: input.providerType,
-          business_name: input.businessName || null,
-          bio: input.bio || null,
-        })
+        .insert(providerInsert as never)
         .select("id")
         .single();
       if (pErr) throw pErr;
 
-      // 2. Register for selected apartments (auto-approved — no admin gate needed)
-      if (input.apartmentIds.length > 0) {
-        const regs = input.apartmentIds.map((aptId) => ({
-          provider_id: provider.id,
-          apartment_id: aptId,
-          status: "approved" as const,
-          approved_at: new Date().toISOString(),
-        }));
-        const { error: rErr } = await supabase
-          .from("provider_apartment_registrations")
-          .insert(regs);
-        if (rErr) throw rErr;
-      }
-
-      // 3. Mark user as provider
+      // 2. Mark user as provider, switch active persona
       const { error: uErr } = await supabase
         .from("users")
         .update({ is_provider: true, last_active_persona: "provider" })
@@ -195,6 +147,7 @@ export function useCreateProviderOnboarding() {
   });
 }
 
+// ---- Helpers --------------------------------------------------------------
 export function calculateAgeGroup(dob: string): string | null {
   if (!dob) return null;
   const today = new Date();

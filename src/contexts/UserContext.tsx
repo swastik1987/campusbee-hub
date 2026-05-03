@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-export type Persona = "seeker" | "provider" | "apartment_admin" | "platform_admin";
+export type Persona = "seeker" | "provider" | "platform_admin";
 
 export type UserProfile = {
   id: string;
@@ -13,38 +13,26 @@ export type UserProfile = {
   avatar_url: string | null;
   mobile_number: string | null;
   is_provider: boolean;
-  is_apartment_admin: boolean;
   is_platform_admin: boolean;
   last_active_persona: Persona;
   is_active: boolean;
   is_verified: boolean;
+  seeker_home_address: string | null;
 };
 
 type FamilyRow = {
   id: string;
   primary_user_id: string;
-  apartment_id: string;
-  flat_number: string | null;
-  block_tower: string | null;
 };
 
 type FamilyMemberRow = {
   id: string;
   family_id: string;
-  name: string;
+  full_name: string;
   date_of_birth: string | null;
   age_group: string | null;
   relationship: string | null;
-  avatar_url: string | null;
   is_active: boolean;
-};
-
-type ApartmentRow = {
-  id: string;
-  name: string;
-  city: string;
-  locality: string;
-  logo_url: string | null;
 };
 
 type ProviderProfileRow = {
@@ -55,6 +43,9 @@ type ProviderProfileRow = {
   bio: string | null;
   is_verified: boolean | null;
   specialization_category_ids: string[] | null;
+  subscription_tier: "basic" | "premium";
+  subscription_valid_until: string | null;
+  home_address: string | null;
 };
 
 type UserContextType = {
@@ -63,12 +54,12 @@ type UserContextType = {
   profile: UserProfile | null;
   family: FamilyRow | null;
   familyMembers: FamilyMemberRow[];
-  currentApartment: ApartmentRow | null;
   providerProfile: ProviderProfileRow | null;
+  isPremium: boolean;
   loading: boolean;
   isNewUser: boolean;
   activePersona: Persona;
-  familyRole: "primary" | "member" | null;
+  familyRole: "primary" | "co_primary" | "viewer" | null;
   familyLinkId: string | null;
   activatePersona: (persona: Persona) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -81,8 +72,8 @@ const UserContext = createContext<UserContextType>({
   profile: null,
   family: null,
   familyMembers: [],
-  currentApartment: null,
   providerProfile: null,
+  isPremium: false,
   loading: true,
   isNewUser: false,
   activePersona: "seeker",
@@ -95,25 +86,28 @@ const UserContext = createContext<UserContextType>({
 
 export const useUser = () => useContext(UserContext);
 
+const PROFILE_COLUMNS =
+  "id, auth_id, full_name, email, avatar_url, mobile_number, is_provider, is_platform_admin, last_active_persona, is_active, is_verified, seeker_home_address";
+
+const PROVIDER_COLUMNS =
+  "id, user_id, provider_type, business_name, bio, is_verified, specialization_category_ids, subscription_tier, subscription_valid_until, home_address";
+
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [family, setFamily] = useState<FamilyRow | null>(null);
   const [familyMembers, setFamilyMembers] = useState<FamilyMemberRow[]>([]);
-  const [currentApartment, setCurrentApartment] = useState<ApartmentRow | null>(null);
   const [providerProfile, setProviderProfile] = useState<ProviderProfileRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
   const [activePersona, setActivePersona] = useState<Persona>("seeker");
-  const [familyRole, setFamilyRole] = useState<"primary" | "member" | null>(null);
+  const [familyRole, setFamilyRole] = useState<"primary" | "co_primary" | "viewer" | null>(null);
   const [familyLinkId, setFamilyLinkId] = useState<string | null>(null);
   const lastSyncedPersona = useRef<Persona>("seeker");
 
-  const fetchFamily = useCallback(async (userId: string, isAdmin: boolean = false) => {
-    let foundApartment = false;
-
-    // Phase 2: Use family_links to find the family instead of primary_user_id
+  const fetchFamily = useCallback(async (userId: string) => {
+    // v2: family is found via family_links only (no apartment binding)
     const { data: link } = await supabase
       .from("family_links")
       .select("id, family_id, role")
@@ -122,214 +116,175 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       .maybeSingle();
 
     if (link) {
-      setFamilyRole(link.role as "primary" | "member");
+      setFamilyRole(link.role as "primary" | "co_primary" | "viewer");
       setFamilyLinkId(link.id);
 
-      // Fetch the family row
       const { data: fam } = await supabase
         .from("families")
-        .select("id, primary_user_id, apartment_id, flat_number, block_tower")
+        .select("id, primary_user_id")
         .eq("id", link.family_id)
         .single();
-
       setFamily(fam);
 
       if (fam) {
-        const [membersResult, aptResult] = await Promise.all([
-          supabase
-            .from("family_members")
-            .select("id, family_id, name, date_of_birth, age_group, relationship, avatar_url, is_active")
-            .eq("family_id", fam.id)
-            .eq("is_active", true)
-            .order("created_at"),
-          supabase
-            .from("apartment_complexes")
-            .select("id, name, city, locality, logo_url")
-            .eq("id", fam.apartment_id)
-            .single(),
-        ]);
-
-        setFamilyMembers(membersResult.data ?? []);
-        setCurrentApartment(aptResult.data);
-        if (aptResult.data) foundApartment = true;
-      }
-    } else {
-      // Fallback: check if user has a family via primary_user_id (pre-migration)
-      const { data: fam } = await supabase
-        .from("families")
-        .select("id, primary_user_id, apartment_id, flat_number, block_tower")
-        .eq("primary_user_id", userId)
-        .maybeSingle();
-
-      setFamily(fam);
-      setFamilyRole(fam ? "primary" : null);
-      setFamilyLinkId(null);
-
-      if (fam) {
-        // Auto-create the family_links row if missing (backfill for edge cases)
-        supabase
-          .from("family_links")
-          .insert({ family_id: fam.id, user_id: userId, role: "primary", status: "active", linked_via: "creation" })
-          .then(({ data: newLink }) => {
-            if (newLink) setFamilyLinkId((newLink as any).id);
-          });
-
-        const [membersResult, aptResult] = await Promise.all([
-          supabase
-            .from("family_members")
-            .select("id, family_id, name, date_of_birth, age_group, relationship, avatar_url, is_active")
-            .eq("family_id", fam.id)
-            .eq("is_active", true)
-            .order("created_at"),
-          supabase
-            .from("apartment_complexes")
-            .select("id, name, city, locality, logo_url")
-            .eq("id", fam.apartment_id)
-            .single(),
-        ]);
-
-        setFamilyMembers(membersResult.data ?? []);
-        setCurrentApartment(aptResult.data);
+        const { data: members } = await supabase
+          .from("family_members")
+          .select("id, family_id, full_name, date_of_birth, age_group, relationship, is_active")
+          .eq("family_id", fam.id)
+          .eq("is_active", true)
+          .order("created_at");
+        setFamilyMembers(members ?? []);
       } else {
         setFamilyMembers([]);
-        setCurrentApartment(null);
       }
+      return;
     }
 
-    // Fallback: if no apartment found via family and user is admin, check apartment_admins
-    if (!foundApartment && isAdmin) {
-      const { data: adminApt } = await supabase.rpc("get_admin_apartment");
-      if (adminApt && adminApt.length > 0) {
-        setCurrentApartment(adminApt[0] as ApartmentRow);
-      }
+    // No active link — possibly a freshly created family without the link row yet
+    const { data: fam } = await supabase
+      .from("families")
+      .select("id, primary_user_id")
+      .eq("primary_user_id", userId)
+      .maybeSingle();
+
+    setFamily(fam);
+    setFamilyRole(fam ? "primary" : null);
+    setFamilyLinkId(null);
+
+    if (fam) {
+      const { data: members } = await supabase
+        .from("family_members")
+        .select("id, family_id, full_name, date_of_birth, age_group, relationship, is_active")
+        .eq("family_id", fam.id)
+        .eq("is_active", true)
+        .order("created_at");
+      setFamilyMembers(members ?? []);
+    } else {
+      setFamilyMembers([]);
     }
   }, []);
 
   const fetchProviderProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from("service_providers")
-      .select("id, user_id, provider_type, business_name, bio, is_verified, specialization_category_ids")
+      .select(PROVIDER_COLUMNS)
       .eq("user_id", userId)
       .maybeSingle();
-    setProviderProfile(data);
+    setProviderProfile(data as ProviderProfileRow | null);
   }, []);
 
-  const fetchOrCreateProfile = useCallback(async (authUser: User) => {
-    try {
-      console.log("[CampusBee] fetchOrCreateProfile for auth_id:", authUser.id);
+  const fetchOrCreateProfile = useCallback(
+    async (authUser: User) => {
+      try {
+        const { data: existing, error: selectError } = await supabase
+          .from("users")
+          .select(PROFILE_COLUMNS)
+          .eq("auth_id", authUser.id)
+          .maybeSingle();
 
-      const { data: existing, error: selectError } = await supabase
-        .from("users")
-        .select("id, auth_id, full_name, email, avatar_url, mobile_number, is_provider, is_apartment_admin, is_platform_admin, last_active_persona, is_active, is_verified")
-        .eq("auth_id", authUser.id)
-        .maybeSingle();
+        if (selectError) {
+          console.error("[CampusBee] fetch profile:", selectError);
+        }
 
-      if (selectError) {
-        console.error("[CampusBee] Error fetching user profile:", selectError);
-      }
+        if (existing) {
+          const prof = existing as unknown as UserProfile;
+          setProfile(prof);
+          setActivePersona((prof.last_active_persona as Persona) || "seeker");
+          setIsNewUser(false);
 
-      if (existing) {
-        const prof = existing as unknown as UserProfile;
-        setProfile(prof);
-        setActivePersona((prof.last_active_persona as Persona) || "seeker");
-        setIsNewUser(false);
-        console.log("[CampusBee] Profile loaded:", prof.id, prof.full_name);
-
-        // Load related data in parallel — errors here should NOT block profile
-        try {
           await Promise.all([
-            fetchFamily(prof.id, prof.is_apartment_admin).catch((e) => console.error("[CampusBee] fetchFamily error:", e)),
-            prof.is_provider ? fetchProviderProfile(prof.id).catch((e) => console.error("[CampusBee] fetchProviderProfile error:", e)) : Promise.resolve(),
+            fetchFamily(prof.id).catch((e) => console.error("[CampusBee] fetchFamily:", e)),
+            prof.is_provider
+              ? fetchProviderProfile(prof.id).catch((e) =>
+                  console.error("[CampusBee] fetchProviderProfile:", e)
+                )
+              : Promise.resolve(),
           ]);
-        } catch (e) {
-          console.error("[CampusBee] Error loading related data:", e);
+          return;
         }
-        return;
-      }
 
-      // Create new user row
-      console.log("[CampusBee] Creating new user row for:", authUser.email);
-      const { data: created, error: insertError } = await supabase
-        .from("users")
-        .insert({
-          auth_id: authUser.id,
-          email: authUser.email ?? null,
-          full_name: authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? "",
-        })
-        .select("id, auth_id, full_name, email, avatar_url, mobile_number, is_provider, is_apartment_admin, is_platform_admin, last_active_persona, is_active, is_verified")
-        .single();
+        // Create new user row
+        const { data: created, error: insertError } = await supabase
+          .from("users")
+          .insert({
+            auth_id: authUser.id,
+            email: authUser.email ?? null,
+            full_name:
+              authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? "",
+          })
+          .select(PROFILE_COLUMNS)
+          .single();
 
-      if (insertError) {
-        console.error("[CampusBee] Error creating user profile:", insertError);
-
-        // If insert failed due to unique constraint, the user exists but SELECT missed it
-        // (can happen with RLS timing). Try one more SELECT.
-        if (insertError.code === "23505") {
-          console.log("[CampusBee] Retrying SELECT after unique constraint error...");
-          const { data: retry } = await supabase
-            .from("users")
-            .select("id, auth_id, full_name, email, avatar_url, mobile_number, is_provider, is_apartment_admin, is_platform_admin, last_active_persona, is_active, is_verified")
-            .eq("auth_id", authUser.id)
-            .maybeSingle();
-          if (retry) {
-            setProfile(retry as unknown as UserProfile);
-            setActivePersona(((retry as any).last_active_persona as Persona) || "seeker");
-            setIsNewUser(false);
-            console.log("[CampusBee] Retry succeeded:", retry.id);
-            return;
+        if (insertError) {
+          console.error("[CampusBee] insert profile:", insertError);
+          if (insertError.code === "23505") {
+            // Duplicate — race; retry SELECT
+            const { data: retry } = await supabase
+              .from("users")
+              .select(PROFILE_COLUMNS)
+              .eq("auth_id", authUser.id)
+              .maybeSingle();
+            if (retry) {
+              const prof = retry as unknown as UserProfile;
+              setProfile(prof);
+              setActivePersona((prof.last_active_persona as Persona) || "seeker");
+              setIsNewUser(false);
+            }
           }
+          return;
         }
-        return;
-      }
 
-      if (created) {
-        setProfile(created as unknown as UserProfile);
-        setIsNewUser(true);
-        setActivePersona("seeker");
-        console.log("[CampusBee] New user created:", created.id);
+        if (created) {
+          setProfile(created as unknown as UserProfile);
+          setIsNewUser(true);
+          setActivePersona("seeker");
+        }
+      } catch (err) {
+        console.error("[CampusBee] fetchOrCreateProfile:", err);
       }
-    } catch (err) {
-      console.error("[CampusBee] Unexpected error in fetchOrCreateProfile:", err);
-    }
-  }, [fetchFamily, fetchProviderProfile]);
+    },
+    [fetchFamily, fetchProviderProfile]
+  );
 
   const refreshProfile = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase
       .from("users")
-      .select("id, auth_id, full_name, email, avatar_url, mobile_number, is_provider, is_apartment_admin, is_platform_admin, last_active_persona, is_active, is_verified")
+      .select(PROFILE_COLUMNS)
       .eq("auth_id", user.id)
       .maybeSingle();
     if (data) {
       const prof = data as unknown as UserProfile;
       setProfile(prof);
       setActivePersona((prof.last_active_persona as Persona) || "seeker");
-
       if (prof.is_provider) {
         fetchProviderProfile(prof.id);
+      } else {
+        setProviderProfile(null);
       }
     }
   }, [user, fetchProviderProfile]);
 
   const refreshFamily = useCallback(async () => {
     if (!profile) return;
-    await fetchFamily(profile.id, profile.is_apartment_admin);
+    await fetchFamily(profile.id);
   }, [profile, fetchFamily]);
 
-  const activatePersona = useCallback(async (persona: Persona) => {
-    setActivePersona(persona);
-    lastSyncedPersona.current = persona;
-    if (profile) {
-      await supabase
-        .from("users")
-        .update({ last_active_persona: persona })
-        .eq("id", profile.id);
-    }
-  }, [profile]);
+  const activatePersona = useCallback(
+    async (persona: Persona) => {
+      setActivePersona(persona);
+      lastSyncedPersona.current = persona;
+      if (profile) {
+        await supabase
+          .from("users")
+          .update({ last_active_persona: persona })
+          .eq("id", profile.id);
+      }
+    },
+    [profile]
+  );
 
-  // ── Route-based persona sync ──
-  // When the user navigates to a persona-specific route (e.g. /admin/*),
-  // update activePersona to match, so the header reflects the correct role.
+  // ── Route-based persona sync (v2: no /admin/* — apartment admin removed) ──
   const location = useLocation();
 
   useEffect(() => {
@@ -338,9 +293,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const path = location.pathname;
     let routePersona: Persona | null = null;
 
-    if (path.startsWith("/admin/") || path === "/admin") {
-      if (profile.is_apartment_admin) routePersona = "apartment_admin";
-    } else if (path.startsWith("/provider/") || path === "/provider") {
+    if (path.startsWith("/provider/") || path === "/provider") {
       if (profile.is_provider) routePersona = "provider";
     } else if (path.startsWith("/platform")) {
       if (profile.is_platform_admin) routePersona = "platform_admin";
@@ -354,7 +307,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       routePersona = "seeker";
     }
 
-    if (routePersona && routePersona !== activePersona && routePersona !== lastSyncedPersona.current) {
+    if (
+      routePersona &&
+      routePersona !== activePersona &&
+      routePersona !== lastSyncedPersona.current
+    ) {
       lastSyncedPersona.current = routePersona;
       activatePersona(routePersona);
     }
@@ -363,44 +320,36 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let isMounted = true;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, sess) => {
-        if (!isMounted) return;
-        console.log("[CampusBee] onAuthStateChange:", event, sess ? "session exists" : "no session");
-        setSession(sess);
-        setUser(sess?.user ?? null);
-        if (sess?.user) {
-          // Use setTimeout to avoid Supabase deadlock when calling API inside auth callback
-          setTimeout(() => {
-            if (isMounted) fetchOrCreateProfile(sess.user);
-          }, 0);
-        } else {
-          setProfile(null);
-          setFamily(null);
-          setFamilyMembers([]);
-          setCurrentApartment(null);
-          setProviderProfile(null);
-          setIsNewUser(false);
-          setActivePersona("seeker");
-          setFamilyRole(null);
-          setFamilyLinkId(null);
-        }
-        setLoading(false);
-      }
-    );
-
-    // Initial session check
-    supabase.auth.getSession().then(({ data: { session: sess }, error }) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, sess) => {
       if (!isMounted) return;
-      if (error) {
-        console.error("[CampusBee] getSession error:", error);
-      }
-      console.log("[CampusBee] getSession:", sess ? "session exists" : "no session");
       setSession(sess);
       setUser(sess?.user ?? null);
       if (sess?.user) {
-        fetchOrCreateProfile(sess.user);
+        // setTimeout avoids the Supabase deadlock when querying inside the callback
+        setTimeout(() => {
+          if (isMounted) fetchOrCreateProfile(sess.user);
+        }, 0);
+      } else {
+        setProfile(null);
+        setFamily(null);
+        setFamilyMembers([]);
+        setProviderProfile(null);
+        setIsNewUser(false);
+        setActivePersona("seeker");
+        setFamilyRole(null);
+        setFamilyLinkId(null);
       }
+      setLoading(false);
+    });
+
+    supabase.auth.getSession().then(({ data: { session: sess }, error }) => {
+      if (!isMounted) return;
+      if (error) console.error("[CampusBee] getSession:", error);
+      setSession(sess);
+      setUser(sess?.user ?? null);
+      if (sess?.user) fetchOrCreateProfile(sess.user);
       setLoading(false);
     });
 
@@ -411,6 +360,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Derived: is the provider currently on Premium?
+  const isPremium = !!(
+    providerProfile &&
+    providerProfile.subscription_tier === "premium" &&
+    (!providerProfile.subscription_valid_until ||
+      new Date(providerProfile.subscription_valid_until) > new Date())
+  );
+
   return (
     <UserContext.Provider
       value={{
@@ -419,8 +376,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         profile,
         family,
         familyMembers,
-        currentApartment,
         providerProfile,
+        isPremium,
         loading,
         isNewUser,
         activePersona,

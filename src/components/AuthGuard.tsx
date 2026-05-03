@@ -4,8 +4,8 @@ import { useUser } from "@/contexts/UserContext";
 // Routes accessible without completing onboarding (any authenticated user)
 const ONBOARDING_EXEMPT_ROUTES = ["/onboarding", "/profile", "/notifications"];
 
-// Routes that specifically require admin roles (but not family/onboarding)
-const ADMIN_ROUTES = ["/platform", "/admin"];
+// Routes that require platform-admin role. (v1's /admin/* removed entirely.)
+const ADMIN_ROUTES = ["/platform"];
 
 // Provider routes — require provider profile, not family setup
 const PROVIDER_ROUTES_PREFIX = "/provider/";
@@ -45,13 +45,11 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
     return <>{children}</>;
   }
 
-  // Allow admin routes for users with matching admin roles
+  // Platform admin routes
   if (ADMIN_ROUTES.some((r) => path.startsWith(r))) {
-    const isAdmin = profile?.is_platform_admin || profile?.is_apartment_admin;
-    if (isAdmin) {
+    if (profile?.is_platform_admin) {
       return <>{children}</>;
     }
-    // Non-admin trying to access admin route → redirect to landing
     return <Navigate to="/" replace />;
   }
 

@@ -27,7 +27,7 @@ const PERSONA_CONFIG: Record<
     icon: Home,
     color: "text-primary",
     bgColor: "bg-primary/10",
-    homePath: "/home",
+    homePath: "/explore",
   },
   provider: {
     label: "Provider",
@@ -36,14 +36,6 @@ const PERSONA_CONFIG: Record<
     color: "text-provider",
     bgColor: "bg-provider/10",
     homePath: "/provider/dashboard",
-  },
-  apartment_admin: {
-    label: "Admin",
-    description: "Manage your apartment community",
-    icon: Shield,
-    color: "text-admin",
-    bgColor: "bg-admin/10",
-    homePath: "/admin/dashboard",
   },
   platform_admin: {
     label: "Platform Admin",
@@ -67,7 +59,6 @@ const PersonaSwitcher = () => {
 
   const availablePersonas: Persona[] = ["seeker"];
   if (profile.is_provider) availablePersonas.push("provider");
-  if (profile.is_apartment_admin) availablePersonas.push("apartment_admin");
   if (profile.is_platform_admin) availablePersonas.push("platform_admin");
 
   const handleSelect = async (persona: Persona) => {

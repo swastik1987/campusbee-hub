@@ -15,9 +15,10 @@ export interface ProviderProfileData {
 interface StepProviderProfileProps {
   onNext: (data: ProviderProfileData) => void;
   onBack: () => void;
+  isSubmitting?: boolean;
 }
 
-const StepProviderProfile = ({ onNext, onBack }: StepProviderProfileProps) => {
+const StepProviderProfile = ({ onNext, onBack, isSubmitting = false }: StepProviderProfileProps) => {
   const [providerType, setProviderType] = useState<"individual" | "academy" | null>(null);
   const [businessName, setBusinessName] = useState("");
   const [bio, setBio] = useState("");
@@ -113,11 +114,20 @@ const StepProviderProfile = ({ onNext, onBack }: StepProviderProfileProps) => {
 
       <Button
         onClick={handleSubmit}
-        disabled={!canContinue}
+        disabled={!canContinue || isSubmitting}
         className="w-full gradient-primary text-primary-foreground h-12 font-semibold rounded-xl"
       >
-        <GraduationCap size={18} className="mr-2" />
-        Continue
+        {isSubmitting ? (
+          <>
+            <Loader2 size={18} className="mr-2 animate-spin" />
+            Creating profile…
+          </>
+        ) : (
+          <>
+            <GraduationCap size={18} className="mr-2" />
+            Finish
+          </>
+        )}
       </Button>
     </div>
   );

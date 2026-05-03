@@ -63,7 +63,7 @@ const StepFamily = ({ familyId, onComplete, onBack }: StepFamilyProps) => {
 
     const payload = members.map((m) => ({
       family_id: familyId,
-      name: m.name.trim(),
+      full_name: m.name.trim(),
       relationship: m.relationship,
       date_of_birth: m.dateOfBirth || null,
       age_group: m.dateOfBirth ? calculateAgeGroup(m.dateOfBirth) : null,

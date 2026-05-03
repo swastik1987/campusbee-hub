@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
@@ -5,67 +6,62 @@ import { useCreateProviderOnboarding } from "@/hooks/useOnboarding";
 import { supabase } from "@/integrations/supabase/client";
 import StepProfile from "@/components/onboarding/StepProfile";
 import StepRoleSelect from "@/components/onboarding/StepRoleSelect";
-import StepApartment from "@/components/onboarding/StepApartment";
+import StepLocation from "@/components/onboarding/StepLocation";
 import StepFamily from "@/components/onboarding/StepFamily";
 import StepProviderProfile from "@/components/onboarding/StepProviderProfile";
 import type { ProviderProfileData } from "@/components/onboarding/StepProviderProfile";
-import StepProviderApartments from "@/components/onboarding/StepProviderApartments";
 import { LogOut, X } from "lucide-react";
 import { toast } from "sonner";
 
 type Role = "seeker" | "provider" | null;
 
-// Seeker flow:  Profile → Role → Apartment → Family
-// Provider flow: Profile → Role → ProviderProfile → ProviderApartments
+// v2 flows
+//  Seeker:   Profile → Role → Location → Family
+//  Provider: Profile → Role → ProviderProfile (auto-approved Basic tier)
 
-const Onboarding = () => {
+const Onboarding = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, ref) => {
   const [step, setStep] = useState(0);
   const [role, setRole] = useState<Role>(null);
   const [familyId, setFamilyId] = useState<string | null>(null);
-  const [providerData, setProviderData] = useState<ProviderProfileData | null>(null);
 
   const navigate = useNavigate();
   const { profile, refreshProfile, refreshFamily } = useUser();
   const createProvider = useCreateProviderOnboarding();
 
-  // Step labels depend on the selected role
   const getStepLabels = (): string[] => {
-    if (role === "provider") return ["About You", "Role", "Profile", "Apartments"];
-    if (role === "seeker") return ["About You", "Role", "Apartment", "Family"];
-    // Before role is chosen, show generic labels
+    if (role === "provider") return ["About You", "Role", "Profile"];
+    if (role === "seeker") return ["About You", "Role", "Location", "Family"];
     return ["About You", "Role"];
   };
-
   const stepLabels = getStepLabels();
   const totalSteps = stepLabels.length;
 
   const handleRoleSelect = (selected: "seeker" | "provider") => {
     setRole(selected);
-    setStep(2); // Move to step 2 (first role-specific step)
+    setStep(2);
   };
 
-  const handleProviderComplete = async (apartmentIds: string[]) => {
-    if (!providerData || !profile) return;
-
+  const handleProviderComplete = async (data: ProviderProfileData) => {
+    if (!profile) return;
     try {
       await createProvider.mutateAsync({
         userId: profile.id,
-        providerType: providerData.providerType,
-        businessName: providerData.businessName,
-        bio: providerData.bio,
-        apartmentIds,
+        providerType: data.providerType,
+        businessName: data.businessName,
+        bio: data.bio,
       });
-      toast.success("Provider profile created! Apartment admins will review your application.");
+      toast.success("Welcome aboard! Your provider profile is live.");
       await refreshProfile();
       navigate("/provider/dashboard", { replace: true });
-    } catch {
+    } catch (err) {
+      console.error("[Onboarding] provider create failed", err);
       toast.error("Failed to create provider profile");
     }
   };
 
   const handleSeekerComplete = async () => {
     await Promise.all([refreshProfile(), refreshFamily()]);
-    navigate("/home", { replace: true });
+    navigate("/explore", { replace: true });
   };
 
   const handleLogout = async () => {
@@ -77,14 +73,11 @@ const Onboarding = () => {
   const handleSkip = () => {
     if (profile?.is_platform_admin) {
       navigate("/platform", { replace: true });
-    } else if (profile?.is_apartment_admin) {
-      navigate("/admin/dashboard", { replace: true });
     } else {
       navigate("/", { replace: true });
     }
   };
 
-  // Render the current step
   const renderStep = () => {
     switch (step) {
       case 0:
@@ -95,17 +88,17 @@ const Onboarding = () => {
         if (role === "provider") {
           return (
             <StepProviderProfile
-              onNext={(data) => {
-                setProviderData(data);
-                setStep(3);
-              }}
+              onNext={handleProviderComplete}
               onBack={() => setStep(1)}
+              isSubmitting={createProvider.isPending}
             />
           );
         }
-        // Seeker: apartment step
+        // Seeker: location step
+        if (!profile) return null;
         return (
-          <StepApartment
+          <StepLocation
+            userId={profile.id}
             onNext={(fId) => {
               setFamilyId(fId);
               setStep(3);
@@ -114,19 +107,11 @@ const Onboarding = () => {
           />
         );
       case 3:
-        if (role === "provider") {
-          return (
-            <StepProviderApartments
-              onNext={handleProviderComplete}
-              onBack={() => setStep(2)}
-              isSubmitting={createProvider.isPending}
-            />
-          );
-        }
-        // Seeker: family step
+        // Seeker only — family
+        if (role !== "seeker" || !familyId) return null;
         return (
           <StepFamily
-            familyId={familyId!}
+            familyId={familyId}
             onComplete={handleSeekerComplete}
             onBack={() => setStep(2)}
           />
@@ -137,8 +122,7 @@ const Onboarding = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      {/* Top bar with logout and skip */}
+    <div ref={ref} className="flex min-h-screen flex-col bg-background">
       <div className="flex items-center justify-between px-4 pt-4 pb-0">
         <button
           onClick={handleLogout}
@@ -156,7 +140,6 @@ const Onboarding = () => {
         </button>
       </div>
 
-      {/* Progress bar */}
       <div className="px-6 pt-2 pb-2">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">
@@ -178,12 +161,11 @@ const Onboarding = () => {
         </div>
       </div>
 
-      {/* Step content */}
-      <div className="flex-1 px-6 py-6">
-        {renderStep()}
-      </div>
+      <div className="flex-1 px-6 py-6">{renderStep()}</div>
     </div>
   );
-};
+});
+
+Onboarding.displayName = "Onboarding";
 
 export default Onboarding;

@@ -1,12 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { UserProvider } from "@/contexts/UserContext";
 import AuthGuard from "@/components/AuthGuard";
 
-import { Navigate } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/seeker/Onboarding";
@@ -35,20 +34,10 @@ import ProviderAnalytics from "./pages/provider/ProviderAnalytics";
 import ProviderMaterials from "./pages/provider/ProviderMaterials";
 import ProviderDemoSessions from "./pages/provider/ProviderDemoSessions";
 import ProviderReviews from "./pages/provider/ProviderReviews";
-import ProviderTerms from "./pages/provider/ProviderTerms";
 import Notifications from "./pages/Notifications";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminProviders from "./pages/admin/AdminProviders";
-import AdminProviderDetail from "./pages/admin/AdminProviderDetail";
-import AdminReports from "./pages/admin/AdminReports";
-import AdminFeatured from "./pages/admin/AdminFeatured";
-import AdminResidents from "./pages/admin/AdminResidents";
-import AdminClasses from "./pages/admin/AdminClasses";
 import PlatformLayout from "./pages/platform/PlatformLayout";
 import PlatformDashboard from "./pages/platform/PlatformDashboard";
-import PlatformApartments from "./pages/platform/PlatformApartments";
 import PlatformCategories from "./pages/platform/PlatformCategories";
-import PlatformApartmentDetail from "./pages/platform/PlatformApartmentDetail";
 import PlatformAnalytics from "./pages/platform/PlatformAnalytics";
 import NotFound from "./pages/NotFound";
 
@@ -95,25 +84,17 @@ const App = () => (
             <Route path="/provider/classes/:classId/materials" element={<AuthGuard><ProviderMaterials /></AuthGuard>} />
             <Route path="/provider/classes/:classId/demos" element={<AuthGuard><ProviderDemoSessions /></AuthGuard>} />
             <Route path="/provider/reviews" element={<AuthGuard><ProviderReviews /></AuthGuard>} />
-            <Route path="/provider/terms/:classId" element={<AuthGuard><ProviderTerms /></AuthGuard>} />
 
             {/* Notifications */}
             <Route path="/notifications" element={<AuthGuard><Notifications /></AuthGuard>} />
 
-            {/* Protected admin routes */}
-            <Route path="/admin/dashboard" element={<AuthGuard><AdminDashboard /></AuthGuard>} />
-            <Route path="/admin/providers" element={<AuthGuard><AdminProviders /></AuthGuard>} />
-            <Route path="/admin/providers/:registrationId" element={<AuthGuard><AdminProviderDetail /></AuthGuard>} />
-            <Route path="/admin/reports" element={<AuthGuard><AdminReports /></AuthGuard>} />
-            <Route path="/admin/featured" element={<AuthGuard><AdminFeatured /></AuthGuard>} />
-            <Route path="/admin/residents" element={<AuthGuard><AdminResidents /></AuthGuard>} />
-            <Route path="/admin/classes" element={<AuthGuard><AdminClasses /></AuthGuard>} />
+            {/* v2: /admin/* routes removed entirely (Apartment Admin role gone). */}
+            {/* Legacy redirects so any bookmarks land somewhere sane. */}
+            <Route path="/admin/*" element={<Navigate to="/" replace />} />
 
-            {/* Platform admin routes (nested layout) */}
+            {/* Platform admin routes (nested layout) — apartments routes removed */}
             <Route path="/platform" element={<AuthGuard><PlatformLayout /></AuthGuard>}>
               <Route index element={<PlatformDashboard />} />
-              <Route path="apartments" element={<PlatformApartments />} />
-              <Route path="apartments/:id" element={<PlatformApartmentDetail />} />
               <Route path="categories" element={<PlatformCategories />} />
               <Route path="analytics" element={<PlatformAnalytics />} />
             </Route>
