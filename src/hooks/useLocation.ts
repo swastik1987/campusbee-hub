@@ -51,16 +51,31 @@ export function useUpdateSeekerLocation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { userId: string } & LocationValue) => {
+      // Try saving both text address + PostGIS geography column
       const { error } = await supabase
         .from("users")
         .update({
           seeker_home_address: input.address,
-          // POINT WKT: lng then lat
-          seeker_home_location: `SRID=4326;POINT(${input.lng} ${input.lat})` as unknown as never,
+          // PostGIS EWKT: POINT(lng lat) — lng first is required by WKT spec
+          seeker_home_location: `SRID=4326;POINT(${input.lng} ${input.lat})`,
         })
         .eq("id", input.userId);
-      if (error) throw error;
-      return input;
+
+      if (!error) return input;
+
+      // If the geography column doesn't exist yet (migration not applied),
+      // fall back to saving the text address only so onboarding can proceed.
+      if (error.message?.includes("seeker_home_location") || error.code === "42703") {
+        const { error: textErr } = await supabase
+          .from("users")
+          .update({ seeker_home_address: input.address })
+          .eq("id", input.userId);
+        if (textErr) throw textErr;
+        console.warn("[useLocation] seeker_home_location column missing — saved address only. Run supabase_migration_add_location.sql.");
+        return input;
+      }
+
+      throw error;
     },
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["user-profile", variables.userId] });

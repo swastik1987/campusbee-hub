@@ -1,16 +1,19 @@
 /**
  * MapplsPicker — interactive address picker.
  *
- * Fix history (v3):
- * - Custom React autocomplete dropdown using window.mappls.search() so we
- *   never fight the SDK widget over DOM ownership or z-index.
- * - Address is taken directly from the autocomplete result; coordinates are
- *   only shown when the user manually pans the map without a prior search.
- * - map.resize() called after init so the canvas fills its container.
- * - mapReadyRef guards moveend from firing before the user interacts,
- *   preventing the initial render from clobbering a null location.
- * - emitLocation() is called BEFORE setCenter() so locationRef is current
- *   when moveend fires and the same-location dedup skips the redundant call.
+ * Autocomplete: Nominatim (OpenStreetMap) — the Mappls SDK key in this
+ * project does not include the Places plugin, so Nominatim is used instead.
+ * It is free, requires no key, and is explicitly CORS-enabled.
+ *
+ * Map rendering: Mappls SDK (vector tiles, map controls).
+ *
+ * Interaction model:
+ * - User types ≥3 chars → debounced Nominatim search → custom React dropdown
+ * - Selecting a result flies the map to zoom 18 (~30 m radius view)
+ * - CSS overlay pin always stays at the centre of the viewport (never drifts on zoom)
+ * - Panning the map repositions the pin; moveend reads getCenter() and updates location
+ * - mapReadyRef skips the first synthetic moveend on map init
+ * - emitLocation() is called BEFORE setCenter() to avoid race in moveend dedup
  */
 
 import * as React from "react";
@@ -20,15 +23,50 @@ import {
   loadMappls,
   mapplsConfig,
   type MapplsMap,
-  type MapplsAutocompleteResult,
-  type MapplsReverseGeocodeResult,
 } from "@/integrations/mappls/client";
 import type { LocationValue } from "@/hooks/useLocation";
+
+/* ── Nominatim types ──────────────────────────────────────────────────────── */
+type NominatimResult = {
+  place_id: number;
+  display_name: string;
+  name?: string;
+  lat: string;   // string in Nominatim responses
+  lon: string;   // NOTE: "lon" not "lng"
+  type: string;
+  address?: {
+    city?: string;
+    town?: string;
+    village?: string;
+    state?: string;
+    country?: string;
+  };
+};
+
+/* ── Helpers ──────────────────────────────────────────────────────────────── */
 
 function useMapId() {
   const id = React.useId();
   return `mappls-map-${id.replace(/:/g, "")}`;
 }
+
+/** First ~2 segments of a display_name (before the city/state/country) */
+function shortName(result: NominatimResult): string {
+  const parts = result.display_name.split(",").map(s => s.trim());
+  // Try to get a meaningful 1-2 part name
+  if (result.name && result.name.length > 2) return result.name;
+  return parts.slice(0, 2).join(", ");
+}
+
+/** Remaining address context (city + state) */
+function addressContext(result: NominatimResult): string {
+  const a = result.address;
+  const city = a?.city || a?.town || a?.village || "";
+  const state = a?.state || "";
+  return [city, state].filter(Boolean).join(", ");
+}
+
+/* ── Component ────────────────────────────────────────────────────────────── */
 
 export type MapplsPickerProps = {
   value: LocationValue | null;
@@ -40,12 +78,11 @@ export type MapplsPickerProps = {
 };
 
 const DEFAULT_CENTER: [number, number] = [12.9716, 77.5946]; // Bengaluru
-const ZOOM_SELECTED = 18;   // ~180 m view ≈ 30 m radius
-const ZOOM_DEFAULT  = 12;
-const SEARCH_DEBOUNCE_MS = 350;
-const MIN_SEARCH_CHARS   = 3;
-// Skip moveend re-emit when center moved less than ~1 m
-const SAME_LOC_EPS = 0.00001;
+const ZOOM_SELECTED   = 18;   // ~180 m view ≈ 30 m radius
+const ZOOM_DEFAULT    = 12;
+const SEARCH_DEBOUNCE = 500;  // ms — respects Nominatim 1 req/s limit
+const MIN_CHARS       = 3;
+const SAME_LOC_EPS    = 0.00001; // ~1 m tolerance for moveend dedup
 
 const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
   (
@@ -62,34 +99,29 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
     const mapContainerId  = useMapId();
     const mapContainerRef = React.useRef<HTMLDivElement | null>(null);
     const mapInstanceRef  = React.useRef<MapplsMap | null>(null);
-    // Tracks whether the map has finished its initial render so we skip the
-    // first synthetic moveend that fires during map initialisation.
     const mapReadyRef     = React.useRef(false);
-    // Always-current snapshot of the last emitted location for use inside
-    // event handler closures without stale-closure issues.
     const locationRef     = React.useRef<LocationValue | null>(value ?? null);
     const searchTimerRef  = React.useRef<ReturnType<typeof setTimeout> | null>(null);
     const wrapperRef      = React.useRef<HTMLDivElement | null>(null);
+    const abortRef        = React.useRef<AbortController | null>(null);
 
     const [sdkLoading,     setSdkLoading]     = React.useState(true);
     const [sdkError,       setSdkError]       = React.useState<string | null>(null);
     const [mapMoving,      setMapMoving]       = React.useState(false);
     const [inputText,      setInputText]       = React.useState(value?.address ?? "");
-    const [suggestions,    setSuggestions]     = React.useState<MapplsAutocompleteResult[]>([]);
+    const [suggestions,    setSuggestions]     = React.useState<NominatimResult[]>([]);
     const [showDropdown,   setShowDropdown]    = React.useState(false);
     const [searchLoading,  setSearchLoading]   = React.useState(false);
     const [displayAddress, setDisplayAddress]  = React.useState(value?.address ?? "");
 
-    // Sync controlled state when the parent pushes a new value (e.g. reset)
+    /* ── Sync with external value changes ──────────────────────────────── */
     React.useEffect(() => {
       locationRef.current = value ?? null;
-      const addr = value?.address ?? "";
-      setDisplayAddress(addr);
-      setInputText(addr);
+      setDisplayAddress(value?.address ?? "");
+      setInputText(value?.address ?? "");
     }, [value?.address, value?.lat, value?.lng]);
 
-    // ── Helpers ────────────────────────────────────────────────────────────
-
+    /* ── Location helpers ───────────────────────────────────────────────── */
     const emitLocation = React.useCallback(
       (lat: number, lng: number, address: string) => {
         const loc: LocationValue = { address, lat, lng };
@@ -100,95 +132,66 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
       [onChange]
     );
 
-    /** Resolve an address from coordinates.
-     *  Uses SDK ReverseGeocode when available; otherwise keeps the last
-     *  known address so a zoom doesn't degrade a formatted result to raw
-     *  coordinates. */
-    const resolveAddress = React.useCallback(
-      (lat: number, lng: number): Promise<string> =>
-        new Promise((resolve) => {
-          const mpl = window.mappls;
-          if (mpl?.ReverseGeocode) {
-            mpl.ReverseGeocode({
-              lat,
-              lng,
-              callback: (data: MapplsReverseGeocodeResult) => {
-                const addr =
-                  data?.results?.[0]?.formatted_address ??
-                  data?.results?.[0]?.place_name ??
-                  locationRef.current?.address ??
-                  `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-                resolve(addr);
-              },
-            });
-          } else {
-            resolve(
-              locationRef.current?.address ??
-                `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-            );
-          }
-        }),
-      []
-    );
-
-    // ── Programmatic autosuggest ───────────────────────────────────────────
-
+    /* ── Nominatim search ───────────────────────────────────────────────── */
     const fetchSuggestions = React.useCallback((query: string) => {
-      const mpl = window.mappls as typeof window.mappls & {
-        search?: (opts: { query: string; region?: string }, cb: (d: unknown) => void) => void;
-        autosuggest?: (opts: { query: string; region?: string }, cb: (d: unknown) => void) => void;
-      };
-      if (!mpl) return;
+      // Cancel any in-flight request
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
 
       setSearchLoading(true);
+      const params = new URLSearchParams({
+        q: query,
+        format: "json",
+        countrycodes: "in",
+        limit: "7",
+        addressdetails: "1",
+      });
 
-      const handleResults = (data: unknown) => {
-        setSearchLoading(false);
-        const raw = data as { suggestedLocations?: MapplsAutocompleteResult[] } | null;
-        const results = raw?.suggestedLocations ?? [];
-        setSuggestions(results);
-        setShowDropdown(results.length > 0);
-      };
-
-      if (typeof mpl.search === "function") {
-        mpl.search({ query, region: "IND" }, handleResults);
-      } else if (typeof mpl.autosuggest === "function") {
-        mpl.autosuggest({ query, region: "IND" }, handleResults);
-      } else {
-        // SDK programmatic API not available; widget fallback active (see below)
-        setSearchLoading(false);
-      }
+      fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+        signal: abortRef.current.signal,
+        headers: {
+          "Accept": "application/json",
+          "Accept-Language": "en",
+        },
+      })
+        .then(r => r.json())
+        .then((data: NominatimResult[]) => {
+          setSearchLoading(false);
+          setSuggestions(data ?? []);
+          setShowDropdown((data ?? []).length > 0);
+        })
+        .catch(err => {
+          if (err.name === "AbortError") return;
+          setSearchLoading(false);
+          setSuggestions([]);
+          setShowDropdown(false);
+        });
     }, []);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const text = e.target.value;
       setInputText(text);
-      setShowDropdown(false);
       setSuggestions([]);
-
+      setShowDropdown(false);
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-      if (text.length >= MIN_SEARCH_CHARS) {
-        searchTimerRef.current = setTimeout(() => fetchSuggestions(text), SEARCH_DEBOUNCE_MS);
+      if (text.length >= MIN_CHARS) {
+        searchTimerRef.current = setTimeout(() => fetchSuggestions(text), SEARCH_DEBOUNCE);
       }
     };
 
-    const handleSuggestionSelect = (result: MapplsAutocompleteResult) => {
-      // Latitude/longitude can arrive as numbers or numeric strings from the SDK
-      const lat = typeof result.latitude  === "string" ? parseFloat(result.latitude  as unknown as string) : result.latitude;
-      const lng = typeof result.longitude === "string" ? parseFloat(result.longitude as unknown as string) : result.longitude;
-      const address =
-        result.placeAddress ??
-        result.formattedAddress ??
-        result.placeName ??
-        "";
+    const handleSuggestionSelect = (result: NominatimResult) => {
+      const lat = parseFloat(result.lat);
+      const lng = parseFloat(result.lon); // Nominatim uses "lon"
+      if (isNaN(lat) || isNaN(lng)) return;
 
-      if (lat == null || isNaN(lat) || lng == null || isNaN(lng)) return;
+      // Build a clean address string (strip trailing ", India")
+      const address = result.display_name.replace(/,\s*India\s*$/, "");
 
       setInputText(address);
       setSuggestions([]);
       setShowDropdown(false);
 
-      // Emit BEFORE moving the map so locationRef is current when moveend fires
+      // Emit BEFORE moving map so locationRef is set when moveend fires
       emitLocation(lat, lng, address);
 
       const mapAny = mapInstanceRef.current as any;
@@ -200,22 +203,22 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
       setInputText("");
       setSuggestions([]);
       setShowDropdown(false);
+      abortRef.current?.abort();
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
 
-    // Close dropdown on outside click
+    /* ── Close dropdown on outside click ───────────────────────────────── */
     React.useEffect(() => {
-      const handlePointerDown = (e: PointerEvent) => {
+      const handler = (e: PointerEvent) => {
         if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
           setShowDropdown(false);
         }
       };
-      document.addEventListener("pointerdown", handlePointerDown);
-      return () => document.removeEventListener("pointerdown", handlePointerDown);
+      document.addEventListener("pointerdown", handler);
+      return () => document.removeEventListener("pointerdown", handler);
     }, []);
 
-    // ── SDK + map initialisation ───────────────────────────────────────────
-
+    /* ── Mappls map init ────────────────────────────────────────────────── */
     React.useEffect(() => {
       let cancelled = false;
 
@@ -226,13 +229,12 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
       }
 
       loadMappls()
-        .then((mappls) => {
+        .then(mappls => {
           if (cancelled || !mappls) return;
 
           const startLat = value?.lat ?? defaultCenter[0];
           const startLng = value?.lng ?? defaultCenter[1];
 
-          /* ── Map ──────────────────────────────────────────── */
           if (showMap && mapContainerRef.current && !mapInstanceRef.current) {
             const map = new mappls.Map(mapContainerId, {
               center: { lat: startLat, lng: startLng },
@@ -242,60 +244,50 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
             });
             mapInstanceRef.current = map;
 
-            // Force canvas to fill the container after tiles settle
-            setTimeout(() => {
-              if (!cancelled) map.resize();
-            }, 200);
+            // Force canvas to fill container after first paint
+            setTimeout(() => { if (!cancelled) map.resize(); }, 200);
 
-            // Animate pin while map is in motion
-            map.on("movestart", () => {
-              if (!cancelled) setMapMoving(true);
-            });
+            map.on("movestart", () => { if (!cancelled) setMapMoving(true); });
 
-            // Mark map as ready after the first natural moveend (init pan/zoom)
-            // then start processing user-driven moves from the second event onward.
             map.on("moveend", () => {
               if (cancelled) return;
               setMapMoving(false);
 
+              // Skip the synthetic moveend that fires during map initialisation
               if (!mapReadyRef.current) {
                 mapReadyRef.current = true;
-                return; // Skip the synthetic moveend on initial render
+                return;
               }
 
               const center = map.getCenter();
               if (!center) return;
 
-              const lat =
-                typeof (center as any).lat === "function"
-                  ? (center as any).lat()
-                  : (center as any).lat;
-              const lng =
-                typeof (center as any).lng === "function"
-                  ? (center as any).lng()
-                  : (center as any).lng;
-
+              const lat = typeof (center as any).lat === "function"
+                ? (center as any).lat() : (center as any).lat;
+              const lng = typeof (center as any).lng === "function"
+                ? (center as any).lng() : (center as any).lng;
               if (lat == null || lng == null) return;
 
-              // Dedup: skip if map hasn't actually moved
+              // Skip if map hasn't actually moved
               const cur = locationRef.current;
               if (
                 cur &&
                 Math.abs(cur.lat - lat) < SAME_LOC_EPS &&
                 Math.abs(cur.lng - lng) < SAME_LOC_EPS
-              ) {
-                return;
-              }
+              ) return;
 
-              resolveAddress(lat, lng).then((address) => {
-                if (!cancelled) emitLocation(lat, lng, address);
-              });
+              // Keep last known address; update coordinates
+              // (full reverse geocode requires the server-side mappls-proxy edge function)
+              const address =
+                locationRef.current?.address ??
+                `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+              emitLocation(lat, lng, address);
             });
           }
 
           setSdkLoading(false);
         })
-        .catch((err: Error) => {
+        .catch(err => {
           if (cancelled) return;
           console.error("[MapplsPicker]", err);
           setSdkError(err.message);
@@ -304,6 +296,7 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
 
       return () => {
         cancelled = true;
+        abortRef.current?.abort();
         if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
         try { mapInstanceRef.current?.remove(); } catch { /* ignore */ }
         mapInstanceRef.current = null;
@@ -311,20 +304,22 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // ── Render ─────────────────────────────────────────────────────────────
-
+    /* ── Render ─────────────────────────────────────────────────────────── */
     return (
-      <div ref={(el) => {
-        wrapperRef.current = el;
-        if (typeof ref === "function") ref(el);
-        else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
-      }} className={cn("w-full space-y-3", className)}>
+      <div
+        ref={el => {
+          wrapperRef.current = el;
+          if (typeof ref === "function") ref(el);
+          else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
+        }}
+        className={cn("w-full space-y-3", className)}
+      >
 
-        {/* ── Search input + custom dropdown ───────────────── */}
-        <div className="relative">
+        {/* ── Search input ────────────────────────────────────────── */}
+        <div className="relative z-20">
           <Search
             size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none z-10"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
           />
           <input
             type="text"
@@ -336,48 +331,36 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
             spellCheck={false}
             className="flex h-11 w-full rounded-xl border border-input bg-background pl-9 pr-9 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           />
-          {/* Right-side icon: spinner while searching, X to clear when text present */}
           {searchLoading ? (
-            <Loader2
-              size={15}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin pointer-events-none"
-            />
+            <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin pointer-events-none" />
           ) : inputText ? (
-            <button
-              type="button"
-              onClick={handleClearInput}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
+            <button type="button" onClick={handleClearInput}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
               <X size={15} />
             </button>
           ) : sdkLoading ? (
-            <Loader2
-              size={15}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin pointer-events-none"
-            />
+            <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin pointer-events-none" />
           ) : null}
 
           {/* Suggestion dropdown */}
           {showDropdown && suggestions.length > 0 && (
-            <ul className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-border bg-background shadow-lg overflow-hidden max-h-60 overflow-y-auto">
-              {suggestions.map((s, i) => (
-                <li key={s.eLoc ?? i}>
+            <ul className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-border bg-background shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+              {suggestions.map(s => (
+                <li key={s.place_id}>
                   <button
                     type="button"
-                    onPointerDown={(e) => {
-                      e.preventDefault(); // prevent input blur before click registers
+                    onPointerDown={e => {
+                      e.preventDefault(); // keep input focused until selection completes
                       handleSuggestionSelect(s);
                     }}
                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted flex flex-col gap-0.5"
                   >
-                    <span className="font-medium text-foreground leading-snug">
-                      {s.placeName ?? s.formattedAddress ?? ""}
+                    <span className="font-medium text-foreground leading-snug line-clamp-1">
+                      {shortName(s)}
                     </span>
-                    {s.placeAddress && s.placeAddress !== s.placeName && (
-                      <span className="text-xs text-muted-foreground leading-snug truncate">
-                        {s.placeAddress}
-                      </span>
-                    )}
+                    <span className="text-xs text-muted-foreground leading-snug line-clamp-1">
+                      {addressContext(s) || s.display_name.split(",").slice(2, 4).join(",")}
+                    </span>
                   </button>
                 </li>
               ))}
@@ -385,39 +368,28 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
           )}
         </div>
 
-        {/* ── Map with CSS overlay pin ──────────────────────── */}
+        {/* ── Map with CSS overlay pin ─────────────────────────────── */}
         {showMap && (
           <div className="relative w-full rounded-xl overflow-hidden border border-border bg-muted" style={{ height: 256 }}>
 
-            {/* Mappls map: absolute fill, explicit 100% × 100% for resize() */}
+            {/* Mappls map — fills container; explicit 100×100% for resize() */}
             <div
               id={mapContainerId}
               ref={mapContainerRef}
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
             />
 
-            {/* CSS overlay pin — tip always on the exact map centre.
-                left:50% top:50% + translateX(-50%) translateY(-100%) puts the
-                bottom-centre (tip) of MapPin at the centre of the container.
-                Extra upward shift while map moves = "hover" animation. */}
+            {/* CSS overlay pin — tip always on exact map centre.
+                translateY(-100%) puts the bottom-centre (tip) at top:50%  */}
             {!sdkLoading && !sdkError && (
-              <div
-                style={{
+              <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+                <div style={{
                   position: "absolute",
-                  inset: 0,
-                  pointerEvents: "none",
-                }}
-              >
-                {/* Pin icon */}
-                <div
-                  style={{
-                    position: "absolute",
-                    left: "50%",
-                    top: "50%",
-                    transform: `translateX(-50%) translateY(${mapMoving ? "calc(-100% - 10px)" : "-100%"})`,
-                    transition: "transform 0.15s ease",
-                  }}
-                >
+                  left: "50%",
+                  top: "50%",
+                  transform: `translateX(-50%) translateY(${mapMoving ? "calc(-100% - 10px)" : "-100%"})`,
+                  transition: "transform 0.15s ease",
+                }}>
                   <MapPin
                     size={38}
                     className="text-primary"
@@ -429,20 +401,18 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
                     }}
                   />
                 </div>
-                {/* Shadow ellipse under pin tip */}
-                <div
-                  style={{
-                    position: "absolute",
-                    left: "50%",
-                    top: "50%",
-                    transform: "translateX(-50%) translateY(-50%)",
-                    width:  mapMoving ? 20 : 8,
-                    height: mapMoving ? 8  : 3,
-                    borderRadius: "50%",
-                    background: "rgba(0,0,0,0.18)",
-                    transition: "all 0.15s ease",
-                  }}
-                />
+                {/* Shadow dot under pin tip */}
+                <div style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  transform: "translateX(-50%) translateY(-50%)",
+                  width:  mapMoving ? 20 : 8,
+                  height: mapMoving ? 8  : 3,
+                  borderRadius: "50%",
+                  background: "rgba(0,0,0,0.18)",
+                  transition: "all 0.15s ease",
+                }} />
               </div>
             )}
 
@@ -471,7 +441,7 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
           </div>
         )}
 
-        {/* ── Selected location display ─────────────────────── */}
+        {/* ── Selected location display ────────────────────────────── */}
         {displayAddress && (
           <div className="flex items-start gap-2.5 rounded-xl bg-primary/5 border border-primary/20 px-3 py-2.5">
             <Navigation2 size={15} className="mt-0.5 flex-shrink-0 text-primary" />

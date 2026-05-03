@@ -1879,6 +1879,8 @@ export type Database = {
           is_verified: boolean | null
           last_active_persona: string | null
           mobile_number: string | null
+          seeker_home_address: string | null
+          seeker_home_location: unknown | null
           updated_at: string | null
         }
         Insert: {
@@ -1895,6 +1897,8 @@ export type Database = {
           is_verified?: boolean | null
           last_active_persona?: string | null
           mobile_number?: string | null
+          seeker_home_address?: string | null
+          seeker_home_location?: unknown | null
           updated_at?: string | null
         }
         Update: {
@@ -1911,6 +1915,8 @@ export type Database = {
           is_verified?: boolean | null
           last_active_persona?: string | null
           mobile_number?: string | null
+          seeker_home_address?: string | null
+          seeker_home_location?: unknown | null
           updated_at?: string | null
         }
         Relationships: []
