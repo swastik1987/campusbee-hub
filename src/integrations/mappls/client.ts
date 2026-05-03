@@ -51,9 +51,15 @@ declare global {
           height?: string;
           width?: string;
           hyperlink?: boolean;
+          tokenizeAddress?: boolean;
         },
         callback?: (data: MapplsAutocompleteResult) => void
       ) => void;
+      ReverseGeocode?: (opts: {
+        lat: number;
+        lng: number;
+        callback: (data: MapplsReverseGeocodeResult) => void;
+      }) => void;
     };
   }
 }
@@ -61,8 +67,18 @@ declare global {
 export type MapplsMap = {
   setCenter: (latLng: MapplsLatLng) => void;
   setZoom: (zoom: number) => void;
+  getCenter: () => MapplsLatLng;
   on: (event: string, handler: (e: unknown) => void) => void;
   remove: () => void;
+};
+
+export type MapplsReverseGeocodeResult = {
+  results?: Array<{
+    formatted_address?: string;
+    place_name?: string;
+    city?: string;
+    state?: string;
+  }>;
 };
 
 export type MapplsMarker = {
