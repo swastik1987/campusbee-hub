@@ -56,27 +56,15 @@ export function useUploadAvatar() {
 // ---- Family (no apartment binding in v2) ---------------------------------
 export function useCreateFamily() {
   return useMutation({
-    mutationFn: async ({ userId }: { userId: string }) => {
-      // Create family with current user as primary, then a co-primary link
-      const { data: family, error: famErr } = await supabase
-        .from("families")
-        .insert({ primary_user_id: userId })
-        .select("id")
-        .single();
-      if (famErr) throw famErr;
-
-      // Add primary user as a family link too (so future helper functions
-      // see them as a member without special-casing primary_user_id)
-      const { error: linkErr } = await supabase.from("family_links").insert({
-        family_id: family.id,
-        user_id: userId,
-        role: "primary",
-        status: "active",
-        accepted_at: new Date().toISOString(),
-      });
-      if (linkErr) throw linkErr;
-
-      return { id: family.id };
+    mutationFn: async (_: { userId: string }) => {
+      // Use a SECURITY DEFINER RPC to avoid RLS chicken-and-egg on the
+      // families INSERT policy (the policy sub-selects users, which itself
+      // hits RLS, causing the WITH CHECK to evaluate to NULL → 42501).
+      // The RPC verifies the caller via auth.uid() internally and is
+      // idempotent — returns the existing family if one already exists.
+      const { data, error } = await supabase.rpc("create_own_family");
+      if (error) throw error;
+      return { id: data as string };
     },
   });
 }
