@@ -172,7 +172,6 @@ export function useUpdateClass() {
       trialAvailable?: boolean;
       trialFee?: number;
       status?: string;
-      isFeatured?: boolean;
     }) => {
       const { classId, ...fields } = input;
       const updateObj: any = {};
@@ -191,7 +190,6 @@ export function useUpdateClass() {
       if (fields.trialAvailable !== undefined) updateObj.trial_available = fields.trialAvailable;
       if (fields.trialFee !== undefined) updateObj.trial_fee = fields.trialFee;
       if (fields.status !== undefined) updateObj.status = fields.status;
-      if (fields.isFeatured !== undefined) updateObj.is_featured = fields.isFeatured;
 
       const { error } = await supabase.from("classes").update(updateObj).eq("id", classId);
       if (error) throw error;
