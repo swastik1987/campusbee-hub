@@ -14,132 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
-      admin_fee_payments: {
-        Row: {
-          amount: number
-          calculated_from_revenue: number | null
-          commission_rate: number | null
-          commission_type: string | null
-          confirmed_at: string | null
-          created_at: string | null
-          id: string
-          invoice_url: string | null
-          notes: string | null
-          paid_at: string | null
-          payment_method: string | null
-          period_month: number
-          period_year: number
-          provider_registration_id: string
-          status: string | null
-          total_enrollments: number | null
-          total_provider_revenue: number | null
-          upi_transaction_id: string | null
-        }
-        Insert: {
-          amount: number
-          calculated_from_revenue?: number | null
-          commission_rate?: number | null
-          commission_type?: string | null
-          confirmed_at?: string | null
-          created_at?: string | null
-          id?: string
-          invoice_url?: string | null
-          notes?: string | null
-          paid_at?: string | null
-          payment_method?: string | null
-          period_month: number
-          period_year: number
-          provider_registration_id: string
-          status?: string | null
-          total_enrollments?: number | null
-          total_provider_revenue?: number | null
-          upi_transaction_id?: string | null
-        }
-        Update: {
-          amount?: number
-          calculated_from_revenue?: number | null
-          commission_rate?: number | null
-          commission_type?: string | null
-          confirmed_at?: string | null
-          created_at?: string | null
-          id?: string
-          invoice_url?: string | null
-          notes?: string | null
-          paid_at?: string | null
-          payment_method?: string | null
-          period_month?: number
-          period_year?: number
-          provider_registration_id?: string
-          status?: string | null
-          total_enrollments?: number | null
-          total_provider_revenue?: number | null
-          upi_transaction_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "admin_fee_payments_provider_registration_id_fkey"
-            columns: ["provider_registration_id"]
-            isOneToOne: false
-            referencedRelation: "provider_apartment_registrations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       announcements: {
         Row: {
-          announcement_type: string | null
-          apartment_id: string | null
-          author_id: string
           batch_id: string | null
           body: string
           class_id: string | null
-          created_at: string | null
+          created_at: string
           id: string
-          is_pinned: boolean | null
-          target_audience: string
+          is_pinned: boolean
+          priority: string
+          provider_id: string
           title: string
+          type: string
         }
         Insert: {
-          announcement_type?: string | null
-          apartment_id?: string | null
-          author_id: string
           batch_id?: string | null
           body: string
           class_id?: string | null
-          created_at?: string | null
+          created_at?: string
           id?: string
-          is_pinned?: boolean | null
-          target_audience: string
+          is_pinned?: boolean
+          priority?: string
+          provider_id: string
           title: string
+          type?: string
         }
         Update: {
-          announcement_type?: string | null
-          apartment_id?: string | null
-          author_id?: string
           batch_id?: string | null
           body?: string
           class_id?: string | null
-          created_at?: string | null
+          created_at?: string
           id?: string
-          is_pinned?: boolean | null
-          target_audience?: string
+          is_pinned?: boolean
+          priority?: string
+          provider_id?: string
           title?: string
+          type?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "announcements_apartment_id_fkey"
-            columns: ["apartment_id"]
-            isOneToOne: false
-            referencedRelation: "apartment_complexes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "announcements_author_id_fkey"
-            columns: ["author_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "announcements_batch_id_fkey"
             columns: ["batch_id"]
@@ -154,118 +66,11 @@ export type Database = {
             referencedRelation: "classes"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      apartment_admins: {
-        Row: {
-          apartment_id: string
-          created_at: string | null
-          fee_amount: number | null
-          fee_type: string | null
-          id: string
-          is_active: boolean | null
-          user_id: string
-        }
-        Insert: {
-          apartment_id: string
-          created_at?: string | null
-          fee_amount?: number | null
-          fee_type?: string | null
-          id?: string
-          is_active?: boolean | null
-          user_id: string
-        }
-        Update: {
-          apartment_id?: string
-          created_at?: string | null
-          fee_amount?: number | null
-          fee_type?: string | null
-          id?: string
-          is_active?: boolean | null
-          user_id?: string
-        }
-        Relationships: [
           {
-            foreignKeyName: "apartment_admins_apartment_id_fkey"
-            columns: ["apartment_id"]
-            isOneToOne: true
-            referencedRelation: "apartment_complexes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "apartment_admins_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "announcements_provider_id_fkey"
+            columns: ["provider_id"]
             isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      apartment_complexes: {
-        Row: {
-          approved_at: string | null
-          approved_by: string | null
-          city: string
-          created_at: string | null
-          full_address: string | null
-          id: string
-          is_active: boolean | null
-          locality: string
-          logo_url: string | null
-          name: string
-          pin_code: string | null
-          registered_by: string | null
-          status: string | null
-          total_units: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          approved_at?: string | null
-          approved_by?: string | null
-          city: string
-          created_at?: string | null
-          full_address?: string | null
-          id?: string
-          is_active?: boolean | null
-          locality: string
-          logo_url?: string | null
-          name: string
-          pin_code?: string | null
-          registered_by?: string | null
-          status?: string | null
-          total_units?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          approved_at?: string | null
-          approved_by?: string | null
-          city?: string
-          created_at?: string | null
-          full_address?: string | null
-          id?: string
-          is_active?: boolean | null
-          locality?: string
-          logo_url?: string | null
-          name?: string
-          pin_code?: string | null
-          registered_by?: string | null
-          status?: string | null
-          total_units?: number | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "apartment_complexes_approved_by_fkey"
-            columns: ["approved_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "apartment_complexes_registered_by_fkey"
-            columns: ["registered_by"]
-            isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "service_providers"
             referencedColumns: ["id"]
           },
         ]
@@ -273,33 +78,33 @@ export type Database = {
       attendance_records: {
         Row: {
           batch_id: string
+          created_at: string
           enrollment_id: string
           id: string
-          marked_at: string | null
           marked_by: string
           notes: string | null
           session_date: string
-          status: string | null
+          status: string
         }
         Insert: {
           batch_id: string
+          created_at?: string
           enrollment_id: string
           id?: string
-          marked_at?: string | null
           marked_by: string
           notes?: string | null
           session_date: string
-          status?: string | null
+          status?: string
         }
         Update: {
           batch_id?: string
+          created_at?: string
           enrollment_id?: string
           id?: string
-          marked_at?: string | null
           marked_by?: string
           notes?: string | null
           session_date?: string
-          status?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -328,26 +133,29 @@ export type Database = {
       batch_schedules: {
         Row: {
           batch_id: string
+          created_at: string
           day_of_week: number
           end_time: string
           id: string
-          is_active: boolean | null
+          location: string | null
           start_time: string
         }
         Insert: {
           batch_id: string
+          created_at?: string
           day_of_week: number
           end_time: string
           id?: string
-          is_active?: boolean | null
+          location?: string | null
           start_time: string
         }
         Update: {
           batch_id?: string
+          created_at?: string
           day_of_week?: number
           end_time?: string
           id?: string
-          is_active?: boolean | null
+          location?: string | null
           start_time?: string
         }
         Relationships: [
@@ -362,76 +170,61 @@ export type Database = {
       }
       batches: {
         Row: {
-          age_group_max: number | null
-          age_group_min: number | null
-          auto_waitlist: boolean | null
-          batch_name: string
-          batch_type: string | null
+          auto_waitlist: boolean
           class_id: string
-          created_at: string | null
-          current_enrollment_count: number | null
+          created_at: string
+          current_enrollment_count: number
           end_date: string | null
           fee_amount: number
           fee_frequency: string
           id: string
-          max_batch_size: number
+          max_capacity: number
+          name: string
           notes: string | null
-          registration_fee: number | null
-          registration_mode: string | null
           skill_level: string | null
           start_date: string | null
-          status: string | null
+          status: string
           total_sessions: number | null
           trainer_id: string | null
-          updated_at: string | null
+          updated_at: string
         }
         Insert: {
-          age_group_max?: number | null
-          age_group_min?: number | null
-          auto_waitlist?: boolean | null
-          batch_name: string
-          batch_type?: string | null
+          auto_waitlist?: boolean
           class_id: string
-          created_at?: string | null
-          current_enrollment_count?: number | null
-          end_date?: string | null
-          fee_amount: number
-          fee_frequency: string
-          id?: string
-          max_batch_size: number
-          notes?: string | null
-          registration_fee?: number | null
-          registration_mode?: string | null
-          skill_level?: string | null
-          start_date?: string | null
-          status?: string | null
-          total_sessions?: number | null
-          trainer_id?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          age_group_max?: number | null
-          age_group_min?: number | null
-          auto_waitlist?: boolean | null
-          batch_name?: string
-          batch_type?: string | null
-          class_id?: string
-          created_at?: string | null
-          current_enrollment_count?: number | null
+          created_at?: string
+          current_enrollment_count?: number
           end_date?: string | null
           fee_amount?: number
           fee_frequency?: string
           id?: string
-          max_batch_size?: number
+          max_capacity?: number
+          name: string
           notes?: string | null
-          registration_fee?: number | null
-          registration_mode?: string | null
           skill_level?: string | null
           start_date?: string | null
-          status?: string | null
+          status?: string
           total_sessions?: number | null
           trainer_id?: string | null
-          updated_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          auto_waitlist?: boolean
+          class_id?: string
+          created_at?: string
+          current_enrollment_count?: number
+          end_date?: string | null
+          fee_amount?: number
+          fee_frequency?: string
+          id?: string
+          max_capacity?: number
+          name?: string
+          notes?: string | null
+          skill_level?: string | null
+          start_date?: string | null
+          status?: string
+          total_sessions?: number | null
+          trainer_id?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -452,72 +245,78 @@ export type Database = {
       }
       chat_conversations: {
         Row: {
-          created_at: string | null
+          batch_id: string | null
+          class_id: string | null
+          created_at: string
           id: string
           last_message_at: string | null
-          last_message_preview: string | null
-          participant_1: string
-          participant_2: string
+          participant_ids: string[]
+          type: string
         }
         Insert: {
-          created_at?: string | null
+          batch_id?: string | null
+          class_id?: string | null
+          created_at?: string
           id?: string
           last_message_at?: string | null
-          last_message_preview?: string | null
-          participant_1: string
-          participant_2: string
+          participant_ids: string[]
+          type?: string
         }
         Update: {
-          created_at?: string | null
+          batch_id?: string | null
+          class_id?: string | null
+          created_at?: string
           id?: string
           last_message_at?: string | null
-          last_message_preview?: string | null
-          participant_1?: string
-          participant_2?: string
+          participant_ids?: string[]
+          type?: string
         }
         Relationships: [
           {
-            foreignKeyName: "chat_conversations_participant_1_fkey"
-            columns: ["participant_1"]
+            foreignKeyName: "chat_conversations_batch_id_fkey"
+            columns: ["batch_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "batches"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "chat_conversations_participant_2_fkey"
-            columns: ["participant_2"]
+            foreignKeyName: "chat_conversations_class_id_fkey"
+            columns: ["class_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "classes"
             referencedColumns: ["id"]
           },
         ]
       }
       chat_messages: {
         Row: {
+          attachment_url: string | null
+          body: string
           conversation_id: string
-          created_at: string | null
+          created_at: string
           id: string
-          is_read: boolean | null
-          message_text: string
-          message_type: string | null
+          is_read: boolean
+          message_type: string
           sender_id: string
         }
         Insert: {
+          attachment_url?: string | null
+          body: string
           conversation_id: string
-          created_at?: string | null
+          created_at?: string
           id?: string
-          is_read?: boolean | null
-          message_text: string
-          message_type?: string | null
+          is_read?: boolean
+          message_type?: string
           sender_id: string
         }
         Update: {
+          attachment_url?: string | null
+          body?: string
           conversation_id?: string
-          created_at?: string | null
+          created_at?: string
           id?: string
-          is_read?: boolean | null
-          message_text?: string
-          message_type?: string | null
+          is_read?: boolean
+          message_type?: string
           sender_id?: string
         }
         Relationships: [
@@ -540,35 +339,29 @@ export type Database = {
       class_addons: {
         Row: {
           class_id: string
-          created_at: string | null
+          created_at: string
           description: string | null
-          fee_amount: number
-          fee_type: string | null
+          fee: number
           id: string
-          is_active: boolean | null
-          is_mandatory: boolean | null
+          is_active: boolean
           name: string
         }
         Insert: {
           class_id: string
-          created_at?: string | null
+          created_at?: string
           description?: string | null
-          fee_amount: number
-          fee_type?: string | null
+          fee?: number
           id?: string
-          is_active?: boolean | null
-          is_mandatory?: boolean | null
+          is_active?: boolean
           name: string
         }
         Update: {
           class_id?: string
-          created_at?: string | null
+          created_at?: string
           description?: string | null
-          fee_amount?: number
-          fee_type?: string | null
+          fee?: number
           id?: string
-          is_active?: boolean | null
-          is_mandatory?: boolean | null
+          is_active?: boolean
           name?: string
         }
         Relationships: [
@@ -583,34 +376,34 @@ export type Database = {
       }
       class_categories: {
         Row: {
-          sort_order: number | null
+          created_at: string
           icon: string | null
           id: string
-          is_active: boolean | null
+          is_active: boolean
           name: string
           parent_id: string | null
           slug: string
-          created_at: string | null
+          sort_order: number
         }
         Insert: {
-          sort_order?: number | null
+          created_at?: string
           icon?: string | null
           id?: string
-          is_active?: boolean | null
+          is_active?: boolean
           name: string
           parent_id?: string | null
           slug: string
-          created_at?: string | null
+          sort_order?: number
         }
         Update: {
-          sort_order?: number | null
+          created_at?: string
           icon?: string | null
           id?: string
-          is_active?: boolean | null
+          is_active?: boolean
           name?: string
           parent_id?: string | null
           slug?: string
-          created_at?: string | null
+          sort_order?: number
         }
         Relationships: [
           {
@@ -626,40 +419,37 @@ export type Database = {
         Row: {
           batch_id: string | null
           class_id: string
-          created_at: string | null
+          created_at: string
           description: string | null
           external_url: string | null
           file_url: string | null
           id: string
-          is_active: boolean | null
-          material_type: string
           title: string
+          type: string
           uploaded_by: string
         }
         Insert: {
           batch_id?: string | null
           class_id: string
-          created_at?: string | null
+          created_at?: string
           description?: string | null
           external_url?: string | null
           file_url?: string | null
           id?: string
-          is_active?: boolean | null
-          material_type: string
           title: string
+          type?: string
           uploaded_by: string
         }
         Update: {
           batch_id?: string | null
           class_id?: string
-          created_at?: string | null
+          created_at?: string
           description?: string | null
           external_url?: string | null
           file_url?: string | null
           id?: string
-          is_active?: boolean | null
-          material_type?: string
           title?: string
+          type?: string
           uploaded_by?: string
         }
         Relationships: [
@@ -688,112 +478,76 @@ export type Database = {
       }
       classes: {
         Row: {
-          age_group_max: number | null
-          age_group_min: number | null
-          category_id: string
-          class_commercial_notes: string | null
-          class_fee_amount: number | null
-          class_fee_type: string | null
-          class_payment_frequency: string | null
-          class_revenue_share_pct: number | null
-          class_terms_accepted_at: string | null
-          class_terms_proposed_by: string | null
-          class_terms_status: string
-          class_type: string | null
-          common_area_approval_status: string
-          common_area_rejection_reason: string | null
-          cover_image_url: string | null
-          created_at: string | null
+          address: string | null
+          age_max: number | null
+          age_min: number | null
+          category_id: string | null
+          created_at: string
           description: string | null
-          gallery_urls: string[] | null
           id: string
-          is_featured: boolean | null
-          promo_video_url: string | null
-          provider_registration_id: string
-          rating_count: number | null
-          requires_common_area: boolean
-          short_description: string | null
-          skill_level: string[] | null
-          status: string | null
+          images: string[]
+          is_home_based: boolean
+          location: unknown
+          moderation_notes: string | null
+          moderation_status: string
+          provider_id: string
+          rating_count: number
+          skill_level: string | null
+          status: string
+          tags: string[]
           title: string
-          total_rating: number | null
-          trial_available: boolean | null
+          total_rating: number
+          trial_available: boolean
           trial_fee: number | null
-          updated_at: string | null
-          venue_details: string | null
-          what_to_bring: string | null
+          updated_at: string
         }
         Insert: {
-          age_group_max?: number | null
-          age_group_min?: number | null
-          category_id: string
-          class_commercial_notes?: string | null
-          class_fee_amount?: number | null
-          class_fee_type?: string | null
-          class_payment_frequency?: string | null
-          class_revenue_share_pct?: number | null
-          class_terms_accepted_at?: string | null
-          class_terms_proposed_by?: string | null
-          class_terms_status?: string
-          class_type?: string | null
-          common_area_approval_status?: string
-          common_area_rejection_reason?: string | null
-          cover_image_url?: string | null
-          created_at?: string | null
+          address?: string | null
+          age_max?: number | null
+          age_min?: number | null
+          category_id?: string | null
+          created_at?: string
           description?: string | null
-          gallery_urls?: string[] | null
           id?: string
-          is_featured?: boolean | null
-          promo_video_url?: string | null
-          provider_registration_id: string
-          rating_count?: number | null
-          requires_common_area?: boolean
-          short_description?: string | null
-          skill_level?: string[] | null
-          status?: string | null
+          images?: string[]
+          is_home_based?: boolean
+          location?: unknown
+          moderation_notes?: string | null
+          moderation_status?: string
+          provider_id: string
+          rating_count?: number
+          skill_level?: string | null
+          status?: string
+          tags?: string[]
           title: string
-          total_rating?: number | null
-          trial_available?: boolean | null
+          total_rating?: number
+          trial_available?: boolean
           trial_fee?: number | null
-          updated_at?: string | null
-          venue_details?: string | null
-          what_to_bring?: string | null
+          updated_at?: string
         }
         Update: {
-          age_group_max?: number | null
-          age_group_min?: number | null
-          category_id?: string
-          class_commercial_notes?: string | null
-          class_fee_amount?: number | null
-          class_fee_type?: string | null
-          class_payment_frequency?: string | null
-          class_revenue_share_pct?: number | null
-          class_terms_accepted_at?: string | null
-          class_terms_proposed_by?: string | null
-          class_terms_status?: string
-          class_type?: string | null
-          common_area_approval_status?: string
-          common_area_rejection_reason?: string | null
-          cover_image_url?: string | null
-          created_at?: string | null
+          address?: string | null
+          age_max?: number | null
+          age_min?: number | null
+          category_id?: string | null
+          created_at?: string
           description?: string | null
-          gallery_urls?: string[] | null
           id?: string
-          is_featured?: boolean | null
-          promo_video_url?: string | null
-          provider_registration_id?: string
-          rating_count?: number | null
-          requires_common_area?: boolean
-          short_description?: string | null
-          skill_level?: string[] | null
-          status?: string | null
+          images?: string[]
+          is_home_based?: boolean
+          location?: unknown
+          moderation_notes?: string | null
+          moderation_status?: string
+          provider_id?: string
+          rating_count?: number
+          skill_level?: string | null
+          status?: string
+          tags?: string[]
           title?: string
-          total_rating?: number | null
-          trial_available?: boolean | null
+          total_rating?: number
+          trial_available?: boolean
           trial_fee?: number | null
-          updated_at?: string | null
-          venue_details?: string | null
-          what_to_bring?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -804,45 +558,41 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "classes_class_terms_proposed_by_fkey"
-            columns: ["class_terms_proposed_by"]
+            foreignKeyName: "classes_provider_id_fkey"
+            columns: ["provider_id"]
             isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "classes_provider_registration_id_fkey"
-            columns: ["provider_registration_id"]
-            isOneToOne: false
-            referencedRelation: "provider_apartment_registrations"
+            referencedRelation: "service_providers"
             referencedColumns: ["id"]
           },
         ]
       }
       demo_registrations: {
         Row: {
-          created_at: string | null
+          created_at: string
           demo_session_id: string
           family_member_id: string
+          feedback: string | null
           id: string
           registered_by: string
-          status: string | null
+          status: string
         }
         Insert: {
-          created_at?: string | null
+          created_at?: string
           demo_session_id: string
           family_member_id: string
+          feedback?: string | null
           id?: string
           registered_by: string
-          status?: string | null
+          status?: string
         }
         Update: {
-          created_at?: string | null
+          created_at?: string
           demo_session_id?: string
           family_member_id?: string
+          feedback?: string | null
           id?: string
           registered_by?: string
-          status?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -871,42 +621,39 @@ export type Database = {
       demo_sessions: {
         Row: {
           class_id: string
-          created_at: string | null
-          current_count: number | null
+          created_at: string
           end_time: string
-          fee: number | null
           id: string
-          max_participants: number | null
+          is_active: boolean
+          location_text: string | null
+          max_capacity: number
           notes: string | null
           session_date: string
           start_time: string
-          status: string | null
         }
         Insert: {
           class_id: string
-          created_at?: string | null
-          current_count?: number | null
+          created_at?: string
           end_time: string
-          fee?: number | null
           id?: string
-          max_participants?: number | null
+          is_active?: boolean
+          location_text?: string | null
+          max_capacity?: number
           notes?: string | null
           session_date: string
           start_time: string
-          status?: string | null
         }
         Update: {
           class_id?: string
-          created_at?: string | null
-          current_count?: number | null
+          created_at?: string
           end_time?: string
-          fee?: number | null
           id?: string
-          max_participants?: number | null
+          is_active?: boolean
+          location_text?: string | null
+          max_capacity?: number
           notes?: string | null
           session_date?: string
           start_time?: string
-          status?: string | null
         }
         Relationships: [
           {
@@ -920,49 +667,43 @@ export type Database = {
       }
       enrollments: {
         Row: {
-          approved_at: string | null
           batch_id: string
-          created_at: string | null
-          drop_reason: string | null
+          created_at: string
           dropped_at: string | null
-          enrolled_at: string | null
+          enrolled_at: string
           enrolled_by: string
           family_member_id: string
           id: string
           notes: string | null
-          selected_addon_ids: string[] | null
-          status: string | null
-          updated_at: string | null
+          selected_addon_ids: string[]
+          status: string
+          updated_at: string
         }
         Insert: {
-          approved_at?: string | null
           batch_id: string
-          created_at?: string | null
-          drop_reason?: string | null
+          created_at?: string
           dropped_at?: string | null
-          enrolled_at?: string | null
+          enrolled_at?: string
           enrolled_by: string
           family_member_id: string
           id?: string
           notes?: string | null
-          selected_addon_ids?: string[] | null
-          status?: string | null
-          updated_at?: string | null
+          selected_addon_ids?: string[]
+          status?: string
+          updated_at?: string
         }
         Update: {
-          approved_at?: string | null
           batch_id?: string
-          created_at?: string | null
-          drop_reason?: string | null
+          created_at?: string
           dropped_at?: string | null
-          enrolled_at?: string | null
+          enrolled_at?: string
           enrolled_by?: string
           family_member_id?: string
           id?: string
           notes?: string | null
-          selected_addon_ids?: string[] | null
-          status?: string | null
-          updated_at?: string | null
+          selected_addon_ids?: string[]
+          status?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -990,44 +731,28 @@ export type Database = {
       }
       families: {
         Row: {
-          apartment_id: string
-          block_tower: string | null
-          created_at: string | null
-          flat_number: string | null
+          created_at: string
           id: string
           primary_user_id: string
-          updated_at: string | null
+          updated_at: string
         }
         Insert: {
-          apartment_id: string
-          block_tower?: string | null
-          created_at?: string | null
-          flat_number?: string | null
+          created_at?: string
           id?: string
           primary_user_id: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Update: {
-          apartment_id?: string
-          block_tower?: string | null
-          created_at?: string | null
-          flat_number?: string | null
+          created_at?: string
           id?: string
           primary_user_id?: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "families_apartment_id_fkey"
-            columns: ["apartment_id"]
-            isOneToOne: false
-            referencedRelation: "apartment_complexes"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "families_primary_user_id_fkey"
             columns: ["primary_user_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -1037,53 +762,44 @@ export type Database = {
         Row: {
           accepted_at: string | null
           accepted_by: string | null
-          claimed_member_id: string | null
-          created_at: string | null
-          expires_at: string | null
+          created_at: string
+          expires_at: string
           family_id: string
           id: string
           invite_code: string
-          invite_type: string | null
           invited_by: string
           invited_email: string | null
           invited_phone: string | null
           invited_user_id: string | null
-          message: string | null
-          status: string | null
+          status: string
         }
         Insert: {
           accepted_at?: string | null
           accepted_by?: string | null
-          claimed_member_id?: string | null
-          created_at?: string | null
-          expires_at?: string | null
+          created_at?: string
+          expires_at?: string
           family_id: string
           id?: string
           invite_code: string
-          invite_type?: string | null
           invited_by: string
           invited_email?: string | null
           invited_phone?: string | null
           invited_user_id?: string | null
-          message?: string | null
-          status?: string | null
+          status?: string
         }
         Update: {
           accepted_at?: string | null
           accepted_by?: string | null
-          claimed_member_id?: string | null
-          created_at?: string | null
-          expires_at?: string | null
+          created_at?: string
+          expires_at?: string
           family_id?: string
           id?: string
           invite_code?: string
-          invite_type?: string | null
           invited_by?: string
           invited_email?: string | null
           invited_phone?: string | null
           invited_user_id?: string | null
-          message?: string | null
-          status?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -1091,13 +807,6 @@ export type Database = {
             columns: ["accepted_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "family_invites_claimed_member_id_fkey"
-            columns: ["claimed_member_id"]
-            isOneToOne: false
-            referencedRelation: "family_members"
             referencedColumns: ["id"]
           },
           {
@@ -1125,42 +834,33 @@ export type Database = {
       }
       family_links: {
         Row: {
-          created_at: string | null
+          accepted_at: string | null
+          created_at: string
           family_id: string
           id: string
-          linked_at: string | null
-          linked_via: string | null
-          role: string | null
-          status: string | null
-          unlink_reason: string | null
-          unlinked_at: string | null
-          unlinked_by: string | null
+          invited_by: string | null
+          role: string
+          status: string
           user_id: string
         }
         Insert: {
-          created_at?: string | null
+          accepted_at?: string | null
+          created_at?: string
           family_id: string
           id?: string
-          linked_at?: string | null
-          linked_via?: string | null
-          role?: string | null
-          status?: string | null
-          unlink_reason?: string | null
-          unlinked_at?: string | null
-          unlinked_by?: string | null
+          invited_by?: string | null
+          role?: string
+          status?: string
           user_id: string
         }
         Update: {
-          created_at?: string | null
+          accepted_at?: string | null
+          created_at?: string
           family_id?: string
           id?: string
-          linked_at?: string | null
-          linked_via?: string | null
-          role?: string | null
-          status?: string | null
-          unlink_reason?: string | null
-          unlinked_at?: string | null
-          unlinked_by?: string | null
+          invited_by?: string | null
+          role?: string
+          status?: string
           user_id?: string
         }
         Relationships: [
@@ -1172,8 +872,8 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "family_links_unlinked_by_fkey"
-            columns: ["unlinked_by"]
+            foreignKeyName: "family_links_invited_by_fkey"
+            columns: ["invited_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -1190,42 +890,45 @@ export type Database = {
       family_members: {
         Row: {
           age_group: string | null
-          avatar_url: string | null
-          created_at: string | null
+          created_at: string
           date_of_birth: string | null
+          deleted_at: string | null
           family_id: string
+          full_name: string
           gender: string | null
           id: string
-          is_active: boolean | null
-          name: string
+          is_active: boolean
+          linked_user_id: string | null
           relationship: string | null
-          updated_at: string | null
+          updated_at: string
         }
         Insert: {
           age_group?: string | null
-          avatar_url?: string | null
-          created_at?: string | null
+          created_at?: string
           date_of_birth?: string | null
+          deleted_at?: string | null
           family_id: string
+          full_name: string
           gender?: string | null
           id?: string
-          is_active?: boolean | null
-          name: string
+          is_active?: boolean
+          linked_user_id?: string | null
           relationship?: string | null
-          updated_at?: string | null
+          updated_at?: string
         }
         Update: {
           age_group?: string | null
-          avatar_url?: string | null
-          created_at?: string | null
+          created_at?: string
           date_of_birth?: string | null
+          deleted_at?: string | null
           family_id?: string
+          full_name?: string
           gender?: string | null
           id?: string
-          is_active?: boolean | null
-          name?: string
+          is_active?: boolean
+          linked_user_id?: string | null
           relationship?: string | null
-          updated_at?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -1235,120 +938,151 @@ export type Database = {
             referencedRelation: "families"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "family_members_linked_user_id_fkey"
+            columns: ["linked_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
         ]
       }
-      featured_class_listings: {
+      featured_banners: {
         Row: {
-          ad_fee: number | null
-          admin_notes: string | null
-          apartment_id: string
-          banner_image_url: string
-          class_id: string
-          created_at: string | null
-          deactivated_at: string | null
-          deactivated_by: string | null
-          deactivation_reason: string | null
-          display_order: number | null
-          fee_accepted_at: string | null
-          fee_status: string | null
+          class_id: string | null
+          click_count: number
           id: string
-          provider_registration_id: string
-          requested_at: string | null
-          requested_by: string
-          responded_at: string | null
-          responded_by: string | null
-          status: string | null
-          updated_at: string | null
+          image_url: string
+          impression_count: number
+          moderation_status: string
+          provider_id: string
+          rejection_reason: string | null
+          requested_at: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          target_url: string | null
           valid_from: string | null
           valid_until: string | null
         }
         Insert: {
-          ad_fee?: number | null
-          admin_notes?: string | null
-          apartment_id: string
-          banner_image_url: string
-          class_id: string
-          created_at?: string | null
-          deactivated_at?: string | null
-          deactivated_by?: string | null
-          deactivation_reason?: string | null
-          display_order?: number | null
-          fee_accepted_at?: string | null
-          fee_status?: string | null
+          class_id?: string | null
+          click_count?: number
           id?: string
-          provider_registration_id: string
-          requested_at?: string | null
-          requested_by: string
-          responded_at?: string | null
-          responded_by?: string | null
-          status?: string | null
-          updated_at?: string | null
+          image_url: string
+          impression_count?: number
+          moderation_status?: string
+          provider_id: string
+          rejection_reason?: string | null
+          requested_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          target_url?: string | null
           valid_from?: string | null
           valid_until?: string | null
         }
         Update: {
-          ad_fee?: number | null
-          admin_notes?: string | null
-          apartment_id?: string
-          banner_image_url?: string
-          class_id?: string
-          created_at?: string | null
-          deactivated_at?: string | null
-          deactivated_by?: string | null
-          deactivation_reason?: string | null
-          display_order?: number | null
-          fee_accepted_at?: string | null
-          fee_status?: string | null
+          class_id?: string | null
+          click_count?: number
           id?: string
-          provider_registration_id?: string
-          requested_at?: string | null
-          requested_by?: string
-          responded_at?: string | null
-          responded_by?: string | null
-          status?: string | null
-          updated_at?: string | null
+          image_url?: string
+          impression_count?: number
+          moderation_status?: string
+          provider_id?: string
+          rejection_reason?: string | null
+          requested_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          target_url?: string | null
           valid_from?: string | null
           valid_until?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "featured_class_listings_apartment_id_fkey"
-            columns: ["apartment_id"]
-            isOneToOne: false
-            referencedRelation: "apartment_complexes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "featured_class_listings_class_id_fkey"
+            foreignKeyName: "featured_banners_class_id_fkey"
             columns: ["class_id"]
             isOneToOne: false
             referencedRelation: "classes"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "featured_class_listings_deactivated_by_fkey"
-            columns: ["deactivated_by"]
+            foreignKeyName: "featured_banners_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "featured_banners_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      moderation_flags: {
+        Row: {
+          action_notes: string | null
+          ai_categories: Json | null
+          ai_provider: string | null
+          ai_score: number | null
+          content_snapshot: string | null
+          created_at: string
+          id: string
+          image_url: string | null
+          owner_user_id: string | null
+          ref_id: string
+          ref_type: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          action_notes?: string | null
+          ai_categories?: Json | null
+          ai_provider?: string | null
+          ai_score?: number | null
+          content_snapshot?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          owner_user_id?: string | null
+          ref_id: string
+          ref_type: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          action_notes?: string | null
+          ai_categories?: Json | null
+          ai_provider?: string | null
+          ai_score?: number | null
+          content_snapshot?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          owner_user_id?: string | null
+          ref_id?: string
+          ref_type?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moderation_flags_owner_user_id_fkey"
+            columns: ["owner_user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "featured_class_listings_provider_registration_id_fkey"
-            columns: ["provider_registration_id"]
-            isOneToOne: false
-            referencedRelation: "provider_apartment_registrations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "featured_class_listings_requested_by_fkey"
-            columns: ["requested_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "featured_class_listings_responded_by_fkey"
-            columns: ["responded_by"]
+            foreignKeyName: "moderation_flags_reviewed_by_fkey"
+            columns: ["reviewed_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -1357,36 +1091,36 @@ export type Database = {
       }
       notifications: {
         Row: {
-          body: string
-          created_at: string | null
+          body: string | null
+          created_at: string
           id: string
-          is_read: boolean | null
-          notification_type: string
-          reference_id: string | null
-          reference_type: string | null
+          is_read: boolean
+          ref_id: string | null
+          ref_type: string | null
           title: string
+          type: string
           user_id: string
         }
         Insert: {
-          body: string
-          created_at?: string | null
+          body?: string | null
+          created_at?: string
           id?: string
-          is_read?: boolean | null
-          notification_type: string
-          reference_id?: string | null
-          reference_type?: string | null
+          is_read?: boolean
+          ref_id?: string | null
+          ref_type?: string | null
           title: string
+          type: string
           user_id: string
         }
         Update: {
-          body?: string
-          created_at?: string | null
+          body?: string | null
+          created_at?: string
           id?: string
-          is_read?: boolean | null
-          notification_type?: string
-          reference_id?: string | null
-          reference_type?: string | null
+          is_read?: boolean
+          ref_id?: string | null
+          ref_type?: string | null
           title?: string
+          type?: string
           user_id?: string
         }
         Relationships: [
@@ -1402,73 +1136,61 @@ export type Database = {
       payments: {
         Row: {
           amount: number
-          confirmed_at: string | null
-          confirmed_by: string | null
-          created_at: string | null
-          due_date: string | null
+          batch_id: string | null
+          created_at: string
           enrollment_id: string | null
           id: string
           notes: string | null
-          paid_at: string | null
           payer_user_id: string
-          payment_method: string | null
-          payment_period_end: string | null
-          payment_period_start: string | null
+          payment_date: string | null
+          payment_mode: string | null
           payment_type: string
           provider_id: string
-          receipt_url: string | null
-          status: string | null
-          updated_at: string | null
-          upi_transaction_id: string | null
+          reference_number: string | null
+          screenshot_url: string | null
+          status: string
+          updated_at: string
         }
         Insert: {
           amount: number
-          confirmed_at?: string | null
-          confirmed_by?: string | null
-          created_at?: string | null
-          due_date?: string | null
+          batch_id?: string | null
+          created_at?: string
           enrollment_id?: string | null
           id?: string
           notes?: string | null
-          paid_at?: string | null
           payer_user_id: string
-          payment_method?: string | null
-          payment_period_end?: string | null
-          payment_period_start?: string | null
-          payment_type: string
+          payment_date?: string | null
+          payment_mode?: string | null
+          payment_type?: string
           provider_id: string
-          receipt_url?: string | null
-          status?: string | null
-          updated_at?: string | null
-          upi_transaction_id?: string | null
+          reference_number?: string | null
+          screenshot_url?: string | null
+          status?: string
+          updated_at?: string
         }
         Update: {
           amount?: number
-          confirmed_at?: string | null
-          confirmed_by?: string | null
-          created_at?: string | null
-          due_date?: string | null
+          batch_id?: string | null
+          created_at?: string
           enrollment_id?: string | null
           id?: string
           notes?: string | null
-          paid_at?: string | null
           payer_user_id?: string
-          payment_method?: string | null
-          payment_period_end?: string | null
-          payment_period_start?: string | null
+          payment_date?: string | null
+          payment_mode?: string | null
           payment_type?: string
           provider_id?: string
-          receipt_url?: string | null
-          status?: string | null
-          updated_at?: string | null
-          upi_transaction_id?: string | null
+          reference_number?: string | null
+          screenshot_url?: string | null
+          status?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "payments_confirmed_by_fkey"
-            columns: ["confirmed_by"]
+            foreignKeyName: "payments_batch_id_fkey"
+            columns: ["batch_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "batches"
             referencedColumns: ["id"]
           },
           {
@@ -1494,172 +1216,124 @@ export type Database = {
           },
         ]
       }
-      platform_fee_config: {
+      platform_settings: {
         Row: {
-          applies_to: string | null
-          created_at: string | null
-          effective_from: string | null
-          fee_type: string | null
-          fee_value: number | null
-          id: string
-          is_active: boolean | null
+          description: string | null
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
         }
         Insert: {
-          applies_to?: string | null
-          created_at?: string | null
-          effective_from?: string | null
-          fee_type?: string | null
-          fee_value?: number | null
-          id?: string
-          is_active?: boolean | null
+          description?: string | null
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: Json
         }
         Update: {
-          applies_to?: string | null
-          created_at?: string | null
-          effective_from?: string | null
-          fee_type?: string | null
-          fee_value?: number | null
-          id?: string
-          is_active?: boolean | null
-        }
-        Relationships: []
-      }
-      provider_apartment_registrations: {
-        Row: {
-          admin_fee_amount: number | null
-          admin_fee_type: string | null
-          apartment_id: string
-          approved_at: string | null
-          approved_by: string | null
-          commercial_notes: string | null
-          created_at: string | null
-          free_trial_days: number | null
-          id: string
-          min_guaranteed_fee: number | null
-          payment_frequency: string | null
-          provider_id: string
-          revenue_share_pct: number | null
-          status: string | null
-          suspended_at: string | null
-          suspension_reason: string | null
-          terms_accepted_at: string | null
-          terms_status: string | null
-          terms_version: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          admin_fee_amount?: number | null
-          admin_fee_type?: string | null
-          apartment_id: string
-          approved_at?: string | null
-          approved_by?: string | null
-          commercial_notes?: string | null
-          created_at?: string | null
-          free_trial_days?: number | null
-          id?: string
-          min_guaranteed_fee?: number | null
-          payment_frequency?: string | null
-          provider_id: string
-          revenue_share_pct?: number | null
-          status?: string | null
-          suspended_at?: string | null
-          suspension_reason?: string | null
-          terms_accepted_at?: string | null
-          terms_status?: string | null
-          terms_version?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          admin_fee_amount?: number | null
-          admin_fee_type?: string | null
-          apartment_id?: string
-          approved_at?: string | null
-          approved_by?: string | null
-          commercial_notes?: string | null
-          created_at?: string | null
-          free_trial_days?: number | null
-          id?: string
-          min_guaranteed_fee?: number | null
-          payment_frequency?: string | null
-          provider_id?: string
-          revenue_share_pct?: number | null
-          status?: string | null
-          suspended_at?: string | null
-          suspension_reason?: string | null
-          terms_accepted_at?: string | null
-          terms_status?: string | null
-          terms_version?: number | null
-          updated_at?: string | null
+          description?: string | null
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
         }
         Relationships: [
           {
-            foreignKeyName: "provider_apartment_registrations_apartment_id_fkey"
-            columns: ["apartment_id"]
-            isOneToOne: false
-            referencedRelation: "apartment_complexes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "provider_apartment_registrations_approved_by_fkey"
-            columns: ["approved_by"]
+            foreignKeyName: "platform_settings_updated_by_fkey"
+            columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      provider_subscription_requests: {
+        Row: {
+          granted_until: string | null
+          id: string
+          notes: string | null
+          off_app_payment_ref: string | null
+          provider_id: string
+          rejection_reason: string | null
+          requested_at: string
+          requested_tier: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          granted_until?: string | null
+          id?: string
+          notes?: string | null
+          off_app_payment_ref?: string | null
+          provider_id: string
+          rejection_reason?: string | null
+          requested_at?: string
+          requested_tier?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          granted_until?: string | null
+          id?: string
+          notes?: string | null
+          off_app_payment_ref?: string | null
+          provider_id?: string
+          rejection_reason?: string | null
+          requested_at?: string
+          requested_tier?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
           {
-            foreignKeyName: "provider_apartment_registrations_provider_id_fkey"
+            foreignKeyName: "provider_subscription_requests_provider_id_fkey"
             columns: ["provider_id"]
             isOneToOne: false
             referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_subscription_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
       }
       referrals: {
         Row: {
-          apartment_id: string
-          converted_at: string | null
-          created_at: string | null
+          created_at: string
           id: string
           referral_code: string
           referred_user_id: string | null
-          referrer_user_id: string
+          referrer_id: string
           reward_type: string | null
-          reward_value: number | null
-          status: string | null
+          status: string
         }
         Insert: {
-          apartment_id: string
-          converted_at?: string | null
-          created_at?: string | null
+          created_at?: string
           id?: string
           referral_code: string
           referred_user_id?: string | null
-          referrer_user_id: string
+          referrer_id: string
           reward_type?: string | null
-          reward_value?: number | null
-          status?: string | null
+          status?: string
         }
         Update: {
-          apartment_id?: string
-          converted_at?: string | null
-          created_at?: string | null
+          created_at?: string
           id?: string
           referral_code?: string
           referred_user_id?: string | null
-          referrer_user_id?: string
+          referrer_id?: string
           reward_type?: string | null
-          reward_value?: number | null
-          status?: string | null
+          status?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "referrals_apartment_id_fkey"
-            columns: ["apartment_id"]
-            isOneToOne: false
-            referencedRelation: "apartment_complexes"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "referrals_referred_user_id_fkey"
             columns: ["referred_user_id"]
@@ -1668,8 +1342,8 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "referrals_referrer_user_id_fkey"
-            columns: ["referrer_user_id"]
+            foreignKeyName: "referrals_referrer_id_fkey"
+            columns: ["referrer_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -1678,48 +1352,52 @@ export type Database = {
       }
       reviews: {
         Row: {
+          batch_id: string | null
           class_id: string
-          created_at: string | null
-          enrollment_id: string | null
+          comment: string | null
+          created_at: string
+          family_member_id: string | null
           id: string
-          is_verified: boolean | null
-          is_visible: boolean | null
           provider_replied_at: string | null
           provider_reply: string | null
           rating: number
-          review_text: string | null
           reviewer_user_id: string
-          updated_at: string | null
+          updated_at: string
         }
         Insert: {
+          batch_id?: string | null
           class_id: string
-          created_at?: string | null
-          enrollment_id?: string | null
+          comment?: string | null
+          created_at?: string
+          family_member_id?: string | null
           id?: string
-          is_verified?: boolean | null
-          is_visible?: boolean | null
           provider_replied_at?: string | null
           provider_reply?: string | null
           rating: number
-          review_text?: string | null
           reviewer_user_id: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Update: {
+          batch_id?: string | null
           class_id?: string
-          created_at?: string | null
-          enrollment_id?: string | null
+          comment?: string | null
+          created_at?: string
+          family_member_id?: string | null
           id?: string
-          is_verified?: boolean | null
-          is_visible?: boolean | null
           provider_replied_at?: string | null
           provider_reply?: string | null
           rating?: number
-          review_text?: string | null
           reviewer_user_id?: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "reviews_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reviews_class_id_fkey"
             columns: ["class_id"]
@@ -1728,10 +1406,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "reviews_enrollment_id_fkey"
-            columns: ["enrollment_id"]
+            foreignKeyName: "reviews_family_member_id_fkey"
+            columns: ["family_member_id"]
             isOneToOne: false
-            referencedRelation: "enrollments"
+            referencedRelation: "family_members"
             referencedColumns: ["id"]
           },
           {
@@ -1746,65 +1424,68 @@ export type Database = {
       service_providers: {
         Row: {
           bio: string | null
-          business_name: string | null
-          created_at: string | null
+          business_name: string
+          created_at: string
           experience_years: number | null
+          home_address: string | null
+          home_location: unknown
           id: string
-          instagram_handle: string | null
-          intro_video_url: string | null
-          is_verified: boolean | null
-          profile_photos: string[] | null
-          provider_type: string | null
-          qualifications: string | null
+          is_verified: boolean
+          logo_url: string | null
+          provider_type: string
+          qualifications: string[] | null
           specialization_category_ids: string[] | null
           specializations: string[] | null
-          updated_at: string | null
-          upi_id: string | null
-          upi_qr_image_url: string | null
+          subscription_tier: string
+          subscription_valid_until: string | null
+          suspended_at: string | null
+          suspension_reason: string | null
+          updated_at: string
           user_id: string
-          website_url: string | null
           whatsapp_number: string | null
         }
         Insert: {
           bio?: string | null
-          business_name?: string | null
-          created_at?: string | null
+          business_name: string
+          created_at?: string
           experience_years?: number | null
+          home_address?: string | null
+          home_location?: unknown
           id?: string
-          instagram_handle?: string | null
-          intro_video_url?: string | null
-          is_verified?: boolean | null
-          profile_photos?: string[] | null
-          provider_type?: string | null
-          qualifications?: string | null
+          is_verified?: boolean
+          logo_url?: string | null
+          provider_type?: string
+          qualifications?: string[] | null
           specialization_category_ids?: string[] | null
           specializations?: string[] | null
-          updated_at?: string | null
-          upi_id?: string | null
-          upi_qr_image_url?: string | null
+          subscription_tier?: string
+          subscription_valid_until?: string | null
+          suspended_at?: string | null
+          suspension_reason?: string | null
+          updated_at?: string
           user_id: string
-          website_url?: string | null
           whatsapp_number?: string | null
         }
         Update: {
           bio?: string | null
-          business_name?: string | null
-          created_at?: string | null
+          business_name?: string
+          created_at?: string
           experience_years?: number | null
+          home_address?: string | null
+          home_location?: unknown
           id?: string
-          instagram_handle?: string | null
-          intro_video_url?: string | null
-          is_verified?: boolean | null
-          profile_photos?: string[] | null
-          provider_type?: string | null
-          qualifications?: string | null
+          is_verified?: boolean
+          logo_url?: string | null
+          provider_type?: string
+          qualifications?: string[] | null
           specialization_category_ids?: string[] | null
           specializations?: string[] | null
-          updated_at?: string | null
-          upi_id?: string | null
-          upi_qr_image_url?: string | null
+          subscription_tier?: string
+          subscription_valid_until?: string | null
+          suspended_at?: string | null
+          suspension_reason?: string | null
+          updated_at?: string
           user_id?: string
-          website_url?: string | null
           whatsapp_number?: string | null
         }
         Relationships: [
@@ -1817,45 +1498,145 @@ export type Database = {
           },
         ]
       }
-      trainers: {
+      spatial_ref_sys: {
         Row: {
-          bio: string | null
-          created_at: string | null
-          experience_years: number | null
-          id: string
-          is_active: boolean | null
-          name: string
-          photo_url: string | null
-          provider_id: string
-          qualifications: string | null
-          specializations: string[] | null
-          updated_at: string | null
+          auth_name: string | null
+          auth_srid: number | null
+          proj4text: string | null
+          srid: number
+          srtext: string | null
         }
         Insert: {
-          bio?: string | null
-          created_at?: string | null
-          experience_years?: number | null
-          id?: string
-          is_active?: boolean | null
-          name: string
-          photo_url?: string | null
-          provider_id: string
-          qualifications?: string | null
-          specializations?: string[] | null
-          updated_at?: string | null
+          auth_name?: string | null
+          auth_srid?: number | null
+          proj4text?: string | null
+          srid: number
+          srtext?: string | null
         }
         Update: {
-          bio?: string | null
-          created_at?: string | null
-          experience_years?: number | null
+          auth_name?: string | null
+          auth_srid?: number | null
+          proj4text?: string | null
+          srid?: number
+          srtext?: string | null
+        }
+        Relationships: []
+      }
+      sponsored_listings: {
+        Row: {
+          center_address: string | null
+          center_location: unknown
+          class_id: string
+          id: string
+          off_app_payment_ref: string | null
+          provider_id: string
+          radius_km: number
+          rejection_reason: string | null
+          requested_at: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          slot_position: number | null
+          status: string
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          center_address?: string | null
+          center_location?: unknown
+          class_id: string
           id?: string
-          is_active?: boolean | null
-          name?: string
-          photo_url?: string | null
+          off_app_payment_ref?: string | null
+          provider_id: string
+          radius_km?: number
+          rejection_reason?: string | null
+          requested_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          slot_position?: number | null
+          status?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          center_address?: string | null
+          center_location?: unknown
+          class_id?: string
+          id?: string
+          off_app_payment_ref?: string | null
           provider_id?: string
-          qualifications?: string | null
-          specializations?: string[] | null
-          updated_at?: string | null
+          radius_km?: number
+          rejection_reason?: string | null
+          requested_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          slot_position?: number | null
+          status?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsored_listings_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsored_listings_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsored_listings_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trainers: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          phone: string | null
+          provider_id: string
+          specialization: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          phone?: string | null
+          provider_id: string
+          specialization?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          phone?: string | null
+          provider_id?: string
+          specialization?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -1871,92 +1652,86 @@ export type Database = {
         Row: {
           auth_id: string | null
           avatar_url: string | null
-          created_at: string | null
+          created_at: string
           email: string | null
           full_name: string
           id: string
-          is_active: boolean | null
-          is_apartment_admin: boolean | null
-          is_platform_admin: boolean | null
-          is_provider: boolean | null
-          is_verified: boolean | null
-          last_active_persona: string | null
+          is_active: boolean
+          is_platform_admin: boolean
+          is_provider: boolean
+          is_verified: boolean
+          last_active_persona: string
           mobile_number: string | null
           seeker_home_address: string | null
-          seeker_home_location: unknown | null
-          updated_at: string | null
+          seeker_home_location: unknown
+          updated_at: string
         }
         Insert: {
           auth_id?: string | null
           avatar_url?: string | null
-          created_at?: string | null
+          created_at?: string
           email?: string | null
-          full_name?: string
+          full_name: string
           id?: string
-          is_active?: boolean | null
-          is_apartment_admin?: boolean | null
-          is_platform_admin?: boolean | null
-          is_provider?: boolean | null
-          is_verified?: boolean | null
-          last_active_persona?: string | null
+          is_active?: boolean
+          is_platform_admin?: boolean
+          is_provider?: boolean
+          is_verified?: boolean
+          last_active_persona?: string
           mobile_number?: string | null
           seeker_home_address?: string | null
-          seeker_home_location?: unknown | null
-          updated_at?: string | null
+          seeker_home_location?: unknown
+          updated_at?: string
         }
         Update: {
           auth_id?: string | null
           avatar_url?: string | null
-          created_at?: string | null
+          created_at?: string
           email?: string | null
           full_name?: string
           id?: string
-          is_active?: boolean | null
-          is_apartment_admin?: boolean | null
-          is_platform_admin?: boolean | null
-          is_provider?: boolean | null
-          is_verified?: boolean | null
-          last_active_persona?: string | null
+          is_active?: boolean
+          is_platform_admin?: boolean
+          is_provider?: boolean
+          is_verified?: boolean
+          last_active_persona?: string
           mobile_number?: string | null
           seeker_home_address?: string | null
-          seeker_home_location?: unknown | null
-          updated_at?: string | null
+          seeker_home_location?: unknown
+          updated_at?: string
         }
         Relationships: []
       }
       waitlist_entries: {
         Row: {
           batch_id: string
-          created_at: string | null
+          created_at: string
+          expires_at: string | null
           family_member_id: string
           id: string
-          offer_expires_at: string | null
           offered_at: string | null
           position: number
-          requested_by: string
-          status: string | null
+          status: string
         }
         Insert: {
           batch_id: string
-          created_at?: string | null
+          created_at?: string
+          expires_at?: string | null
           family_member_id: string
           id?: string
-          offer_expires_at?: string | null
           offered_at?: string | null
           position: number
-          requested_by: string
-          status?: string | null
+          status?: string
         }
         Update: {
           batch_id?: string
-          created_at?: string | null
+          created_at?: string
+          expires_at?: string | null
           family_member_id?: string
           id?: string
-          offer_expires_at?: string | null
           offered_at?: string | null
           position?: number
-          requested_by?: string
-          status?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -1973,151 +1748,457 @@ export type Database = {
             referencedRelation: "family_members"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "waitlist_entries_requested_by_fkey"
-            columns: ["requested_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      geography_columns: {
+        Row: {
+          coord_dimension: number | null
+          f_geography_column: unknown
+          f_table_catalog: unknown
+          f_table_name: unknown
+          f_table_schema: unknown
+          srid: number | null
+          type: string | null
+        }
+        Relationships: []
+      }
+      geometry_columns: {
+        Row: {
+          coord_dimension: number | null
+          f_geometry_column: unknown
+          f_table_catalog: string | null
+          f_table_name: unknown
+          f_table_schema: unknown
+          srid: number | null
+          type: string | null
+        }
+        Insert: {
+          coord_dimension?: number | null
+          f_geometry_column?: unknown
+          f_table_catalog?: string | null
+          f_table_name?: unknown
+          f_table_schema?: unknown
+          srid?: number | null
+          type?: string | null
+        }
+        Update: {
+          coord_dimension?: number | null
+          f_geometry_column?: unknown
+          f_table_catalog?: string | null
+          f_table_name?: unknown
+          f_table_schema?: unknown
+          srid?: number | null
+          type?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      accept_class_terms: {
-        Args: { p_accept: boolean; p_class_id: string }
+      _mirror_moderation_status: {
+        Args: { p_ref_id: string; p_ref_type: string; p_status: string }
         Returns: undefined
       }
-      accept_provider_terms: {
-        Args: { p_accept: boolean; p_registration_id: string }
+      _postgis_deprecate: {
+        Args: { newname: string; oldname: string; version: string }
         Returns: undefined
       }
-      admin_get_user_count: { Args: never; Returns: number }
-      admin_get_users_growth: {
-        Args: never
-        Returns: {
-          created_at: string
-          id: string
-        }[]
+      _postgis_index_extent: {
+        Args: { col: string; tbl: unknown }
+        Returns: unknown
       }
-      admin_search_users: {
-        Args: { search_query: string }
-        Returns: {
-          avatar_url: string
-          email: string
-          full_name: string
-          id: string
-          mobile_number: string
-        }[]
+      _postgis_pgsql_version: { Args: never; Returns: string }
+      _postgis_scripts_pgsql_version: { Args: never; Returns: string }
+      _postgis_selectivity: {
+        Args: { att_name: string; geom: unknown; mode?: string; tbl: unknown }
+        Returns: number
       }
-      admin_update_user: {
+      _postgis_stats: {
+        Args: { ""?: string; att_name: string; tbl: unknown }
+        Returns: string
+      }
+      _st_3dintersects: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      _st_contains: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      _st_containsproperly: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      _st_coveredby:
+        | { Args: { geog1: unknown; geog2: unknown }; Returns: boolean }
+        | { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      _st_covers:
+        | { Args: { geog1: unknown; geog2: unknown }; Returns: boolean }
+        | { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      _st_crosses: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      _st_dwithin: {
         Args: {
-          set_apartment_admin?: boolean
-          set_platform_admin?: boolean
-          target_user_id: string
+          geog1: unknown
+          geog2: unknown
+          tolerance: number
+          use_spheroid?: boolean
         }
+        Returns: boolean
+      }
+      _st_equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      _st_intersects: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      _st_linecrossingdirection: {
+        Args: { line1: unknown; line2: unknown }
+        Returns: number
+      }
+      _st_longestline: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: unknown
+      }
+      _st_maxdistance: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: number
+      }
+      _st_orderingequals: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      _st_overlaps: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      _st_sortablehash: { Args: { geom: unknown }; Returns: number }
+      _st_touches: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      _st_voronoi: {
+        Args: {
+          clip?: unknown
+          g1: unknown
+          return_polygons?: boolean
+          tolerance?: number
+        }
+        Returns: unknown
+      }
+      _st_within: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      addauth: { Args: { "": string }; Returns: boolean }
+      addgeometrycolumn:
+        | {
+            Args: {
+              catalog_name: string
+              column_name: string
+              new_dim: number
+              new_srid_in: number
+              new_type: string
+              schema_name: string
+              table_name: string
+              use_typmod?: boolean
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              column_name: string
+              new_dim: number
+              new_srid: number
+              new_type: string
+              schema_name: string
+              table_name: string
+              use_typmod?: boolean
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              column_name: string
+              new_dim: number
+              new_srid: number
+              new_type: string
+              table_name: string
+              use_typmod?: boolean
+            }
+            Returns: string
+          }
+      approve_subscription_request: {
+        Args: { p_request_id: string; p_valid_until: string }
         Returns: undefined
       }
-      create_family_for_user: {
+      create_own_family: { Args: never; Returns: string }
+      current_user_id: { Args: never; Returns: string }
+      delete_family_member: {
+        Args: { p_member_id: string }
+        Returns: undefined
+      }
+      disablelongtransactions: { Args: never; Returns: string }
+      distance_to_class: {
+        Args: { p_class_id: string; p_lat: number; p_lng: number }
+        Returns: number
+      }
+      dropgeometrycolumn:
+        | {
+            Args: {
+              catalog_name: string
+              column_name: string
+              schema_name: string
+              table_name: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              column_name: string
+              schema_name: string
+              table_name: string
+            }
+            Returns: string
+          }
+        | { Args: { column_name: string; table_name: string }; Returns: string }
+      dropgeometrytable:
+        | {
+            Args: {
+              catalog_name: string
+              schema_name: string
+              table_name: string
+            }
+            Returns: string
+          }
+        | { Args: { schema_name: string; table_name: string }; Returns: string }
+        | { Args: { table_name: string }; Returns: string }
+      effective_class_location: {
+        Args: { p_class_id: string }
+        Returns: unknown
+      }
+      enablelongtransactions: { Args: never; Returns: string }
+      equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      expire_premium_subscriptions: { Args: never; Returns: number }
+      geometry: { Args: { "": string }; Returns: unknown }
+      geometry_above: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_below: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_cmp: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: number
+      }
+      geometry_contained_3d: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_contains: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_contains_3d: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_distance_box: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: number
+      }
+      geometry_distance_centroid: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: number
+      }
+      geometry_eq: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_ge: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_gt: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_le: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_left: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_lt: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_overabove: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_overbelow: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_overlaps: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_overlaps_3d: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_overleft: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_overright: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_right: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_same: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_same_3d: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geometry_within: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      geomfromewkt: { Args: { "": string }; Returns: unknown }
+      get_pending_moderation_count: { Args: never; Returns: number }
+      gettransactionid: { Args: never; Returns: unknown }
+      is_chat_participant: {
+        Args: { p_conversation_id: string }
+        Returns: boolean
+      }
+      is_class_owner: { Args: { p_class_id: string }; Returns: boolean }
+      is_in_family: { Args: { p_family_id: string }; Returns: boolean }
+      is_platform_admin: { Args: never; Returns: boolean }
+      is_premium: { Args: { p_provider_id: string }; Returns: boolean }
+      is_provider_owner: { Args: { p_provider_id: string }; Returns: boolean }
+      longtransactionsenabled: { Args: never; Returns: boolean }
+      nearby_classes: {
         Args: {
-          p_apartment_id: string
-          p_block_tower?: string
-          p_flat_number?: string
-          p_user_id: string
+          p_category_id?: string
+          p_lat: number
+          p_limit?: number
+          p_lng: number
+          p_offset?: number
+          p_radius_km?: number
+        }
+        Returns: {
+          address: string
+          age_max: number
+          age_min: number
+          category_id: string
+          description: string
+          distance_km: number
+          effective_lat: number
+          effective_lng: number
+          id: string
+          images: string[]
+          is_home_based: boolean
+          provider_id: string
+          provider_name: string
+          provider_tier: string
+          rating_count: number
+          skill_level: string
+          status: string
+          tags: string[]
+          title: string
+          total_rating: number
+          trial_available: boolean
+          trial_fee: number
+        }[]
+      }
+      nearby_sponsored: {
+        Args: {
+          p_category_id?: string
+          p_lat: number
+          p_limit?: number
+          p_lng: number
+        }
+        Returns: {
+          class_id: string
+          distance_km: number
+          provider_id: string
+          slot_position: number
+          sponsored_id: string
+        }[]
+      }
+      owns_enrollment: { Args: { p_enrollment_id: string }; Returns: boolean }
+      owns_family_member: { Args: { p_member_id: string }; Returns: boolean }
+      populate_geometry_columns:
+        | { Args: { tbl_oid: unknown; use_typmod?: boolean }; Returns: number }
+        | { Args: { use_typmod?: boolean }; Returns: string }
+      postgis_constraint_dims: {
+        Args: { geomcolumn: string; geomschema: string; geomtable: string }
+        Returns: number
+      }
+      postgis_constraint_srid: {
+        Args: { geomcolumn: string; geomschema: string; geomtable: string }
+        Returns: number
+      }
+      postgis_constraint_type: {
+        Args: { geomcolumn: string; geomschema: string; geomtable: string }
+        Returns: string
+      }
+      postgis_extensions_upgrade: { Args: never; Returns: string }
+      postgis_full_version: { Args: never; Returns: string }
+      postgis_geos_version: { Args: never; Returns: string }
+      postgis_lib_build_date: { Args: never; Returns: string }
+      postgis_lib_revision: { Args: never; Returns: string }
+      postgis_lib_version: { Args: never; Returns: string }
+      postgis_libjson_version: { Args: never; Returns: string }
+      postgis_liblwgeom_version: { Args: never; Returns: string }
+      postgis_libprotobuf_version: { Args: never; Returns: string }
+      postgis_libxml_version: { Args: never; Returns: string }
+      postgis_proj_version: { Args: never; Returns: string }
+      postgis_scripts_build_date: { Args: never; Returns: string }
+      postgis_scripts_installed: { Args: never; Returns: string }
+      postgis_scripts_released: { Args: never; Returns: string }
+      postgis_svn_version: { Args: never; Returns: string }
+      postgis_type_name: {
+        Args: {
+          coord_dimension: number
+          geomname: string
+          use_new_name?: boolean
         }
         Returns: string
       }
-      get_admin_apartment: {
-        Args: never
-        Returns: {
-          city: string
-          id: string
-          locality: string
-          logo_url: string
-          name: string
-        }[]
+      postgis_version: { Args: never; Returns: string }
+      postgis_wagyu_version: { Args: never; Returns: string }
+      provider_of_enrollment: {
+        Args: { p_enrollment_id: string }
+        Returns: boolean
       }
-      get_admin_apartment_batch_ids: { Args: never; Returns: string[] }
-      get_admin_apartment_family_member_ids: { Args: never; Returns: string[] }
-      get_chat_partner_family_ids: { Args: never; Returns: string[] }
-      get_chat_partner_family_ids_v2: { Args: never; Returns: string[] }
-      get_chat_partner_user_ids: { Args: never; Returns: string[] }
-      get_family_co_links: {
-        Args: { for_family_id: string }
-        Returns: {
-          family_id: string
-          id: string
-          linked_at: string
-          linked_via: string
-          role: string
-          status: string
-          user_id: string
-        }[]
+      reject_subscription_request: {
+        Args: { p_reason: string; p_request_id: string }
+        Returns: undefined
       }
-      get_provider_enrolled_family_ids: { Args: never; Returns: string[] }
-      get_provider_enrolled_member_ids: { Args: never; Returns: string[] }
-      get_provider_enrolled_user_ids: { Args: never; Returns: string[] }
-      get_user_apartment_ids: { Args: { _auth_uid: string }; Returns: string[] }
-      get_user_id: { Args: never; Returns: string }
-      is_apartment_admin_for_any: {
-        Args: { _auth_uid: string }
-        Returns: string[]
+      request_premium_upgrade: {
+        Args: {
+          p_notes?: string
+          p_off_app_payment_ref?: string
+          p_provider_id: string
+        }
+        Returns: string
       }
-      is_platform_admin: { Args: never; Returns: boolean }
-      platform_get_apartment_detail: {
-        Args: { apt_id: string }
-        Returns: {
-          admin_email: string
-          admin_name: string
-          admin_phone: string
-          admin_user_id: string
-          city: string
-          created_at: string
-          id: string
-          locality: string
-          logo_url: string
-          name: string
-          pin_code: string
-          requester_email: string
-          requester_name: string
-          requester_phone: string
-          status: string
-          total_units: number
-        }[]
-      }
-      platform_get_apartments: {
-        Args: never
-        Returns: {
-          admin_email: string
-          admin_name: string
-          admin_phone: string
-          admin_user_id: string
-          city: string
-          created_at: string
-          id: string
-          locality: string
-          logo_url: string
-          name: string
-          pin_code: string
-          requester_email: string
-          requester_name: string
-          requester_phone: string
-          status: string
-          total_units: number
-        }[]
-      }
-      search_apartment_users: {
-        Args: { apt_id: string; search_query: string }
-        Returns: {
-          avatar_url: string
-          email: string
-          full_name: string
-          id: string
-          mobile_number: string
-        }[]
+      resolve_moderation_flag: {
+        Args: { p_flag_id: string; p_notes?: string; p_status: string }
+        Returns: undefined
       }
       send_notification: {
         Args: {
@@ -2128,19 +2209,628 @@ export type Database = {
           p_type: string
           p_user_id: string
         }
-        Returns: undefined
+        Returns: string
       }
-      transfer_family_primary: {
-        Args: { current_primary_link_id: string; new_primary_link_id: string }
-        Returns: undefined
+      st_3dclosestpoint: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: unknown
       }
-      unlink_family_member: { Args: { link_id: string }; Returns: undefined }
+      st_3ddistance: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: number
+      }
+      st_3dintersects: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      st_3dlongestline: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: unknown
+      }
+      st_3dmakebox: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: unknown
+      }
+      st_3dmaxdistance: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: number
+      }
+      st_3dshortestline: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: unknown
+      }
+      st_addpoint: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: unknown
+      }
+      st_angle:
+        | { Args: { line1: unknown; line2: unknown }; Returns: number }
+        | {
+            Args: { pt1: unknown; pt2: unknown; pt3: unknown; pt4?: unknown }
+            Returns: number
+          }
+      st_area:
+        | { Args: { geog: unknown; use_spheroid?: boolean }; Returns: number }
+        | { Args: { "": string }; Returns: number }
+      st_asencodedpolyline: {
+        Args: { geom: unknown; nprecision?: number }
+        Returns: string
+      }
+      st_asewkt: { Args: { "": string }; Returns: string }
+      st_asgeojson:
+        | {
+            Args: { geog: unknown; maxdecimaldigits?: number; options?: number }
+            Returns: string
+          }
+        | {
+            Args: { geom: unknown; maxdecimaldigits?: number; options?: number }
+            Returns: string
+          }
+        | {
+            Args: {
+              geom_column?: string
+              maxdecimaldigits?: number
+              pretty_bool?: boolean
+              r: Record<string, unknown>
+            }
+            Returns: string
+          }
+        | { Args: { "": string }; Returns: string }
+      st_asgml:
+        | {
+            Args: {
+              geog: unknown
+              id?: string
+              maxdecimaldigits?: number
+              nprefix?: string
+              options?: number
+            }
+            Returns: string
+          }
+        | {
+            Args: { geom: unknown; maxdecimaldigits?: number; options?: number }
+            Returns: string
+          }
+        | { Args: { "": string }; Returns: string }
+        | {
+            Args: {
+              geog: unknown
+              id?: string
+              maxdecimaldigits?: number
+              nprefix?: string
+              options?: number
+              version: number
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              geom: unknown
+              id?: string
+              maxdecimaldigits?: number
+              nprefix?: string
+              options?: number
+              version: number
+            }
+            Returns: string
+          }
+      st_askml:
+        | {
+            Args: { geog: unknown; maxdecimaldigits?: number; nprefix?: string }
+            Returns: string
+          }
+        | {
+            Args: { geom: unknown; maxdecimaldigits?: number; nprefix?: string }
+            Returns: string
+          }
+        | { Args: { "": string }; Returns: string }
+      st_aslatlontext: {
+        Args: { geom: unknown; tmpl?: string }
+        Returns: string
+      }
+      st_asmarc21: { Args: { format?: string; geom: unknown }; Returns: string }
+      st_asmvtgeom: {
+        Args: {
+          bounds: unknown
+          buffer?: number
+          clip_geom?: boolean
+          extent?: number
+          geom: unknown
+        }
+        Returns: unknown
+      }
+      st_assvg:
+        | {
+            Args: { geog: unknown; maxdecimaldigits?: number; rel?: number }
+            Returns: string
+          }
+        | {
+            Args: { geom: unknown; maxdecimaldigits?: number; rel?: number }
+            Returns: string
+          }
+        | { Args: { "": string }; Returns: string }
+      st_astext: { Args: { "": string }; Returns: string }
+      st_astwkb:
+        | {
+            Args: {
+              geom: unknown
+              prec?: number
+              prec_m?: number
+              prec_z?: number
+              with_boxes?: boolean
+              with_sizes?: boolean
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              geom: unknown[]
+              ids: number[]
+              prec?: number
+              prec_m?: number
+              prec_z?: number
+              with_boxes?: boolean
+              with_sizes?: boolean
+            }
+            Returns: string
+          }
+      st_asx3d: {
+        Args: { geom: unknown; maxdecimaldigits?: number; options?: number }
+        Returns: string
+      }
+      st_azimuth:
+        | { Args: { geog1: unknown; geog2: unknown }; Returns: number }
+        | { Args: { geom1: unknown; geom2: unknown }; Returns: number }
+      st_boundingdiagonal: {
+        Args: { fits?: boolean; geom: unknown }
+        Returns: unknown
+      }
+      st_buffer:
+        | {
+            Args: { geom: unknown; options?: string; radius: number }
+            Returns: unknown
+          }
+        | {
+            Args: { geom: unknown; quadsegs: number; radius: number }
+            Returns: unknown
+          }
+      st_centroid: { Args: { "": string }; Returns: unknown }
+      st_clipbybox2d: {
+        Args: { box: unknown; geom: unknown }
+        Returns: unknown
+      }
+      st_closestpoint: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: unknown
+      }
+      st_collect: { Args: { geom1: unknown; geom2: unknown }; Returns: unknown }
+      st_concavehull: {
+        Args: {
+          param_allow_holes?: boolean
+          param_geom: unknown
+          param_pctconvex: number
+        }
+        Returns: unknown
+      }
+      st_contains: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      st_containsproperly: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      st_coorddim: { Args: { geometry: unknown }; Returns: number }
+      st_coveredby:
+        | { Args: { geog1: unknown; geog2: unknown }; Returns: boolean }
+        | { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      st_covers:
+        | { Args: { geog1: unknown; geog2: unknown }; Returns: boolean }
+        | { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      st_crosses: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      st_curvetoline: {
+        Args: { flags?: number; geom: unknown; tol?: number; toltype?: number }
+        Returns: unknown
+      }
+      st_delaunaytriangles: {
+        Args: { flags?: number; g1: unknown; tolerance?: number }
+        Returns: unknown
+      }
+      st_difference: {
+        Args: { geom1: unknown; geom2: unknown; gridsize?: number }
+        Returns: unknown
+      }
+      st_disjoint: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      st_distance:
+        | {
+            Args: { geog1: unknown; geog2: unknown; use_spheroid?: boolean }
+            Returns: number
+          }
+        | { Args: { geom1: unknown; geom2: unknown }; Returns: number }
+      st_distancesphere:
+        | { Args: { geom1: unknown; geom2: unknown }; Returns: number }
+        | {
+            Args: { geom1: unknown; geom2: unknown; radius: number }
+            Returns: number
+          }
+      st_distancespheroid: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: number
+      }
+      st_dwithin: {
+        Args: {
+          geog1: unknown
+          geog2: unknown
+          tolerance: number
+          use_spheroid?: boolean
+        }
+        Returns: boolean
+      }
+      st_equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      st_expand:
+        | { Args: { box: unknown; dx: number; dy: number }; Returns: unknown }
+        | {
+            Args: { box: unknown; dx: number; dy: number; dz?: number }
+            Returns: unknown
+          }
+        | {
+            Args: {
+              dm?: number
+              dx: number
+              dy: number
+              dz?: number
+              geom: unknown
+            }
+            Returns: unknown
+          }
+      st_force3d: { Args: { geom: unknown; zvalue?: number }; Returns: unknown }
+      st_force3dm: {
+        Args: { geom: unknown; mvalue?: number }
+        Returns: unknown
+      }
+      st_force3dz: {
+        Args: { geom: unknown; zvalue?: number }
+        Returns: unknown
+      }
+      st_force4d: {
+        Args: { geom: unknown; mvalue?: number; zvalue?: number }
+        Returns: unknown
+      }
+      st_generatepoints:
+        | { Args: { area: unknown; npoints: number }; Returns: unknown }
+        | {
+            Args: { area: unknown; npoints: number; seed: number }
+            Returns: unknown
+          }
+      st_geogfromtext: { Args: { "": string }; Returns: unknown }
+      st_geographyfromtext: { Args: { "": string }; Returns: unknown }
+      st_geohash:
+        | { Args: { geog: unknown; maxchars?: number }; Returns: string }
+        | { Args: { geom: unknown; maxchars?: number }; Returns: string }
+      st_geomcollfromtext: { Args: { "": string }; Returns: unknown }
+      st_geometricmedian: {
+        Args: {
+          fail_if_not_converged?: boolean
+          g: unknown
+          max_iter?: number
+          tolerance?: number
+        }
+        Returns: unknown
+      }
+      st_geometryfromtext: { Args: { "": string }; Returns: unknown }
+      st_geomfromewkt: { Args: { "": string }; Returns: unknown }
+      st_geomfromgeojson:
+        | { Args: { "": Json }; Returns: unknown }
+        | { Args: { "": Json }; Returns: unknown }
+        | { Args: { "": string }; Returns: unknown }
+      st_geomfromgml: { Args: { "": string }; Returns: unknown }
+      st_geomfromkml: { Args: { "": string }; Returns: unknown }
+      st_geomfrommarc21: { Args: { marc21xml: string }; Returns: unknown }
+      st_geomfromtext: { Args: { "": string }; Returns: unknown }
+      st_gmltosql: { Args: { "": string }; Returns: unknown }
+      st_hasarc: { Args: { geometry: unknown }; Returns: boolean }
+      st_hausdorffdistance: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: number
+      }
+      st_hexagon: {
+        Args: { cell_i: number; cell_j: number; origin?: unknown; size: number }
+        Returns: unknown
+      }
+      st_hexagongrid: {
+        Args: { bounds: unknown; size: number }
+        Returns: Record<string, unknown>[]
+      }
+      st_interpolatepoint: {
+        Args: { line: unknown; point: unknown }
+        Returns: number
+      }
+      st_intersection: {
+        Args: { geom1: unknown; geom2: unknown; gridsize?: number }
+        Returns: unknown
+      }
+      st_intersects:
+        | { Args: { geog1: unknown; geog2: unknown }; Returns: boolean }
+        | { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      st_isvaliddetail: {
+        Args: { flags?: number; geom: unknown }
+        Returns: Database["public"]["CompositeTypes"]["valid_detail"]
+        SetofOptions: {
+          from: "*"
+          to: "valid_detail"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      st_length:
+        | { Args: { geog: unknown; use_spheroid?: boolean }; Returns: number }
+        | { Args: { "": string }; Returns: number }
+      st_letters: { Args: { font?: Json; letters: string }; Returns: unknown }
+      st_linecrossingdirection: {
+        Args: { line1: unknown; line2: unknown }
+        Returns: number
+      }
+      st_linefromencodedpolyline: {
+        Args: { nprecision?: number; txtin: string }
+        Returns: unknown
+      }
+      st_linefromtext: { Args: { "": string }; Returns: unknown }
+      st_linelocatepoint: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: number
+      }
+      st_linetocurve: { Args: { geometry: unknown }; Returns: unknown }
+      st_locatealong: {
+        Args: { geometry: unknown; leftrightoffset?: number; measure: number }
+        Returns: unknown
+      }
+      st_locatebetween: {
+        Args: {
+          frommeasure: number
+          geometry: unknown
+          leftrightoffset?: number
+          tomeasure: number
+        }
+        Returns: unknown
+      }
+      st_locatebetweenelevations: {
+        Args: { fromelevation: number; geometry: unknown; toelevation: number }
+        Returns: unknown
+      }
+      st_longestline: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: unknown
+      }
+      st_makebox2d: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: unknown
+      }
+      st_makeline: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: unknown
+      }
+      st_makevalid: {
+        Args: { geom: unknown; params: string }
+        Returns: unknown
+      }
+      st_maxdistance: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: number
+      }
+      st_minimumboundingcircle: {
+        Args: { inputgeom: unknown; segs_per_quarter?: number }
+        Returns: unknown
+      }
+      st_mlinefromtext: { Args: { "": string }; Returns: unknown }
+      st_mpointfromtext: { Args: { "": string }; Returns: unknown }
+      st_mpolyfromtext: { Args: { "": string }; Returns: unknown }
+      st_multilinestringfromtext: { Args: { "": string }; Returns: unknown }
+      st_multipointfromtext: { Args: { "": string }; Returns: unknown }
+      st_multipolygonfromtext: { Args: { "": string }; Returns: unknown }
+      st_node: { Args: { g: unknown }; Returns: unknown }
+      st_normalize: { Args: { geom: unknown }; Returns: unknown }
+      st_offsetcurve: {
+        Args: { distance: number; line: unknown; params?: string }
+        Returns: unknown
+      }
+      st_orderingequals: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      st_overlaps: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: boolean
+      }
+      st_perimeter: {
+        Args: { geog: unknown; use_spheroid?: boolean }
+        Returns: number
+      }
+      st_pointfromtext: { Args: { "": string }; Returns: unknown }
+      st_pointm: {
+        Args: {
+          mcoordinate: number
+          srid?: number
+          xcoordinate: number
+          ycoordinate: number
+        }
+        Returns: unknown
+      }
+      st_pointz: {
+        Args: {
+          srid?: number
+          xcoordinate: number
+          ycoordinate: number
+          zcoordinate: number
+        }
+        Returns: unknown
+      }
+      st_pointzm: {
+        Args: {
+          mcoordinate: number
+          srid?: number
+          xcoordinate: number
+          ycoordinate: number
+          zcoordinate: number
+        }
+        Returns: unknown
+      }
+      st_polyfromtext: { Args: { "": string }; Returns: unknown }
+      st_polygonfromtext: { Args: { "": string }; Returns: unknown }
+      st_project: {
+        Args: { azimuth: number; distance: number; geog: unknown }
+        Returns: unknown
+      }
+      st_quantizecoordinates: {
+        Args: {
+          g: unknown
+          prec_m?: number
+          prec_x: number
+          prec_y?: number
+          prec_z?: number
+        }
+        Returns: unknown
+      }
+      st_reduceprecision: {
+        Args: { geom: unknown; gridsize: number }
+        Returns: unknown
+      }
+      st_relate: { Args: { geom1: unknown; geom2: unknown }; Returns: string }
+      st_removerepeatedpoints: {
+        Args: { geom: unknown; tolerance?: number }
+        Returns: unknown
+      }
+      st_segmentize: {
+        Args: { geog: unknown; max_segment_length: number }
+        Returns: unknown
+      }
+      st_setsrid:
+        | { Args: { geog: unknown; srid: number }; Returns: unknown }
+        | { Args: { geom: unknown; srid: number }; Returns: unknown }
+      st_sharedpaths: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: unknown
+      }
+      st_shortestline: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: unknown
+      }
+      st_simplifypolygonhull: {
+        Args: { geom: unknown; is_outer?: boolean; vertex_fraction: number }
+        Returns: unknown
+      }
+      st_split: { Args: { geom1: unknown; geom2: unknown }; Returns: unknown }
+      st_square: {
+        Args: { cell_i: number; cell_j: number; origin?: unknown; size: number }
+        Returns: unknown
+      }
+      st_squaregrid: {
+        Args: { bounds: unknown; size: number }
+        Returns: Record<string, unknown>[]
+      }
+      st_srid:
+        | { Args: { geog: unknown }; Returns: number }
+        | { Args: { geom: unknown }; Returns: number }
+      st_subdivide: {
+        Args: { geom: unknown; gridsize?: number; maxvertices?: number }
+        Returns: unknown[]
+      }
+      st_swapordinates: {
+        Args: { geom: unknown; ords: unknown }
+        Returns: unknown
+      }
+      st_symdifference: {
+        Args: { geom1: unknown; geom2: unknown; gridsize?: number }
+        Returns: unknown
+      }
+      st_symmetricdifference: {
+        Args: { geom1: unknown; geom2: unknown }
+        Returns: unknown
+      }
+      st_tileenvelope: {
+        Args: {
+          bounds?: unknown
+          margin?: number
+          x: number
+          y: number
+          zoom: number
+        }
+        Returns: unknown
+      }
+      st_touches: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      st_transform:
+        | {
+            Args: { from_proj: string; geom: unknown; to_proj: string }
+            Returns: unknown
+          }
+        | {
+            Args: { from_proj: string; geom: unknown; to_srid: number }
+            Returns: unknown
+          }
+        | { Args: { geom: unknown; to_proj: string }; Returns: unknown }
+      st_triangulatepolygon: { Args: { g1: unknown }; Returns: unknown }
+      st_union:
+        | { Args: { geom1: unknown; geom2: unknown }; Returns: unknown }
+        | {
+            Args: { geom1: unknown; geom2: unknown; gridsize: number }
+            Returns: unknown
+          }
+      st_voronoilines: {
+        Args: { extend_to?: unknown; g1: unknown; tolerance?: number }
+        Returns: unknown
+      }
+      st_voronoipolygons: {
+        Args: { extend_to?: unknown; g1: unknown; tolerance?: number }
+        Returns: unknown
+      }
+      st_within: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      st_wkbtosql: { Args: { wkb: string }; Returns: unknown }
+      st_wkttosql: { Args: { "": string }; Returns: unknown }
+      st_wrapx: {
+        Args: { geom: unknown; move: number; wrap: number }
+        Returns: unknown
+      }
+      submit_for_moderation: {
+        Args: {
+          p_ai_categories?: Json
+          p_ai_provider: string
+          p_ai_score?: number
+          p_content_snapshot?: string
+          p_image_url?: string
+          p_initial_status?: string
+          p_owner_user_id: string
+          p_ref_id: string
+          p_ref_type: string
+        }
+        Returns: string
+      }
+      unlockrows: { Args: { "": string }; Returns: number }
+      updategeometrysrid: {
+        Args: {
+          catalogn_name: string
+          column_name: string
+          new_srid_in: number
+          schema_name: string
+          table_name: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
     }
     CompositeTypes: {
-      [_ in never]: never
+      geometry_dump: {
+        path: number[] | null
+        geom: unknown
+      }
+      valid_detail: {
+        valid: boolean | null
+        reason: string | null
+        location: unknown
+      }
     }
   }
 }
