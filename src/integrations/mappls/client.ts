@@ -16,9 +16,9 @@ const SDK_URL = MAPPLS_API_KEY
   ? `https://apis.mappls.com/advancedmaps/api/${MAPPLS_API_KEY}/map_sdk?layer=vector&v=3.0`
   : null;
 
-const PLACES_SDK_URL = MAPPLS_API_KEY
-  ? `https://apis.mappls.com/advancedmaps/api/${MAPPLS_API_KEY}/map_sdk_plugins?v=3.0`
-  : null;
+// NOTE: map_sdk_plugins (Places / autocomplete) requires a separate Places-tier
+// token which this project's API key does not include. We use Nominatim for
+// autocomplete instead, so the plugins script is intentionally NOT loaded.
 
 let loadPromise: Promise<typeof window.mappls> | null = null;
 
@@ -111,7 +111,7 @@ export function loadMappls(): Promise<typeof window.mappls> {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("Mappls SDK can only load in the browser"));
   }
-  if (!MAPPLS_API_KEY || !SDK_URL || !PLACES_SDK_URL) {
+  if (!MAPPLS_API_KEY || !SDK_URL) {
     return Promise.reject(
       new Error(
         "VITE_MAPPLS_API_KEY is not set. Add it to .env and restart the dev server."
@@ -159,7 +159,6 @@ export function loadMappls(): Promise<typeof window.mappls> {
       });
 
     inject(SDK_URL!)
-      .then(() => inject(PLACES_SDK_URL!))
       .then(() => {
         if (window.mappls) {
           resolve(window.mappls);
