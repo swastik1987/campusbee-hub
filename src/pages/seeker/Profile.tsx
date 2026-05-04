@@ -10,20 +10,17 @@ import BottomNav from "@/components/BottomNav";
 import { useIncomingInvites } from "@/hooks/useFamilyLinking";
 import {
   User,
-  Building2,
   Users,
   GraduationCap,
   LogOut,
   ChevronRight,
-  MapPin,
-  Home as HomeIcon,
   Link2,
   Shield,
 } from "lucide-react";
 import { toast } from "sonner";
 
 const Profile = () => {
-  const { profile, family, familyMembers, currentApartment, activePersona, familyRole } = useUser();
+  const { profile, family, familyMembers, activePersona, familyRole } = useUser();
   const navigate = useNavigate();
   const { data: incomingInvites } = useIncomingInvites(profile?.id, profile?.email ?? null, profile?.mobile_number ?? null);
   const pendingInviteCount = incomingInvites?.length ?? 0;
@@ -60,35 +57,6 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* Apartment info */}
-        {currentApartment && (
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Building2 size={20} className="text-primary" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold">{currentApartment.name}</p>
-                <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <MapPin size={10} />
-                  {currentApartment.locality}, {currentApartment.city}
-                </p>
-              </div>
-            </div>
-            {family && (
-              <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-                {family.flat_number && (
-                  <span className="flex items-center gap-1">
-                    <HomeIcon size={12} /> {family.flat_number}
-                  </span>
-                )}
-                {family.block_tower && (
-                  <span>{family.block_tower}</span>
-                )}
-              </div>
-            )}
-          </Card>
-        )}
 
         {/* Family members */}
         {familyMembers.length > 0 && (
@@ -109,13 +77,12 @@ const Profile = () => {
                   className="flex items-center gap-3 rounded-lg bg-muted/50 p-2.5"
                 >
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={member.avatar_url ?? undefined} />
                     <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                      {member.name[0]?.toUpperCase()}
+                      {(member.full_name ?? "")[0]?.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
-                    <p className="text-sm font-medium">{member.name}</p>
+                    <p className="text-sm font-medium">{member.full_name}</p>
                     <p className="text-xs text-muted-foreground">
                       {member.relationship}
                       {member.age_group && ` · ${member.age_group}`}
@@ -154,41 +121,24 @@ const Profile = () => {
         )}
 
         {/* Admin links */}
-        {(profile?.is_platform_admin || profile?.is_apartment_admin) && (
+        {profile?.is_platform_admin && (
           <Card className="p-2 space-y-1">
             <p className="px-2 pt-1 pb-1 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
               Admin Access
             </p>
-            {profile?.is_platform_admin && (
-              <button
-                onClick={() => navigate("/platform")}
-                className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-accent"
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
-                  <Shield size={18} className="text-emerald-600" />
-                </div>
-                <div className="flex-1">
-                  <span className="text-sm font-medium">Platform Admin</span>
-                  <p className="text-[10px] text-muted-foreground">Manage apartments, categories & analytics</p>
-                </div>
-                <ChevronRight size={16} className="text-muted-foreground" />
-              </button>
-            )}
-            {profile?.is_apartment_admin && (
-              <button
-                onClick={() => navigate("/admin/dashboard")}
-                className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-accent"
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/10">
-                  <Building2 size={18} className="text-indigo-600" />
-                </div>
-                <div className="flex-1">
-                  <span className="text-sm font-medium">Apartment Admin</span>
-                  <p className="text-[10px] text-muted-foreground">Approve providers & manage community</p>
-                </div>
-                <ChevronRight size={16} className="text-muted-foreground" />
-              </button>
-            )}
+            <button
+              onClick={() => navigate("/platform")}
+              className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-accent"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+                <Shield size={18} className="text-emerald-600" />
+              </div>
+              <div className="flex-1">
+                <span className="text-sm font-medium">Platform Admin</span>
+                <p className="text-[10px] text-muted-foreground">Manage categories, providers & analytics</p>
+              </div>
+              <ChevronRight size={16} className="text-muted-foreground" />
+            </button>
           </Card>
         )}
 
@@ -224,7 +174,6 @@ const Profile = () => {
 
       <BottomNav persona={
         activePersona === "platform_admin" ? "platform_admin" :
-        activePersona === "apartment_admin" ? "admin" :
         activePersona === "provider" ? "provider" : "seeker"
       } />
     </div>

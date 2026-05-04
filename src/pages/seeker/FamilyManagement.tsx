@@ -7,8 +7,8 @@ import {
   useCancelInvite,
   useUnlinkFromFamily,
   useTransferPrimary,
-  useSearchApartmentUsers,
 } from "@/hooks/useFamilyLinking";
+import { useAddFamilyMembers, calculateAgeGroup } from "@/hooks/useOnboarding";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,7 +18,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -38,15 +44,10 @@ import {
 import {
   Copy,
   Crown,
-  Link2,
   Loader2,
   LogOut,
-  Mail,
-  Phone,
   Plus,
-  Search,
   Send,
-  Share2,
   Trash2,
   UserMinus,
   UserPlus,
@@ -54,8 +55,20 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+const RELATIONSHIP_OPTIONS = [
+  "spouse", "child", "parent", "sibling", "grandparent",
+  "grandchild", "other",
+];
+
+const GENDER_OPTIONS = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "other", label: "Other" },
+  { value: "prefer_not_to_say", label: "Prefer not to say" },
+];
+
 const FamilyManagement = () => {
-  const { profile, family, familyMembers, currentApartment, familyRole, refreshFamily } = useUser();
+  const { profile, family, familyMembers, familyRole, refreshFamily } = useUser();
 
   const { data: linkData, isLoading: linksLoading } = useFamilyLinks(profile?.id);
   const { data: sentInvites, isLoading: invitesLoading } = useSentInvites(profile?.id);
@@ -63,35 +76,58 @@ const FamilyManagement = () => {
   const cancelInvite = useCancelInvite();
   const unlinkMutation = useUnlinkFromFamily();
   const transferPrimary = useTransferPrimary();
+  const addMembers = useAddFamilyMembers();
 
+  // ── Add Member sheet ──────────────────────────────────────────
+  const [showAddSheet, setShowAddSheet] = useState(false);
+  const [memberName, setMemberName] = useState("");
+  const [memberRelationship, setMemberRelationship] = useState("");
+  const [memberDob, setMemberDob] = useState("");
+  const [memberGender, setMemberGender] = useState("");
+
+  const handleAddMember = async () => {
+    if (!family || !memberName.trim() || !memberRelationship) return;
+    const ageGroup = memberDob ? calculateAgeGroup(memberDob) : null;
+    try {
+      await addMembers.mutateAsync([
+        {
+          family_id: family.id,
+          full_name: memberName.trim(),
+          date_of_birth: memberDob || null,
+          age_group: ageGroup,
+          relationship: memberRelationship,
+          gender: memberGender || null,
+        },
+      ]);
+      toast.success("Family member added!");
+      setShowAddSheet(false);
+      setMemberName("");
+      setMemberRelationship("");
+      setMemberDob("");
+      setMemberGender("");
+      refreshFamily();
+    } catch {
+      toast.error("Failed to add family member");
+    }
+  };
+
+  // ── Invite sheet ──────────────────────────────────────────────
   const [showInviteSheet, setShowInviteSheet] = useState(false);
-  const [inviteTab, setInviteTab] = useState("contact");
   const [inviteContact, setInviteContact] = useState("");
   const [inviteMessage, setInviteMessage] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const { data: searchResults } = useSearchApartmentUsers(family?.apartment_id, searchTerm);
 
-  const [confirmUnlink, setConfirmUnlink] = useState<{ linkId: string; userName: string; isSelf: boolean } | null>(null);
-  const [confirmTransfer, setConfirmTransfer] = useState<{ linkId: string; userName: string } | null>(null);
-
-  const linkedUsers = linkData?.linkedUsers ?? [];
-
-  const handleSendInvite = async (opts?: { userId?: string }) => {
+  const handleSendInvite = async () => {
     if (!profile || !family) return;
-
     const isEmail = inviteContact.includes("@");
     try {
       const result = await sendInvite.mutateAsync({
         familyId: family.id,
         invitedBy: profile.id,
-        invitedUserId: opts?.userId,
         invitedPhone: !isEmail && inviteContact ? inviteContact : undefined,
         invitedEmail: isEmail ? inviteContact : undefined,
         message: inviteMessage.trim() || undefined,
       });
       toast.success("Invite sent!");
-
-      // Offer to share
       const shareText = `Join our family on CampusBee! Use invite code: ${result.invite_code}`;
       if (navigator.share) {
         navigator.share({ title: "CampusBee Family Invite", text: shareText }).catch(() => {});
@@ -99,7 +135,6 @@ const FamilyManagement = () => {
         navigator.clipboard.writeText(result.invite_code);
         toast.success("Invite code copied to clipboard");
       }
-
       setShowInviteSheet(false);
       setInviteContact("");
       setInviteMessage("");
@@ -108,21 +143,15 @@ const FamilyManagement = () => {
     }
   };
 
-  const handleSearchInvite = async (userId: string) => {
-    if (!profile || !family) return;
-    try {
-      const result = await sendInvite.mutateAsync({
-        familyId: family.id,
-        invitedBy: profile.id,
-        invitedUserId: userId,
-      });
-      toast.success("Invite sent!");
-      setShowInviteSheet(false);
-      setSearchTerm("");
-    } catch {
-      toast.error("Failed to send invite");
-    }
-  };
+  // ── Unlink / Transfer dialogs ─────────────────────────────────
+  const [confirmUnlink, setConfirmUnlink] = useState<{
+    linkId: string; userName: string; isSelf: boolean;
+  } | null>(null);
+  const [confirmTransfer, setConfirmTransfer] = useState<{
+    linkId: string; userName: string;
+  } | null>(null);
+
+  const linkedUsers = linkData?.linkedUsers ?? [];
 
   const handleCancel = async (id: string) => {
     try {
@@ -136,10 +165,7 @@ const FamilyManagement = () => {
   const handleUnlink = async () => {
     if (!confirmUnlink || !profile) return;
     try {
-      await unlinkMutation.mutateAsync({
-        linkId: confirmUnlink.linkId,
-        unlinkedBy: profile.id,
-      });
+      await unlinkMutation.mutateAsync({ linkId: confirmUnlink.linkId, unlinkedBy: profile.id });
       toast.success(confirmUnlink.isSelf ? "You have left the family" : "Member removed");
       setConfirmUnlink(null);
       refreshFamily();
@@ -174,24 +200,59 @@ const FamilyManagement = () => {
 
         {/* Section 1: Family Members */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Family Members</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Family Members</p>
+            {family && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 text-xs"
+                onClick={() => setShowAddSheet(true)}
+              >
+                <Plus size={13} /> Add Member
+              </Button>
+            )}
+          </div>
           {familyMembers.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No family members added yet</p>
+            <div className="rounded-xl border border-dashed border-border p-6 text-center">
+              <p className="text-sm text-muted-foreground mb-3">No family members added yet</p>
+              {family && (
+                <Button
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => setShowAddSheet(true)}
+                >
+                  <Plus size={14} /> Add Family Member
+                </Button>
+              )}
+            </div>
           ) : (
-            familyMembers.map((m) => (
-              <Card key={m.id} className="p-3 flex items-center gap-3">
-                <Avatar className="h-9 w-9">
-                  <AvatarImage src={m.avatar_url ?? undefined} />
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                    {m.name[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-sm font-medium">{m.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{m.relationship} {m.age_group && `· ${m.age_group}`}</p>
-                </div>
-              </Card>
-            ))
+            <div className="space-y-2">
+              {familyMembers.map((m) => (
+                <Card key={m.id} className="p-3 flex items-center gap-3">
+                  <Avatar className="h-9 w-9">
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                      {(m.full_name ?? "")[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-sm font-medium">{m.full_name}</p>
+                    <p className="text-[10px] text-muted-foreground capitalize">
+                      {m.relationship}{m.age_group && ` · ${m.age_group}`}
+                    </p>
+                  </div>
+                </Card>
+              ))}
+              {/* Always show "Add more" button below the list */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-2 mt-1"
+                onClick={() => setShowAddSheet(true)}
+              >
+                <Plus size={14} /> Add Another Member
+              </Button>
+            </div>
           )}
         </div>
 
@@ -294,19 +355,16 @@ const FamilyManagement = () => {
 
               {linkedUsers.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-2">
-                  No other family members linked yet. Invite someone below!
+                  No other family accounts linked. Invite someone below!
                 </p>
               )}
             </>
           )}
         </div>
 
-        {/* Section 3: Invite Button */}
-        <Button
-          className="w-full gap-2"
-          onClick={() => setShowInviteSheet(true)}
-        >
-          <UserPlus size={16} /> Invite Family Member
+        {/* Section 3: Invite linked account */}
+        <Button className="w-full gap-2" onClick={() => setShowInviteSheet(true)}>
+          <UserPlus size={16} /> Invite Family Account
         </Button>
 
         {/* Section 4: Pending Sent Invites */}
@@ -351,98 +409,116 @@ const FamilyManagement = () => {
         )}
       </div>
 
-      {/* Invite Sheet */}
-      <Sheet open={showInviteSheet} onOpenChange={setShowInviteSheet}>
-        <SheetContent side="bottom" className="rounded-t-2xl max-h-[80vh] overflow-y-auto">
-          <SheetHeader><SheetTitle>Invite Family Member</SheetTitle></SheetHeader>
-          <Tabs value={inviteTab} onValueChange={setInviteTab} className="mt-4">
-            <TabsList className="w-full">
-              <TabsTrigger value="contact" className="flex-1 text-xs">By Phone/Email</TabsTrigger>
-              <TabsTrigger value="search" className="flex-1 text-xs">From CampusBee</TabsTrigger>
-            </TabsList>
+      {/* ── Add Family Member Sheet ─────────────────────────────── */}
+      <Sheet open={showAddSheet} onOpenChange={setShowAddSheet}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
+          <SheetHeader><SheetTitle>Add Family Member</SheetTitle></SheetHeader>
+          <div className="space-y-4 mt-4 pb-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Full Name <span className="text-destructive">*</span></Label>
+              <Input
+                value={memberName}
+                onChange={(e) => setMemberName(e.target.value)}
+                placeholder="e.g., Priya Sharma"
+                className="h-10 rounded-lg"
+              />
+            </div>
 
-            <TabsContent value="contact" className="space-y-4 mt-4">
-              <div className="space-y-1">
-                <Label className="text-xs">Phone or Email</Label>
-                <Input
-                  value={inviteContact}
-                  onChange={(e) => setInviteContact(e.target.value)}
-                  placeholder="e.g., 9876543210 or name@email.com"
-                  className="h-10 rounded-lg"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Message (optional)</Label>
-                <Input
-                  value={inviteMessage}
-                  onChange={(e) => setInviteMessage(e.target.value)}
-                  placeholder="Join our family on CampusBee!"
-                  className="h-10 rounded-lg"
-                />
-              </div>
-              <Button
-                onClick={() => handleSendInvite()}
-                disabled={!inviteContact.trim() || sendInvite.isPending}
-                className="w-full rounded-lg gap-2"
-              >
-                {sendInvite.isPending ? <Loader2 size={16} className="animate-spin" /> : <><Send size={14} /> Send Invite</>}
-              </Button>
-            </TabsContent>
+            <div className="space-y-1">
+              <Label className="text-xs">Relationship <span className="text-destructive">*</span></Label>
+              <Select value={memberRelationship} onValueChange={setMemberRelationship}>
+                <SelectTrigger className="h-10 rounded-lg">
+                  <SelectValue placeholder="Select relationship" />
+                </SelectTrigger>
+                <SelectContent>
+                  {RELATIONSHIP_OPTIONS.map((r) => (
+                    <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <TabsContent value="search" className="space-y-4 mt-4">
-              <div className="space-y-1">
-                <Label className="text-xs">Search by name in {currentApartment?.name}</Label>
-                <div className="relative">
-                  <Search size={14} className="absolute left-3 top-3 text-muted-foreground" />
-                  <Input
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search residents..."
-                    className="h-10 rounded-lg pl-9"
-                  />
-                </div>
-              </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Date of Birth <span className="text-muted-foreground">(optional)</span></Label>
+              <Input
+                type="date"
+                value={memberDob}
+                onChange={(e) => setMemberDob(e.target.value)}
+                className="h-10 rounded-lg"
+                max={new Date().toISOString().split("T")[0]}
+              />
+            </div>
 
-              {searchResults && searchResults.length > 0 && (
-                <div className="space-y-2">
-                  {searchResults
-                    .filter((u) => u.id !== profile?.id)
-                    .map((u) => (
-                      <Card key={u.id} className="p-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={u.avatar_url ?? undefined} />
-                            <AvatarFallback className="bg-muted text-[10px]">
-                              {u.full_name?.[0]?.toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-sm font-medium">{u.full_name}</p>
-                            <p className="text-[10px] text-muted-foreground">{u.email}</p>
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          className="text-xs gap-1"
-                          onClick={() => handleSearchInvite(u.id)}
-                          disabled={sendInvite.isPending}
-                        >
-                          {sendInvite.isPending ? <Loader2 size={12} className="animate-spin" /> : <><UserPlus size={12} /> Invite</>}
-                        </Button>
-                      </Card>
-                    ))}
-                </div>
-              )}
+            <div className="space-y-1">
+              <Label className="text-xs">Gender <span className="text-muted-foreground">(optional)</span></Label>
+              <Select value={memberGender} onValueChange={setMemberGender}>
+                <SelectTrigger className="h-10 rounded-lg">
+                  <SelectValue placeholder="Select gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  {GENDER_OPTIONS.map((g) => (
+                    <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              {searchTerm.length >= 2 && searchResults?.filter((u) => u.id !== profile?.id).length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-4">No residents found</p>
-              )}
-            </TabsContent>
-          </Tabs>
+            <Button
+              className="w-full rounded-lg gap-2"
+              onClick={handleAddMember}
+              disabled={!memberName.trim() || !memberRelationship || addMembers.isPending}
+            >
+              {addMembers.isPending
+                ? <><Loader2 size={16} className="animate-spin" /> Adding…</>
+                : <><Plus size={14} /> Add Member</>
+              }
+            </Button>
+          </div>
         </SheetContent>
       </Sheet>
 
-      {/* Unlink Confirmation Dialog */}
+      {/* ── Invite Account Sheet ────────────────────────────────── */}
+      <Sheet open={showInviteSheet} onOpenChange={setShowInviteSheet}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[70vh] overflow-y-auto">
+          <SheetHeader><SheetTitle>Invite Family Account</SheetTitle></SheetHeader>
+          <p className="text-xs text-muted-foreground mt-1 mb-4">
+            Invite another CampusBee user to link their account to your family.
+            They can then manage enrollments and view your family plan.
+          </p>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Phone or Email</Label>
+              <Input
+                value={inviteContact}
+                onChange={(e) => setInviteContact(e.target.value)}
+                placeholder="e.g., 9876543210 or name@email.com"
+                className="h-10 rounded-lg"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Message (optional)</Label>
+              <Input
+                value={inviteMessage}
+                onChange={(e) => setInviteMessage(e.target.value)}
+                placeholder="Join our family on CampusBee!"
+                className="h-10 rounded-lg"
+              />
+            </div>
+            <Button
+              onClick={handleSendInvite}
+              disabled={!inviteContact.trim() || sendInvite.isPending}
+              className="w-full rounded-lg gap-2"
+            >
+              {sendInvite.isPending
+                ? <Loader2 size={16} className="animate-spin" />
+                : <><Send size={14} /> Send Invite</>
+              }
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Unlink Confirmation */}
       <AlertDialog open={!!confirmUnlink} onOpenChange={() => setConfirmUnlink(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -451,7 +527,7 @@ const FamilyManagement = () => {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmUnlink?.isSelf
-                ? "You will lose access to all family members, enrollments, and payment history. Enrollments and payments you made will remain visible to other family members."
+                ? "You will lose access to all family members, enrollments, and payment history."
                 : `${confirmUnlink?.userName} will lose access. All enrollments and payments they made will remain in your family.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -473,7 +549,8 @@ const FamilyManagement = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Transfer Primary Role?</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmTransfer?.userName} will become the primary family manager. You will become a regular member and can leave the family afterwards if you choose.
+              {confirmTransfer?.userName} will become the primary family manager.
+              You will become a regular member.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

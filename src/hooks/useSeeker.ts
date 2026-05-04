@@ -33,10 +33,9 @@ export function useFeaturedClasses(apartmentId: string | undefined) {
   });
 }
 
-export function useNewClasses(apartmentId: string | undefined) {
+export function useNewClasses(_apartmentId?: string) {
   return useQuery({
-    queryKey: ["new-classes", apartmentId],
-    enabled: !!apartmentId,
+    queryKey: ["new-classes"],
     queryFn: async () => {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -47,16 +46,14 @@ export function useNewClasses(apartmentId: string | undefined) {
           id, title, short_description, cover_image_url, class_type,
           total_rating, rating_count, created_at, requires_common_area,
           class_categories(id, name, slug),
-          provider_apartment_registrations!inner(
-            id, apartment_id,
+          provider_apartment_registrations(
+            id,
             service_providers(id, business_name, provider_type,
               users(full_name, avatar_url)
             )
           )
         `)
         .eq("status", "published")
-        .eq("provider_apartment_registrations.apartment_id", apartmentId!)
-        .in("provider_apartment_registrations.status", ["pending", "approved"])
         .gte("created_at", thirtyDaysAgo.toISOString())
         .order("created_at", { ascending: false })
         .limit(10);
@@ -66,10 +63,9 @@ export function useNewClasses(apartmentId: string | undefined) {
   });
 }
 
-export function usePopularClasses(apartmentId: string | undefined) {
+export function usePopularClasses(_apartmentId?: string) {
   return useQuery({
-    queryKey: ["popular-classes", apartmentId],
-    enabled: !!apartmentId,
+    queryKey: ["popular-classes"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("classes")
@@ -77,16 +73,14 @@ export function usePopularClasses(apartmentId: string | undefined) {
           id, title, short_description, cover_image_url, class_type,
           total_rating, rating_count, created_at, requires_common_area,
           class_categories(id, name, slug),
-          provider_apartment_registrations!inner(
-            id, apartment_id,
+          provider_apartment_registrations(
+            id,
             service_providers(id, business_name, provider_type,
               users(full_name, avatar_url)
             )
           )
         `)
         .eq("status", "published")
-        .eq("provider_apartment_registrations.apartment_id", apartmentId!)
-        .in("provider_apartment_registrations.status", ["pending", "approved"])
         .order("rating_count", { ascending: false })
         .limit(5);
       if (error) throw error;
@@ -107,7 +101,7 @@ export function useExploreClasses(filters: {
 }) {
   return useQuery({
     queryKey: ["explore-classes", filters],
-    enabled: !!filters.apartmentId,
+    // v2: no apartment dependency — show all published classes
     queryFn: async () => {
       let query = supabase
         .from("classes")
@@ -116,8 +110,8 @@ export function useExploreClasses(filters: {
           skill_level, age_group_min, age_group_max, total_rating, rating_count,
           trial_available, trial_fee, created_at, category_id, requires_common_area,
           class_categories!inner(id, name, slug, parent_category_id),
-          provider_apartment_registrations!inner(
-            id, apartment_id,
+          provider_apartment_registrations(
+            id,
             service_providers(id, business_name, provider_type,
               users(full_name, avatar_url)
             )
@@ -126,9 +120,7 @@ export function useExploreClasses(filters: {
             batch_schedules(day_of_week, start_time, end_time)
           )
         `)
-        .eq("status", "published")
-        .eq("provider_apartment_registrations.apartment_id", filters.apartmentId!)
-        .in("provider_apartment_registrations.status", ["pending", "approved"]);
+        .eq("status", "published");
 
       if (filters.categoryIds && filters.categoryIds.length > 0) {
         query = query.in("category_id", filters.categoryIds);

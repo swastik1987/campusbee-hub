@@ -57,8 +57,7 @@ const CATEGORY_ICONS: Record<string, typeof Trophy> = {
 const Explore = () => {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const { profile, currentApartment } = useUser();
-  const aptId = currentApartment?.id;
+  const { profile } = useUser();
 
   const [search, setSearch] = useState(params.get("search") ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState(search);
@@ -111,7 +110,7 @@ const Explore = () => {
 
   // Main query: fetch by title/description search + category filter
   const { data: classes, isLoading } = useExploreClasses({
-    apartmentId: aptId,
+    apartmentId: undefined,
     search: debouncedSearch || undefined,
     categoryIds: combinedCategoryIds,
     sort,
@@ -120,7 +119,7 @@ const Explore = () => {
 
   // Secondary query when searching: also fetch by matching category names (without text search filter)
   const { data: catMatchClasses } = useExploreClasses({
-    apartmentId: aptId,
+    apartmentId: undefined,
     categoryIds: searchCategoryIds,
     sort,
     limit: 50,
@@ -158,9 +157,9 @@ const Explore = () => {
   })();
 
   // Discovery data (only fetched when not actively searching)
-  const { data: featuredListings } = useActiveFeaturedListings(aptId);
-  const { data: newClasses } = useNewClasses(aptId);
-  const { data: popular } = usePopularClasses(aptId);
+  const { data: featuredListings } = useActiveFeaturedListings(undefined);
+  const { data: newClasses } = useNewClasses();
+  const { data: popular } = usePopularClasses();
   const { data: incomingInvites } = useIncomingInvites(profile?.id, profile?.email ?? null, profile?.mobile_number ?? null);
   const pendingInviteCount = incomingInvites?.length ?? 0;
 
@@ -465,9 +464,7 @@ const Explore = () => {
             {popular && popular.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-base font-bold">
-                    Popular{currentApartment ? ` in ${currentApartment.name}` : ""}
-                  </h2>
+                  <h2 className="text-base font-bold">Popular</h2>
                   <button
                     onClick={() => { setSort("popular"); setSearch(""); setCategorySlug(""); }}
                     className="text-xs text-primary font-medium flex items-center gap-0.5"

@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, GraduationCap, Home, MessageCircle, Send } from "lucide-react";
+import { ArrowLeft, GraduationCap, MessageCircle, Send } from "lucide-react";
 
 const Chat = () => {
   const navigate = useNavigate();
@@ -63,18 +63,12 @@ const Chat = () => {
 
   const getOtherUser = (conv: any) => {
     if (!userId) return null;
-    return conv.participant_1 === userId ? conv.user2 : conv.user1;
-  };
-
-  const getFlatInfo = (user: any): string | null => {
-    const fam = user?.families;
-    if (!fam) return null;
-    const f = Array.isArray(fam) ? fam[0] : fam;
-    if (!f) return null;
-    const parts: string[] = [];
-    if (f.flat_number) parts.push(`Flat ${f.flat_number}`);
-    if (f.block_tower) parts.push(f.block_tower);
-    return parts.length > 0 ? parts.join(", ") : null;
+    // v1 schema: participant_1 / participant_2 + user1 / user2
+    if (conv.participant_1 !== undefined) {
+      return conv.participant_1 === userId ? conv.user2 : conv.user1;
+    }
+    // v2 schema: participant_ids array
+    return null;
   };
 
   const RoleBadge = ({ user }: { user: any }) => {
@@ -96,7 +90,6 @@ const Chat = () => {
   if (activeConversationId) {
     const activeConv = conversations?.find((c) => c.id === activeConversationId);
     const other = activeConv ? getOtherUser(activeConv) : null;
-    const otherFlat = getFlatInfo(other);
 
     return (
       <div className="flex min-h-screen flex-col bg-background">
@@ -115,12 +108,6 @@ const Chat = () => {
               <h1 className="text-sm font-bold truncate">{other?.full_name ?? "Chat"}</h1>
               {other && <RoleBadge user={other} />}
             </div>
-            {otherFlat && (
-              <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
-                <Home size={9} />
-                {otherFlat}
-              </p>
-            )}
           </div>
         </header>
 
@@ -191,7 +178,6 @@ const Chat = () => {
           <div className="space-y-1">
             {conversations.map((conv) => {
               const other = getOtherUser(conv);
-              const flatInfo = getFlatInfo(other);
               return (
                 <div
                   key={conv.id}
@@ -211,12 +197,6 @@ const Chat = () => {
                           <p className="text-sm font-semibold truncate">{other?.full_name}</p>
                           {other && <RoleBadge user={other} />}
                         </div>
-                        {flatInfo && (
-                          <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
-                            <Home size={9} />
-                            {flatInfo}
-                          </p>
-                        )}
                       </div>
                       {conv.last_message_at && (
                         <span className="text-[10px] text-muted-foreground flex-shrink-0 ml-2">

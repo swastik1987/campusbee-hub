@@ -402,6 +402,7 @@ v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **n
 | 011 | `011_fix_families_rls.sql` | Hotfix for `families` INSERT 42501 RLS error: recreates `current_user_id()` helper, makes `families.apartment_id` nullable (v1→v2 compat), replaces INSERT policies on `families` and `family_links` with inline-subquery versions, adds `accepted_at` to `family_links` if absent. |
 | 012 | `012_create_family_rpc.sql` | `create_own_family()` SECURITY DEFINER RPC — creates (or returns) the caller's family + primary `family_link` row, bypassing the RLS chicken-and-egg on `families` INSERT. Idempotent. Called by `useCreateFamily` hook instead of direct INSERT. |
 | 013 | `013_family_members_v2_compat.sql` | v1→v2 compat for `family_members`: renames `name` → `full_name`, updates `age_group` CHECK to include 'infant', updates `gender` CHECK to v2 values, recreates INSERT RLS policy to allow family owners/linked users to add members. |
+| 014 | `014_fix_rls_v2_compat.sql` | Comprehensive RLS repair for hybrid v1/v2 DB state. Drops all conflicting v1+v2 named policies and recreates them with schema-aware DO blocks that detect column existence (e.g. `participant_ids` vs `participant_1/2` in chat, `provider_id` vs `provider_registration_id` in classes, `moderation_status` presence). Key fixes: classes SELECT no longer requires apartment registration; `is_in_family()` SECURITY DEFINER helper recreated; users SELECT extended for chat participants; all affected tables re-granted anon/authenticated privileges. |
 
 ---
 

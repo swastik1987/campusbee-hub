@@ -93,7 +93,7 @@ const MyClasses = () => {
                         <p className="text-xs text-muted-foreground mt-0.5">{batch?.batch_name}</p>
                         {member && (
                           <p className="text-[10px] text-muted-foreground">
-                            {member.name} · {member.relationship}
+                            {member.full_name ?? member.name} · {member.relationship}
                           </p>
                         )}
                         {scheduleSummary && (
