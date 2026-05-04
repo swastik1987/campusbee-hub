@@ -401,6 +401,7 @@ v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **n
 | 010 | `010_add_seeker_location_columns.sql` | Add `seeker_home_address` (TEXT) + `seeker_home_location` (geography Point 4326) + GIST index to `public.users`. Enables PostGIS if not active. Run if live DB was provisioned before these columns were in the baseline. |
 | 011 | `011_fix_families_rls.sql` | Hotfix for `families` INSERT 42501 RLS error: recreates `current_user_id()` helper, makes `families.apartment_id` nullable (v1→v2 compat), replaces INSERT policies on `families` and `family_links` with inline-subquery versions, adds `accepted_at` to `family_links` if absent. |
 | 012 | `012_create_family_rpc.sql` | `create_own_family()` SECURITY DEFINER RPC — creates (or returns) the caller's family + primary `family_link` row, bypassing the RLS chicken-and-egg on `families` INSERT. Idempotent. Called by `useCreateFamily` hook instead of direct INSERT. |
+| 013 | `013_family_members_v2_compat.sql` | v1→v2 compat for `family_members`: renames `name` → `full_name`, updates `age_group` CHECK to include 'infant', updates `gender` CHECK to v2 values, recreates INSERT RLS policy to allow family owners/linked users to add members. |
 
 ---
 
