@@ -7,120 +7,319 @@ export function usePlatformStats() {
   return useQuery({
     queryKey: ["platform-stats"],
     queryFn: async () => {
-      const [apartments, providers, userCount, enrollments] = await Promise.all([
-        supabase.from("apartment_complexes").select("id", { count: "exact", head: true }),
+      const [providers, classes, enrollments, userCount] = await Promise.all([
         supabase.from("service_providers").select("id", { count: "exact", head: true }),
-        supabase.rpc("admin_get_user_count"),
+        supabase.from("classes").select("id", { count: "exact", head: true }).eq("status", "published"),
         supabase.from("enrollments").select("id", { count: "exact", head: true }).eq("status", "active"),
+        supabase.rpc("admin_get_user_count"),
       ]);
 
       return {
-        totalApartments: apartments.count ?? 0,
         totalProviders: providers.count ?? 0,
+        totalPublishedClasses: classes.count ?? 0,
+        totalActiveEnrollments: enrollments.count ?? 0,
         totalSeekers: (userCount.data as number) ?? 0,
-        totalEnrollments: enrollments.count ?? 0,
       };
     },
   });
 }
 
-// ---- Apartment Management ----
+// ---- Provider Management (Platform Admin) ----
 
-export function usePlatformApartments() {
+export function usePlatformProviders(filters?: { status?: string; tier?: string }) {
   return useQuery({
-    queryKey: ["platform-apartments"],
+    queryKey: ["platform-providers", filters],
     queryFn: async () => {
-      // Use SECURITY DEFINER RPC to get apartments with admin/requester details
-      const { data, error } = await supabase.rpc("platform_get_apartments");
-      if (error) throw error;
+      let query = supabase
+        .from("service_providers")
+        .select(`
+          id, user_id, business_name, provider_type, bio, experience_years,
+          is_verified, subscription_tier, subscription_valid_until,
+          suspended_at, suspension_reason, created_at,
+          users(id, full_name, email, avatar_url, is_active)
+        `)
+        .order("created_at", { ascending: false });
 
-      // Get counts per apartment
-      const enriched = await Promise.all(
-        (data ?? []).map(async (apt: any) => {
-          const [provCount, famCount] = await Promise.all([
-            supabase
-              .from("provider_apartment_registrations")
-              .select("id", { count: "exact", head: true })
-              .eq("apartment_id", apt.id)
-              .eq("status", "approved"),
-            supabase
-              .from("families")
-              .select("id", { count: "exact", head: true })
-              .eq("apartment_id", apt.id),
-          ]);
-          return {
-            ...apt,
-            providerCount: provCount.count ?? 0,
-            familyCount: famCount.count ?? 0,
-            adminName: apt.admin_name ?? null,
-            adminEmail: apt.admin_email ?? null,
-            adminPhone: apt.admin_phone ?? null,
-            adminUserId: apt.admin_user_id ?? null,
-            requesterName: apt.requester_name ?? null,
-            requesterEmail: apt.requester_email ?? null,
-            requesterPhone: apt.requester_phone ?? null,
-          };
+      if (filters?.tier) {
+        query = query.eq("subscription_tier", filters.tier);
+      }
+      if (filters?.status === "suspended") {
+        query = query.not("suspended_at", "is", null);
+      } else if (filters?.status === "active") {
+        query = query.is("suspended_at", null);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useVerifyProvider() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ providerId, isVerified }: { providerId: string; isVerified: boolean }) => {
+      const { error } = await supabase
+        .from("service_providers")
+        .update({ is_verified: isVerified })
+        .eq("id", providerId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-providers"] }),
+  });
+}
+
+export function useSuspendProvider() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ providerId, reason }: { providerId: string; reason: string }) => {
+      const { error } = await supabase
+        .from("service_providers")
+        .update({
+          suspended_at: new Date().toISOString(),
+          suspension_reason: reason,
         })
-      );
-
-      return enriched;
-    },
-  });
-}
-
-export function useApproveApartment() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (apartmentId: string) => {
-      const { error } = await supabase
-        .from("apartment_complexes")
-        .update({ status: "approved" })
-        .eq("id", apartmentId);
+        .eq("id", providerId);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-apartments"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-providers"] }),
   });
 }
 
-export function useRejectApartment() {
+export function useReinstateProvider() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (apartmentId: string) => {
+    mutationFn: async (providerId: string) => {
       const { error } = await supabase
-        .from("apartment_complexes")
-        .update({ status: "rejected" })
-        .eq("id", apartmentId);
+        .from("service_providers")
+        .update({ suspended_at: null, suspension_reason: null })
+        .eq("id", providerId);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-apartments"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-providers"] }),
   });
 }
 
-export function useCreateApartment() {
+// ---- Subscription Management ----
+
+export function usePlatformSubscriptionRequests(status?: string) {
+  return useQuery({
+    queryKey: ["platform-subscription-requests", status],
+    queryFn: async () => {
+      let query = supabase
+        .from("provider_subscription_requests")
+        .select(`
+          id, provider_id, requested_tier, status, notes, off_app_payment_ref,
+          requested_at, reviewed_by, reviewed_at, granted_until,
+          service_providers(id, business_name, subscription_tier,
+            users(full_name, email, avatar_url)
+          )
+        `)
+        .order("requested_at", { ascending: false });
+
+      if (status && status !== "all") {
+        query = query.eq("status", status);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useApproveSubscription() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
-      name: string;
-      city: string;
-      locality: string;
-      pinCode?: string;
-      totalUnits?: number;
+      requestId: string;
+      reviewedBy: string;
+      grantedUntil: string;
     }) => {
-      const { error } = await supabase.from("apartment_complexes").insert({
-        name: input.name,
-        city: input.city,
-        locality: input.locality,
-        pin_code: input.pinCode || null,
-        total_units: input.totalUnits || null,
-        status: "approved", // Auto-approved when created by platform admin
-      });
-      if (error) throw error;
+      // Approve the request
+      const { data: req, error: reqErr } = await supabase
+        .from("provider_subscription_requests")
+        .update({
+          status: "approved",
+          reviewed_by: input.reviewedBy,
+          reviewed_at: new Date().toISOString(),
+          granted_until: input.grantedUntil,
+        })
+        .eq("id", input.requestId)
+        .select("provider_id")
+        .single();
+      if (reqErr) throw reqErr;
+
+      // Upgrade provider tier
+      const { error: provErr } = await supabase
+        .from("service_providers")
+        .update({
+          subscription_tier: "premium",
+          subscription_valid_until: input.grantedUntil,
+        })
+        .eq("id", req.provider_id);
+      if (provErr) throw provErr;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-apartments"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform-subscription-requests"] });
+      qc.invalidateQueries({ queryKey: ["platform-providers"] });
+    },
   });
 }
 
-// ---- Admin Assignment ----
+export function useRejectSubscription() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      requestId: string;
+      reviewedBy: string;
+      notes?: string;
+    }) => {
+      const { error } = await supabase
+        .from("provider_subscription_requests")
+        .update({
+          status: "rejected",
+          reviewed_by: input.reviewedBy,
+          reviewed_at: new Date().toISOString(),
+          notes: input.notes || null,
+        })
+        .eq("id", input.requestId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-subscription-requests"] }),
+  });
+}
+
+// ---- Moderation Queue ----
+
+export function useModerationQueue(status?: string) {
+  return useQuery({
+    queryKey: ["moderation-queue", status],
+    queryFn: async () => {
+      let query = supabase
+        .from("moderation_flags")
+        .select(`
+          id, ref_type, ref_id, content_snapshot, image_url,
+          ai_provider, ai_score, ai_categories, status,
+          reviewed_by, reviewed_at, action_notes, created_at
+        `)
+        .order("created_at", { ascending: false });
+
+      if (status && status !== "all") {
+        query = query.eq("status", status);
+      } else {
+        query = query.eq("status", "in_review");
+      }
+
+      const { data, error } = await query.limit(50);
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useResolveModerationFlag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      flagId: string;
+      action: "approved" | "rejected";
+      reviewedBy: string;
+      actionNotes?: string;
+    }) => {
+      const { error } = await supabase.rpc("resolve_moderation_flag" as any, {
+        p_flag_id: input.flagId,
+        p_action: input.action,
+        p_reviewed_by: input.reviewedBy,
+        p_action_notes: input.actionNotes || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["moderation-queue"] }),
+  });
+}
+
+// ---- Sponsored Slots Management ----
+
+export function usePlatformSponsoredRequests(status?: string) {
+  return useQuery({
+    queryKey: ["platform-sponsored", status],
+    queryFn: async () => {
+      let query = supabase
+        .from("sponsored_listings")
+        .select(`
+          id, class_id, provider_id, status, slot_position,
+          radius_km, valid_from, valid_until,
+          off_app_payment_ref, rejection_reason, requested_at,
+          reviewed_by, reviewed_at,
+          classes(title, cover_image_url, class_categories(name)),
+          service_providers(business_name, users(full_name))
+        `)
+        .order("requested_at", { ascending: false });
+
+      if (status && status !== "all") {
+        query = query.eq("status", status);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useApproveSponsored() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      listingId: string;
+      reviewedBy: string;
+      slotPosition: number;
+      validFrom: string;
+      validUntil: string;
+    }) => {
+      const { error } = await supabase
+        .from("sponsored_listings")
+        .update({
+          status: "approved",
+          slot_position: input.slotPosition,
+          valid_from: input.validFrom,
+          valid_until: input.validUntil,
+          reviewed_by: input.reviewedBy,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", input.listingId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-sponsored"] }),
+  });
+}
+
+export function useRejectSponsored() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      listingId: string;
+      reviewedBy: string;
+      rejectionReason?: string;
+    }) => {
+      const { error } = await supabase
+        .from("sponsored_listings")
+        .update({
+          status: "rejected",
+          rejection_reason: input.rejectionReason || null,
+          reviewed_by: input.reviewedBy,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", input.listingId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-sponsored"] }),
+  });
+}
+
+// ---- User Search ----
 
 export function useSearchUsers(searchTerm: string) {
   return useQuery({
@@ -133,63 +332,6 @@ export function useSearchUsers(searchTerm: string) {
       if (error) throw error;
       return data as { id: string; full_name: string; email: string; mobile_number: string; avatar_url: string }[];
     },
-  });
-}
-
-export function useAssignAdmin() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ userId, apartmentId }: { userId: string; apartmentId: string }) => {
-      // Delete existing admin for this apartment first (UNIQUE constraint on apartment_id)
-      await supabase
-        .from("apartment_admins")
-        .delete()
-        .eq("apartment_id", apartmentId);
-
-      // Create apartment_admins row
-      const { error: adminErr } = await supabase
-        .from("apartment_admins")
-        .insert({ user_id: userId, apartment_id: apartmentId });
-      if (adminErr) throw adminErr;
-
-      // Mark user as admin via RPC (bypasses users RLS)
-      const { error: userErr } = await supabase.rpc("admin_update_user", {
-        target_user_id: userId,
-        set_apartment_admin: true,
-      });
-      if (userErr) throw userErr;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["platform-apartments"] });
-      qc.invalidateQueries({ queryKey: ["search-users"] });
-    },
-  });
-}
-
-export function useUnassignAdmin() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ userId, apartmentId }: { userId: string; apartmentId: string }) => {
-      const { error } = await supabase
-        .from("apartment_admins")
-        .delete()
-        .eq("user_id", userId)
-        .eq("apartment_id", apartmentId);
-      if (error) throw error;
-
-      // Check if user is still admin of any other apartment
-      const { count } = await supabase
-        .from("apartment_admins")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId);
-      if ((count ?? 0) === 0) {
-        await supabase.rpc("admin_update_user", {
-          target_user_id: userId,
-          set_apartment_admin: false,
-        });
-      }
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-apartments"] }),
   });
 }
 
@@ -268,46 +410,87 @@ export function usePlatformGrowth(months: number = 6) {
   return useQuery({
     queryKey: ["platform-growth", months],
     queryFn: async () => {
-      const { data: users } = await supabase.rpc("admin_get_users_growth");
-
-      const { data: enrollments } = await supabase
-        .from("enrollments")
-        .select("id, created_at")
-        .order("created_at");
+      const [usersRes, enrollmentsRes, providersRes] = await Promise.all([
+        supabase.rpc("admin_get_users_growth"),
+        supabase.from("enrollments").select("id, created_at").order("created_at"),
+        supabase.from("service_providers").select("id, created_at").order("created_at"),
+      ]);
 
       const now = new Date();
-      const growth: { month: string; users: number; enrollments: number }[] = [];
+      const growth: { month: string; users: number; enrollments: number; providers: number }[] = [];
 
       for (let i = months - 1; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const label = d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" });
         const monthKey = d.toISOString().slice(0, 7);
 
-        const userCount = (users ?? []).filter(
+        const userCount = (usersRes.data ?? []).filter(
           (u) => u.created_at && u.created_at.slice(0, 7) === monthKey
         ).length;
-        const enrollCount = (enrollments ?? []).filter(
+        const enrollCount = (enrollmentsRes.data ?? []).filter(
           (e) => e.created_at && e.created_at.slice(0, 7) === monthKey
         ).length;
+        const providerCount = (providersRes.data ?? []).filter(
+          (p) => p.created_at && p.created_at.slice(0, 7) === monthKey
+        ).length;
 
-        growth.push({ month: label, users: userCount, enrollments: enrollCount });
+        growth.push({ month: label, users: userCount, enrollments: enrollCount, providers: providerCount });
       }
 
-      // City-wise breakdown
-      const { data: apartments } = await supabase
-        .from("apartment_complexes")
-        .select("id, city")
-        .eq("status", "approved");
+      // Category-wise class breakdown (replaces city-wise apartment breakdown)
+      const { data: categories } = await supabase
+        .from("class_categories")
+        .select("id, name")
+        .is("parent_id", null)
+        .eq("is_active", true);
 
-      const cityMap: Record<string, number> = {};
-      for (const apt of apartments ?? []) {
-        cityMap[apt.city] = (cityMap[apt.city] ?? 0) + 1;
-      }
-      const cityBreakdown = Object.entries(cityMap)
-        .map(([city, count]) => ({ city, count }))
-        .sort((a, b) => b.count - a.count);
+      const { data: classes } = await supabase
+        .from("classes")
+        .select("id, category_id")
+        .eq("status", "published");
 
-      return { growth, cityBreakdown };
+      const categoryBreakdown = (categories ?? []).map((cat) => ({
+        category: cat.name,
+        count: (classes ?? []).filter((c) => c.category_id === cat.id).length,
+      })).sort((a, b) => b.count - a.count);
+
+      return { growth, categoryBreakdown };
     },
   });
+}
+
+// ---- Backward-compat stubs (v1 apartment admin hooks — removed in v2) ----
+
+/** @deprecated v2 has no apartment_complexes */
+export function usePlatformApartments() {
+  return useQuery({
+    queryKey: ["platform-apartments-stub"],
+    queryFn: async () => [] as any[],
+    staleTime: Infinity,
+  });
+}
+
+/** @deprecated v2 has no apartment_complexes */
+export function useApproveApartment() {
+  return useMutation({ mutationFn: async (_: any) => {} });
+}
+
+/** @deprecated v2 has no apartment_complexes */
+export function useRejectApartment() {
+  return useMutation({ mutationFn: async (_: any) => {} });
+}
+
+/** @deprecated v2 has no apartment_complexes */
+export function useCreateApartment() {
+  return useMutation({ mutationFn: async (_: any) => {} });
+}
+
+/** @deprecated v2 has no apartment_admins */
+export function useAssignAdmin() {
+  return useMutation({ mutationFn: async (_: any) => {} });
+}
+
+/** @deprecated v2 has no apartment_admins */
+export function useUnassignAdmin() {
+  return useMutation({ mutationFn: async (_: any) => {} });
 }

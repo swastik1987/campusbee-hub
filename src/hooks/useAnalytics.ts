@@ -54,16 +54,20 @@ export function useProviderRevenue(providerId: string | undefined, months: numbe
 
 // ---- Student / Enrollment Analytics ----
 
-export function useProviderStudentAnalytics(providerId: string | undefined, apartmentRegIds: string[], months: number = 6) {
+/**
+ * v2: uses provider_id directly on classes (no apartment registration IDs needed).
+ * The apartmentRegIds parameter is kept for API compat but ignored.
+ */
+export function useProviderStudentAnalytics(providerId: string | undefined, _apartmentRegIds: string[], months: number = 6) {
   return useQuery({
-    queryKey: ["provider-student-analytics", providerId, apartmentRegIds, months],
-    enabled: !!providerId && apartmentRegIds.length > 0,
+    queryKey: ["provider-student-analytics", providerId, months],
+    enabled: !!providerId,
     queryFn: async () => {
-      // Get class IDs
+      // Get class IDs via direct provider_id FK
       const { data: classes } = await supabase
         .from("classes")
         .select("id, title")
-        .in("provider_registration_id", apartmentRegIds);
+        .eq("provider_id", providerId!);
       const classIds = classes?.map((c) => c.id) ?? [];
       if (classIds.length === 0) return { totalStudents: 0, newThisMonth: 0, byClass: [], enrollmentTrend: [] };
 
@@ -123,15 +127,19 @@ export function useProviderStudentAnalytics(providerId: string | undefined, apar
 
 // ---- Attendance Analytics ----
 
-export function useProviderAttendanceAnalytics(providerId: string | undefined, apartmentRegIds: string[]) {
+/**
+ * v2: uses provider_id directly on classes.
+ * The apartmentRegIds parameter is kept for API compat but ignored.
+ */
+export function useProviderAttendanceAnalytics(providerId: string | undefined, _apartmentRegIds: string[]) {
   return useQuery({
-    queryKey: ["provider-attendance-analytics", providerId, apartmentRegIds],
-    enabled: !!providerId && apartmentRegIds.length > 0,
+    queryKey: ["provider-attendance-analytics", providerId],
+    enabled: !!providerId,
     queryFn: async () => {
       const { data: classes } = await supabase
         .from("classes")
         .select("id, title")
-        .in("provider_registration_id", apartmentRegIds);
+        .eq("provider_id", providerId!);
       const classIds = classes?.map((c) => c.id) ?? [];
       if (classIds.length === 0) return { averageRate: 0, byBatch: [], lowAttendance: [] };
 
@@ -202,7 +210,7 @@ export function useProviderCollectionAnalytics(providerId: string | undefined) {
     queryFn: async () => {
       const { data: payments, error } = await supabase
         .from("payments")
-        .select("id, amount, status, due_date, paid_at, created_at, enrollment_id, enrollments(family_members(name, relationship))")
+        .select("id, amount, status, due_date, paid_at, created_at, enrollment_id, enrollments(family_members(full_name, relationship))")
         .eq("provider_id", providerId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -224,7 +232,7 @@ export function useProviderCollectionAnalytics(providerId: string | undefined) {
         paymentId: p.id,
         amount: Number(p.amount),
         dueDate: p.due_date,
-        memberName: (p.enrollments as any)?.family_members?.name ?? "Unknown",
+        memberName: (p.enrollments as any)?.family_members?.full_name ?? "Unknown",
         relationship: (p.enrollments as any)?.family_members?.relationship ?? "",
       }));
 

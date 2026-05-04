@@ -273,7 +273,7 @@ export function usePendingEnrollments(providerId: string | undefined) {
       const batchIds = batches.map((b) => b.id);
       const { data: enrollments } = await supabase
         .from("enrollments")
-        .select("id, batch_id, family_member_id, enrolled_at, family_members(name, relationship)")
+        .select("id, batch_id, family_member_id, enrolled_at, family_members(full_name, relationship)")
         .in("batch_id", batchIds)
         .eq("status", "pending")
         .order("enrolled_at")
@@ -286,7 +286,7 @@ export function usePendingEnrollments(providerId: string | undefined) {
           enrollmentId: e.id,
           batchName: batch?.batch_name ?? "",
           classTitle: cls?.title ?? "",
-          memberName: (e.family_members as any)?.name ?? "",
+          memberName: (e.family_members as any)?.full_name ?? "",
           relationship: (e.family_members as any)?.relationship ?? "",
           enrolledAt: e.enrolled_at,
         };

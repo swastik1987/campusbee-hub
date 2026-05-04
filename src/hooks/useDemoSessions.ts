@@ -97,7 +97,7 @@ export function useMyDemoRegistrations(userId: string | undefined) {
           demo_sessions(id, session_date, start_time, end_time, fee, status,
             classes(id, title, cover_image_url)
           ),
-          family_members(id, name, relationship)
+          family_members(id, full_name, relationship)
         `)
         .eq("registered_by", userId!)
         .order("created_at", { ascending: false });

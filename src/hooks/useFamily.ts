@@ -11,7 +11,7 @@ export function useFamily() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("families")
-        .select("id, primary_user_id, apartment_id, flat_number, block_tower, created_at, updated_at")
+        .select("id, primary_user_id, created_at, updated_at")
         .eq("primary_user_id", profile!.id)
         .maybeSingle();
       if (error) throw error;
@@ -27,7 +27,7 @@ export function useFamilyMembers(familyId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("family_members")
-        .select("id, family_id, name, date_of_birth, age_group, gender, relationship, avatar_url, is_active, created_at")
+        .select("id, family_id, full_name, date_of_birth, age_group, gender, relationship, avatar_url, is_active, created_at")
         .eq("family_id", familyId!)
         .eq("is_active", true)
         .order("created_at");
@@ -37,18 +37,14 @@ export function useFamilyMembers(familyId: string | undefined) {
   });
 }
 
-export function useCurrentApartment(apartmentId: string | undefined) {
+/**
+ * @deprecated v2 has no apartment_complexes table.
+ * Returns null always; kept so existing callers don't break at compile time.
+ */
+export function useCurrentApartment(_apartmentId: string | undefined) {
   return useQuery({
-    queryKey: ["apartment", apartmentId],
-    enabled: !!apartmentId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("apartment_complexes")
-        .select("id, name, city, locality, logo_url, status")
-        .eq("id", apartmentId!)
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    queryKey: ["apartment-stub"],
+    queryFn: async () => null,
+    staleTime: Infinity,
   });
 }

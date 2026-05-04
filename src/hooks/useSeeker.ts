@@ -1,31 +1,52 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-// ---- Browse Classes (Seeker) ----
+// ---- Featured / Sponsored Classes (Seeker) ----
 
-export function useFeaturedClasses(apartmentId: string | undefined) {
+/** Returns active sponsored class listings. Falls back to top-rated published classes. */
+export function useFeaturedClasses(_apartmentId?: string) {
   return useQuery({
-    queryKey: ["featured-classes", apartmentId],
-    enabled: !!apartmentId,
+    queryKey: ["featured-classes"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("classes")
+      // Query sponsored_listings that are currently active
+      const today = new Date().toISOString();
+      const { data: sponsored, error: sErr } = await supabase
+        .from("sponsored_listings")
         .select(`
-          id, title, short_description, cover_image_url, class_type,
-          total_rating, rating_count, trial_available, trial_fee,
-          is_featured, created_at, requires_common_area,
-          class_categories(id, name, slug),
-          provider_apartment_registrations!inner(
-            id, apartment_id,
+          id, class_id, slot_position,
+          classes(
+            id, title, short_description, cover_image_url, class_type,
+            total_rating, rating_count, trial_available, trial_fee, created_at,
+            class_categories(id, name, slug),
             service_providers(id, business_name, provider_type,
               users(full_name, avatar_url)
             )
           )
         `)
+        .eq("status", "active")
+        .lte("valid_from", today)
+        .gte("valid_until", today)
+        .order("slot_position")
+        .limit(10);
+
+      if (!sErr && sponsored && sponsored.length > 0) {
+        return sponsored;
+      }
+
+      // Fallback: top-rated published classes
+      const { data, error } = await supabase
+        .from("classes")
+        .select(`
+          id, title, short_description, cover_image_url, class_type,
+          total_rating, rating_count, trial_available, trial_fee, created_at,
+          class_categories(id, name, slug),
+          service_providers(id, business_name, provider_type,
+            users(full_name, avatar_url)
+          )
+        `)
         .eq("status", "published")
-        .eq("is_featured", true)
-        .eq("provider_apartment_registrations.apartment_id", apartmentId!)
-        .in("provider_apartment_registrations.status", ["pending", "approved"])
+        .eq("moderation_status", "approved")
+        .order("total_rating", { ascending: false })
         .limit(10);
       if (error) throw error;
       return data;
@@ -44,16 +65,14 @@ export function useNewClasses(_apartmentId?: string) {
         .from("classes")
         .select(`
           id, title, short_description, cover_image_url, class_type,
-          total_rating, rating_count, created_at, requires_common_area,
+          total_rating, rating_count, created_at,
           class_categories(id, name, slug),
-          provider_apartment_registrations(
-            id,
-            service_providers(id, business_name, provider_type,
-              users(full_name, avatar_url)
-            )
+          service_providers(id, business_name, provider_type,
+            users(full_name, avatar_url)
           )
         `)
         .eq("status", "published")
+        .eq("moderation_status", "approved")
         .gte("created_at", thirtyDaysAgo.toISOString())
         .order("created_at", { ascending: false })
         .limit(10);
@@ -71,16 +90,14 @@ export function usePopularClasses(_apartmentId?: string) {
         .from("classes")
         .select(`
           id, title, short_description, cover_image_url, class_type,
-          total_rating, rating_count, created_at, requires_common_area,
+          total_rating, rating_count, created_at,
           class_categories(id, name, slug),
-          provider_apartment_registrations(
-            id,
-            service_providers(id, business_name, provider_type,
-              users(full_name, avatar_url)
-            )
+          service_providers(id, business_name, provider_type,
+            users(full_name, avatar_url)
           )
         `)
         .eq("status", "published")
+        .eq("moderation_status", "approved")
         .order("rating_count", { ascending: false })
         .limit(5);
       if (error) throw error;
@@ -101,26 +118,23 @@ export function useExploreClasses(filters: {
 }) {
   return useQuery({
     queryKey: ["explore-classes", filters],
-    // v2: no apartment dependency — show all published classes
     queryFn: async () => {
       let query = supabase
         .from("classes")
         .select(`
           id, title, short_description, cover_image_url, class_type,
           skill_level, age_group_min, age_group_max, total_rating, rating_count,
-          trial_available, trial_fee, created_at, category_id, requires_common_area,
+          trial_available, trial_fee, created_at, category_id,
           class_categories!inner(id, name, slug, parent_id),
-          provider_apartment_registrations(
-            id,
-            service_providers(id, business_name, provider_type,
-              users(full_name, avatar_url)
-            )
+          service_providers(id, business_name, provider_type,
+            users(full_name, avatar_url)
           ),
           batches(id, fee_amount, fee_frequency, status, max_batch_size, current_enrollment_count,
             batch_schedules(day_of_week, start_time, end_time)
           )
         `)
-        .eq("status", "published");
+        .eq("status", "published")
+        .eq("moderation_status", "approved");
 
       if (filters.categoryIds && filters.categoryIds.length > 0) {
         query = query.in("category_id", filters.categoryIds);
@@ -170,18 +184,16 @@ export function useSeekerClassDetail(classId: string | undefined) {
           id, title, description, short_description, cover_image_url, gallery_urls,
           promo_video_url, class_type, skill_level, age_group_min, age_group_max,
           venue_details, what_to_bring, trial_available, trial_fee, status,
-          total_rating, rating_count, created_at,
+          total_rating, rating_count, created_at, address, is_home_based,
           class_categories(id, name, slug, icon),
-          provider_apartment_registrations(
-            id, apartment_id,
-            apartment_complexes(id, name, city, locality),
-            service_providers(id, user_id, business_name, provider_type, bio,
-              experience_years, qualifications, specializations, whatsapp_number,
-              upi_id, upi_qr_image_url, is_verified, profile_photos,
-              users(id, full_name, avatar_url)
-            )
+          service_providers(
+            id, user_id, business_name, provider_type, bio,
+            experience_years, qualifications, specializations, whatsapp_number,
+            upi_id, upi_qr_image_url, is_verified,
+            users(id, full_name, avatar_url)
           ),
-          batches(id, batch_name, batch_type, skill_level, age_group_min, age_group_max,
+          batches(
+            id, batch_name, batch_type, skill_level, age_group_min, age_group_max,
             max_batch_size, current_enrollment_count, fee_amount, fee_frequency, registration_fee,
             start_date, end_date, status, registration_mode, auto_waitlist, trainer_id,
             trainers(id, name, photo_url, specializations),
@@ -208,8 +220,8 @@ export function useProviderProfile(providerId: string | undefined) {
         .from("service_providers")
         .select(`
           id, user_id, provider_type, business_name, bio, experience_years,
-          qualifications, specializations, profile_photos, intro_video_url,
-          whatsapp_number, is_verified,
+          qualifications, specializations, intro_video_url,
+          whatsapp_number, is_verified, subscription_tier,
           users(id, full_name, avatar_url),
           trainers(id, name, bio, specializations, photo_url, experience_years)
         `)
@@ -221,29 +233,21 @@ export function useProviderProfile(providerId: string | undefined) {
   });
 }
 
-export function useProviderClasses(providerId: string | undefined, apartmentId: string | undefined) {
+export function useProviderClasses(providerId: string | undefined, _apartmentId?: string) {
   return useQuery({
-    queryKey: ["provider-public-classes", providerId, apartmentId],
+    queryKey: ["provider-public-classes", providerId],
     enabled: !!providerId,
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from("classes")
         .select(`
           id, title, short_description, cover_image_url, class_type,
           total_rating, rating_count, status,
-          class_categories(id, name, slug),
-          provider_apartment_registrations!inner(
-            id, apartment_id, provider_id
-          )
+          class_categories(id, name, slug)
         `)
+        .eq("provider_id", providerId!)
         .eq("status", "published")
-        .eq("provider_apartment_registrations.provider_id", providerId!);
-
-      if (apartmentId) {
-        query = query.eq("provider_apartment_registrations.apartment_id", apartmentId);
-      }
-
-      const { data, error } = await query.order("created_at", { ascending: false });
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -357,7 +361,7 @@ export function useCreateWaitlistEntry() {
     mutationFn: async (input: {
       batchId: string;
       familyMemberId: string;
-      requestedBy: string;
+      requestedBy: string; // kept for API compat; not stored in v2 waitlist_entries
     }) => {
       // Get current max position
       const { data: existing } = await supabase
@@ -374,7 +378,6 @@ export function useCreateWaitlistEntry() {
         .insert({
           batch_id: input.batchId,
           family_member_id: input.familyMemberId,
-          requested_by: input.requestedBy,
           position: nextPosition,
         })
         .select("id, position")
@@ -452,7 +455,7 @@ export function useMyEnrollments(userId: string | undefined, status?: string) {
         .from("enrollments")
         .select(`
           id, status, enrolled_at, selected_addon_ids, notes, created_at,
-          family_members(id, name, relationship, avatar_url),
+          family_members(id, full_name, relationship, avatar_url),
           batches(
             id, batch_name, skill_level, fee_amount, fee_frequency, status,
             start_date, end_date, max_batch_size, current_enrollment_count,
@@ -461,10 +464,8 @@ export function useMyEnrollments(userId: string | undefined, status?: string) {
             classes(
               id, title, cover_image_url, class_type,
               class_categories(name, slug),
-              provider_apartment_registrations(
-                service_providers(id, business_name,
-                  users(full_name)
-                )
+              service_providers(id, business_name,
+                users(full_name)
               )
             )
           )
@@ -496,7 +497,7 @@ export function useEnrollmentDetail(enrollmentId: string | undefined) {
         .from("enrollments")
         .select(`
           id, status, enrolled_at, selected_addon_ids, notes, created_at,
-          family_members(id, name, relationship, avatar_url, age_group),
+          family_members(id, full_name, relationship, avatar_url, age_group),
           batches(
             id, batch_name, skill_level, fee_amount, fee_frequency, status,
             start_date, end_date, total_sessions, max_batch_size, current_enrollment_count,
@@ -505,10 +506,8 @@ export function useEnrollmentDetail(enrollmentId: string | undefined) {
             classes(
               id, title, cover_image_url, venue_details, class_type,
               class_categories(name),
-              provider_apartment_registrations(
-                service_providers(id, business_name, whatsapp_number, upi_id, upi_qr_image_url,
-                  users(full_name, avatar_url)
-                )
+              service_providers(id, business_name, whatsapp_number, upi_id, upi_qr_image_url,
+                users(full_name, avatar_url)
               )
             )
           )
@@ -528,7 +527,7 @@ export function useEnrollmentAttendance(enrollmentId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("attendance_records")
-        .select("id, session_date, status, notes, marked_at")
+        .select("id, session_date, status, notes")
         .eq("enrollment_id", enrollmentId!)
         .order("session_date", { ascending: false });
       if (error) throw error;
@@ -558,15 +557,12 @@ export function useEnrollmentMaterials(classId: string | undefined, batchId: str
     queryKey: ["enrollment-materials", classId, batchId],
     enabled: !!classId,
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from("class_materials")
         .select("id, title, description, material_type, file_url, external_url, created_at, batch_id")
         .eq("class_id", classId!)
         .eq("is_active", true)
         .order("created_at", { ascending: false });
-
-      // Get materials for this class (either no batch or matching batch)
-      const { data, error } = await query;
       if (error) throw error;
       return data?.filter((m) => !m.batch_id || m.batch_id === batchId) ?? data;
     },

@@ -15,14 +15,13 @@ export function useBatchEnrolledStudents(batchId: string | undefined, date?: str
         .from("enrollments")
         .select(`
           id, status, enrolled_at, dropped_at, approved_at,
-          family_members(id, name, relationship, avatar_url)
+          family_members(id, full_name, relationship, avatar_url)
         `)
         .eq("batch_id", batchId!)
         .order("created_at");
 
       if (isPast) {
         // For past dates: include students who were enrolled on that date
-        // (active, completed, or dropped after the target date)
         query = query
           .in("status", ["active", "completed", "dropped", "paused"])
           .lte("enrolled_at", `${date}T23:59:59`);
@@ -74,7 +73,6 @@ export function useSubmitAttendance() {
       markedBy: string;
       records: { enrollmentId: string; status: string }[];
     }) => {
-      // Upsert attendance records
       const rows = input.records.map((r) => ({
         enrollment_id: r.enrollmentId,
         batch_id: input.batchId,
@@ -197,7 +195,8 @@ export function useProviderPayments(providerId: string | undefined, status?: str
           id, amount, payment_type, payment_method, upi_transaction_id,
           status, paid_at, receipt_url, payment_period_start, payment_period_end,
           notes, created_at,
-          enrollments(id, family_members(name, relationship),
+          enrollments(id,
+            family_members(full_name, relationship),
             batches(batch_name, classes(title))
           ),
           users!payments_payer_user_id_fkey(full_name, avatar_url)
@@ -284,7 +283,7 @@ export function useChatMessages(conversationId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chat_messages")
-        .select("id, conversation_id, sender_id, message_text, message_type, is_read, created_at")
+        .select("id, conversation_id, sender_id, body, message_type, is_read, created_at")
         .eq("conversation_id", conversationId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
@@ -305,7 +304,7 @@ export function useSendMessage() {
       const { error: msgErr } = await supabase.from("chat_messages").insert({
         conversation_id: input.conversationId,
         sender_id: input.senderId,
-        message_text: input.messageText,
+        body: input.messageText,
       });
       if (msgErr) throw msgErr;
 
@@ -354,26 +353,23 @@ export function useGetOrCreateConversation() {
 // ---- Announcements ----
 
 export function useAnnouncements(filters: {
-  apartmentId?: string;
+  apartmentId?: string; // kept for API compat; ignored in v2 (no apartment column)
   classId?: string;
   batchId?: string;
 }) {
   return useQuery({
     queryKey: ["announcements", filters],
-    enabled: !!(filters.apartmentId || filters.classId || filters.batchId),
+    enabled: !!(filters.classId || filters.batchId),
     queryFn: async () => {
       let query = supabase
         .from("announcements")
         .select(`
           id, title, body, announcement_type, target_audience, is_pinned, created_at,
-          users(full_name, avatar_url)
+          users!announcements_author_id_fkey(full_name, avatar_url)
         `)
         .order("is_pinned", { ascending: false })
         .order("created_at", { ascending: false });
 
-      if (filters.apartmentId) {
-        query = query.eq("apartment_id", filters.apartmentId);
-      }
       if (filters.classId) {
         query = query.eq("class_id", filters.classId);
       }
@@ -393,7 +389,8 @@ export function useCreateAnnouncement() {
   return useMutation({
     mutationFn: async (input: {
       authorId: string;
-      apartmentId?: string;
+      providerId: string;
+      apartmentId?: string; // kept for API compat; ignored in v2
       classId?: string;
       batchId?: string;
       targetAudience: string;
@@ -403,8 +400,8 @@ export function useCreateAnnouncement() {
       isPinned: boolean;
     }) => {
       const { error } = await supabase.from("announcements").insert({
+        provider_id: input.providerId,
         author_id: input.authorId,
-        apartment_id: input.apartmentId || null,
         class_id: input.classId || null,
         batch_id: input.batchId || null,
         target_audience: input.targetAudience,

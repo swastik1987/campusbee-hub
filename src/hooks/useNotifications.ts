@@ -8,7 +8,7 @@ export function useNotifications(userId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notifications")
-        .select("id, title, body, notification_type, reference_type, reference_id, is_read, created_at")
+        .select("id, title, body, type, ref_type, ref_id, is_read, created_at")
         .eq("user_id", userId!)
         .order("created_at", { ascending: false })
         .limit(50);

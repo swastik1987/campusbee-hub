@@ -139,7 +139,7 @@ export function useIncomingInvites(userId: string | undefined, email: string | n
           id, invite_code, invite_type, status, message, created_at, expires_at,
           family_id, claimed_member_id,
           inviter:users!family_invites_invited_by_fkey(id, full_name, avatar_url),
-          families(id, apartment_id, apartment_complexes(name))
+          families(id)
         `)
         .or(conditions.join(","))
         .eq("status", "pending")
@@ -310,7 +310,7 @@ export function useInviteByCode(code: string | undefined) {
           id, invite_code, invite_type, status, message, created_at, expires_at,
           family_id, claimed_member_id,
           inviter:users!family_invites_invited_by_fkey(id, full_name, avatar_url),
-          families(id, apartment_id, flat_number, block_tower, apartment_complexes(name, city))
+          families(id)
         `)
         .eq("invite_code", code!)
         .maybeSingle();
@@ -320,15 +320,14 @@ export function useInviteByCode(code: string | undefined) {
   });
 }
 
-// ---- Search Users in Same Apartment ----
+// ---- Search Users (v2: by name/email, no apartment scoping) ----
 
-export function useSearchApartmentUsers(apartmentId: string | undefined, searchTerm: string) {
+export function useSearchApartmentUsers(_apartmentId: string | undefined, searchTerm: string) {
   return useQuery({
-    queryKey: ["apartment-users-search", apartmentId, searchTerm],
-    enabled: !!apartmentId && searchTerm.length >= 2,
+    queryKey: ["users-search", searchTerm],
+    enabled: searchTerm.length >= 2,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("search_apartment_users", {
-        apt_id: apartmentId!,
+      const { data, error } = await supabase.rpc("admin_search_users", {
         search_query: searchTerm,
       });
       if (error) throw error;

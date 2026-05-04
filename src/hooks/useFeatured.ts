@@ -1,25 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-// ---- Seeker: Active Featured Listings ----
+// ---- Seeker: Active Sponsored Listings ----
 
-export function useActiveFeaturedListings(apartmentId: string | undefined) {
+/**
+ * v2 replacement for the v1 featured_class_listings query.
+ * Returns active sponsored_listings for the area (no apartment binding).
+ * _apartmentId kept for API compat; ignored in v2.
+ */
+export function useActiveFeaturedListings(_apartmentId?: string) {
   return useQuery({
-    queryKey: ["featured-listings", apartmentId],
-    enabled: !!apartmentId,
+    queryKey: ["sponsored-listings-active"],
     queryFn: async () => {
-      const today = new Date().toISOString().split("T")[0];
+      const now = new Date().toISOString();
       const { data, error } = await supabase
-        .from("featured_class_listings")
+        .from("sponsored_listings")
         .select(`
-          id, class_id, banner_image_url, display_order, valid_until,
-          classes(id, title, short_description, cover_image_url, provider_registration_id)
+          id, class_id, slot_position, radius_km, valid_from, valid_until,
+          classes(
+            id, title, short_description, cover_image_url,
+            class_categories(name, slug),
+            service_providers(id, business_name,
+              users(full_name, avatar_url)
+            )
+          )
         `)
-        .eq("apartment_id", apartmentId!)
         .eq("status", "active")
-        .lte("valid_from", today)
-        .gte("valid_until", today)
-        .order("display_order")
+        .lte("valid_from", now)
+        .gte("valid_until", now)
+        .order("slot_position")
         .limit(10);
       if (error) throw error;
       return data;
@@ -27,380 +36,145 @@ export function useActiveFeaturedListings(apartmentId: string | undefined) {
   });
 }
 
-// ---- Provider: My Featured Requests ----
+// ---- Provider: My Sponsored Listing Requests ----
 
-export function useProviderFeaturedRequests(
-  providerId: string | undefined,
-  apartmentRegIds: string[]
-) {
+export function useProviderSponsoredRequests(providerId: string | undefined) {
   return useQuery({
-    queryKey: ["provider-featured", providerId, apartmentRegIds],
-    enabled: !!providerId && apartmentRegIds.length > 0,
+    queryKey: ["provider-sponsored", providerId],
+    enabled: !!providerId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("featured_class_listings")
+        .from("sponsored_listings")
         .select(`
-          id, class_id, apartment_id, provider_registration_id,
-          banner_image_url, requested_at, requested_by,
-          ad_fee, valid_from, valid_until, admin_notes,
-          responded_by, responded_at, fee_status, status,
-          deactivation_reason, deactivated_at,
-          display_order, created_at, updated_at,
-          classes(title)
+          id, class_id, provider_id, status, slot_position,
+          radius_km, valid_from, valid_until,
+          off_app_payment_ref, rejection_reason,
+          requested_at, reviewed_at,
+          classes(title, cover_image_url)
         `)
-        .in("provider_registration_id", apartmentRegIds)
-        .order("created_at", { ascending: false });
+        .eq("provider_id", providerId!)
+        .order("requested_at", { ascending: false });
       if (error) throw error;
       return data;
     },
   });
 }
 
-// ---- Provider: Request a Featured Listing ----
+// ---- Provider: Request a Sponsored Slot ----
 
-interface RequestFeaturedInput {
-  classId: string;
-  apartmentId: string;
-  providerRegistrationId: string;
-  bannerImageUrl: string;
-  requestedBy: string;
-}
-
-export function useRequestFeaturedListing() {
-  const queryClient = useQueryClient();
-
+export function useRequestSponsoredListing() {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: RequestFeaturedInput) => {
+    mutationFn: async (input: {
+      classId: string;
+      providerId: string;
+      offAppPaymentRef?: string;
+      radiusKm?: number;
+    }) => {
       const { data, error } = await supabase
-        .from("featured_class_listings")
+        .from("sponsored_listings")
         .insert({
           class_id: input.classId,
-          apartment_id: input.apartmentId,
-          provider_registration_id: input.providerRegistrationId,
-          banner_image_url: input.bannerImageUrl,
-          requested_by: input.requestedBy,
+          provider_id: input.providerId,
+          status: "pending",
+          radius_km: input.radiusKm ?? 10,
+          off_app_payment_ref: input.offAppPaymentRef || null,
           requested_at: new Date().toISOString(),
-          status: "pending_approval",
-          fee_status: "pending",
         })
-        .select()
+        .select("id")
         .single();
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["provider-featured"] });
-      queryClient.invalidateQueries({ queryKey: ["featured-listings"] });
+      qc.invalidateQueries({ queryKey: ["provider-sponsored"] });
+      qc.invalidateQueries({ queryKey: ["sponsored-listings-active"] });
     },
   });
 }
 
-// ---- Admin: All Featured Requests for Apartment ----
-
-export function useAdminFeaturedRequests(apartmentId: string | undefined) {
-  return useQuery({
-    queryKey: ["admin-featured", apartmentId],
-    enabled: !!apartmentId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("featured_class_listings")
-        .select(`
-          id, class_id, apartment_id, provider_registration_id,
-          banner_image_url, requested_at, requested_by,
-          ad_fee, valid_from, valid_until, admin_notes,
-          responded_by, responded_at, fee_status, status,
-          deactivation_reason, deactivated_at,
-          display_order, created_at, updated_at,
-          classes(title, cover_image_url),
-          provider_apartment_registrations(
-            service_providers(
-              business_name,
-              users(full_name)
-            )
-          )
-        `)
-        .eq("apartment_id", apartmentId!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
-// ---- Admin: Respond with Fee Proposal ----
-
-interface AdminRespondInput {
-  listingId: string;
-  adFee: number;
-  validFrom: string;
-  validUntil: string;
-  adminNotes?: string;
-  respondedBy: string;
-}
-
-export function useAdminRespondFeatured() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: AdminRespondInput) => {
-      const { data, error } = await supabase
-        .from("featured_class_listings")
-        .update({
-          ad_fee: input.adFee,
-          valid_from: input.validFrom,
-          valid_until: input.validUntil,
-          admin_notes: input.adminNotes,
-          responded_by: input.respondedBy,
-          responded_at: new Date().toISOString(),
-          fee_status: "fee_proposed",
-          status: "fee_proposed",
-        })
-        .eq("id", input.listingId)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-featured"] });
-      queryClient.invalidateQueries({ queryKey: ["provider-featured"] });
-      queryClient.invalidateQueries({ queryKey: ["featured-listings"] });
-    },
-  });
-}
-
-// ---- Admin: Reject Featured Request ----
-
-interface AdminRejectInput {
-  listingId: string;
-  adminNotes?: string;
-  respondedBy: string;
-}
-
-export function useAdminRejectFeatured() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: AdminRejectInput) => {
-      const { data, error } = await supabase
-        .from("featured_class_listings")
-        .update({
-          status: "rejected",
-          admin_notes: input.adminNotes,
-          responded_by: input.respondedBy,
-          responded_at: new Date().toISOString(),
-        })
-        .eq("id", input.listingId)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-featured"] });
-      queryClient.invalidateQueries({ queryKey: ["provider-featured"] });
-      queryClient.invalidateQueries({ queryKey: ["featured-listings"] });
-    },
-  });
-}
-
-// ---- Provider: Accept or Reject Proposed Fee ----
-
-interface ProviderRespondToFeeInput {
-  listingId: string;
-  accept: boolean;
-}
-
-export function useProviderRespondToFeaturedFee() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: ProviderRespondToFeeInput) => {
-      const updates = input.accept
-        ? {
-            fee_status: "accepted" as const,
-            fee_accepted_at: new Date().toISOString(),
-            status: "active" as const,
-          }
-        : {
-            fee_status: "rejected" as const,
-            status: "cancelled" as const,
-          };
-
-      const { data, error } = await supabase
-        .from("featured_class_listings")
-        .update(updates)
-        .eq("id", input.listingId)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["provider-featured"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-featured"] });
-      queryClient.invalidateQueries({ queryKey: ["featured-listings"] });
-    },
-  });
-}
-
-// ---- Admin: Deactivate an Active Featured Listing ----
-
-interface AdminDeactivateInput {
-  listingId: string;
-  reason?: string;
-  deactivatedBy: string;
-}
-
-export function useAdminDeactivateFeatured() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: AdminDeactivateInput) => {
-      // Fetch listing to get provider user id for notification
-      const { data: listing } = await supabase
-        .from("featured_class_listings")
-        .select(`
-          id, class_id,
-          classes(title),
-          provider_apartment_registrations(
-            service_providers(user_id)
-          )
-        `)
-        .eq("id", input.listingId)
-        .single();
-
-      const { data, error } = await supabase
-        .from("featured_class_listings")
-        .update({
-          status: "inactive",
-          deactivation_reason: input.reason || null,
-          deactivated_at: new Date().toISOString(),
-          deactivated_by: input.deactivatedBy,
-        })
-        .eq("id", input.listingId)
-        .select()
-        .single();
-      if (error) throw error;
-
-      // Notify the provider
-      const providerUserId = (listing as any)?.provider_apartment_registrations?.service_providers?.user_id;
-      const classTitle = (listing as any)?.classes?.title ?? "your class";
-      if (providerUserId) {
-        await supabase.rpc("send_notification", {
-          p_user_id: providerUserId,
-          p_title: "Featured Listing Deactivated",
-          p_body: `Your featured listing for "${classTitle}" has been deactivated by the apartment admin.${input.reason ? ` Reason: ${input.reason}` : ""}`,
-          p_type: "featured_deactivated",
-          p_ref_type: "featured_class_listing",
-          p_ref_id: input.listingId,
-        });
-      }
-
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-featured"] });
-      queryClient.invalidateQueries({ queryKey: ["provider-featured"] });
-      queryClient.invalidateQueries({ queryKey: ["featured-listings"] });
-    },
-  });
-}
-
-// ---- Admin: Reactivate an Inactive Featured Listing ----
-
-interface AdminReactivateInput {
-  listingId: string;
-  validUntil?: string; // optional new end date
-  reactivatedBy: string;
-}
-
-export function useAdminReactivateFeatured() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: AdminReactivateInput) => {
-      // Fetch listing to get provider user id and current valid_until
-      const { data: listing } = await supabase
-        .from("featured_class_listings")
-        .select(`
-          id, class_id, valid_until,
-          classes(title),
-          provider_apartment_registrations(
-            service_providers(user_id)
-          )
-        `)
-        .eq("id", input.listingId)
-        .single();
-
-      const updates: Record<string, any> = {
-        status: "active",
-        deactivation_reason: null,
-        deactivated_at: null,
-        deactivated_by: null,
-      };
-      if (input.validUntil) {
-        updates.valid_until = input.validUntil;
-      }
-
-      const { data, error } = await supabase
-        .from("featured_class_listings")
-        .update(updates)
-        .eq("id", input.listingId)
-        .select()
-        .single();
-      if (error) throw error;
-
-      // Notify the provider
-      const providerUserId = (listing as any)?.provider_apartment_registrations?.service_providers?.user_id;
-      const classTitle = (listing as any)?.classes?.title ?? "your class";
-      if (providerUserId) {
-        await supabase.rpc("send_notification", {
-          p_user_id: providerUserId,
-          p_title: "Featured Listing Reactivated",
-          p_body: `Your featured listing for "${classTitle}" has been reactivated by the apartment admin.`,
-          p_type: "featured_reactivated",
-          p_ref_type: "featured_class_listing",
-          p_ref_id: input.listingId,
-        });
-      }
-
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-featured"] });
-      queryClient.invalidateQueries({ queryKey: ["provider-featured"] });
-      queryClient.invalidateQueries({ queryKey: ["featured-listings"] });
-    },
-  });
-}
-
-// ---- Upload Banner Image to Supabase Storage ----
-
-interface UploadBannerInput {
-  classId: string;
-  file: File;
-}
+// ---- Upload Banner Image ----
 
 export function useUploadBannerImage() {
   return useMutation({
-    mutationFn: async (input: UploadBannerInput) => {
-      const ext = input.file.name.split(".").pop() || "jpg";
-      const path = `${input.classId}/banners/${Date.now()}.${ext}`;
+    mutationFn: async ({ classId, file }: { classId: string; file: File }) => {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${classId}/banners/${Date.now()}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("class-images")
-        .upload(path, input.file, {
-          cacheControl: "3600",
-          upsert: false,
-        });
+        .upload(path, file, { cacheControl: "3600", upsert: false });
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage
-        .from("class-images")
-        .getPublicUrl(path);
-
+      const { data } = supabase.storage.from("class-images").getPublicUrl(path);
       return data.publicUrl;
     },
   });
+}
+
+// ---- Featured Banners (Premium providers) ----
+
+export function useProviderFeaturedBanners(providerId: string | undefined) {
+  return useQuery({
+    queryKey: ["provider-featured-banners", providerId],
+    enabled: !!providerId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("featured_banners")
+        .select("id, image_url, target_url, status, valid_from, valid_until, click_count, impression_count")
+        .eq("provider_id", providerId!)
+        .order("valid_from", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+// ---- Backward-compat stubs (v1 hooks — removed in v2) ----
+
+/** @deprecated Use useProviderSponsoredRequests instead */
+export function useProviderFeaturedRequests(
+  providerId: string | undefined,
+  _apartmentRegIds: string[]
+) {
+  return useProviderSponsoredRequests(providerId);
+}
+
+/** @deprecated No-op in v2 (no featured_class_listings table) */
+export function useRequestFeaturedListing() {
+  return useMutation({ mutationFn: async (_: any) => {} });
+}
+
+/** @deprecated No-op in v2 */
+export function useAdminFeaturedRequests(_apartmentId: string | undefined) {
+  return useQuery({
+    queryKey: ["admin-featured-stub"],
+    queryFn: async () => [] as any[],
+    staleTime: Infinity,
+  });
+}
+
+/** @deprecated No-op in v2 */
+export function useAdminRespondFeatured() {
+  return useMutation({ mutationFn: async (_: any) => {} });
+}
+
+/** @deprecated No-op in v2 */
+export function useAdminRejectFeatured() {
+  return useMutation({ mutationFn: async (_: any) => {} });
+}
+
+/** @deprecated No-op in v2 */
+export function useProviderRespondToFeaturedFee() {
+  return useMutation({ mutationFn: async (_: any) => {} });
+}
+
+/** @deprecated No-op in v2 */
+export function useAdminDeactivateFeatured() {
+  return useMutation({ mutationFn: async (_: any) => {} });
+}
+
+/** @deprecated No-op in v2 */
+export function useAdminReactivateFeatured() {
+  return useMutation({ mutationFn: async (_: any) => {} });
 }
