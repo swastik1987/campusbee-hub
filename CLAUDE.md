@@ -396,7 +396,10 @@ v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **n
 | 005 | `005_moderation_helpers.sql` | `submit_for_moderation()`, `resolve_moderation_flag()` |
 | 006 | `006_geo_helpers.sql` | `nearby_classes(seeker_loc, radius_km, category_id?)` SECURITY DEFINER, sponsored injection |
 | 007 | `007_seed_categories.sql` | Initial category tree |
-| hotfix | `supabase_migration_add_location.sql` | Add `seeker_home_address` (TEXT) + `seeker_home_location` (geography Point 4326) + GIST index to `public.users`. Run manually in SQL editor if the live DB was provisioned before this was in the baseline. Also enables PostGIS if not already active. |
+| 008 | `008_fix_uuid_defaults.sql` | Fix UUID default expressions |
+| 009 | `009_grant_role_privileges.sql` | Grant SELECT/INSERT/UPDATE/DELETE to `anon`/`authenticated` on all public tables + default privileges for future tables |
+| 010 | `010_add_seeker_location_columns.sql` | Add `seeker_home_address` (TEXT) + `seeker_home_location` (geography Point 4326) + GIST index to `public.users`. Enables PostGIS if not active. Run if live DB was provisioned before these columns were in the baseline. |
+| 011 | `011_fix_families_rls.sql` | Hotfix for `families` INSERT 42501 RLS error: recreates `current_user_id()` helper, makes `families.apartment_id` nullable (v1→v2 compat), replaces INSERT policies on `families` and `family_links` with inline-subquery versions, adds `accepted_at` to `family_links` if absent. |
 
 ---
 
