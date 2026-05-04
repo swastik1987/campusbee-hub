@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useProviderRegistrations } from "@/hooks/useProvider";
-import { useProviderEnrollments, useUpdateEnrollmentStatus } from "@/hooks/useEngagement";
+import { useProviderEnrollments, useRemovedEnrollments, useUpdateEnrollmentStatus } from "@/hooks/useEngagement";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/layout/Header";
@@ -14,7 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Check, Clock, CreditCard, Filter, Home, MessageCircle, Users, X } from "lucide-react";
+import { Calendar, Check, Clock, CreditCard, Filter, MessageCircle, UserMinus, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -107,8 +107,18 @@ const ProviderStudents = () => {
     return providerBatches.map((b) => b.id);
   }, [providerBatches, batchFilter]);
 
+  const isRemovedTab = tab === "removed";
   const statusFilter = tab === "pending" ? "pending" : tab === "active" ? "active" : "all";
-  const { data: enrollments, isLoading } = useProviderEnrollments(activeBatchIds, statusFilter);
+  const { data: enrollments, isLoading } = useProviderEnrollments(
+    isRemovedTab ? [] : activeBatchIds,
+    isRemovedTab ? undefined : statusFilter,
+  );
+  const { data: removedEnrollments, isLoading: removedLoading } = useRemovedEnrollments(
+    isRemovedTab ? activeBatchIds : [],
+  );
+
+  const displayEnrollments = isRemovedTab ? (removedEnrollments ?? []) : (enrollments ?? []);
+  const displayLoading = isRemovedTab ? removedLoading : isLoading;
   const updateStatus = useUpdateEnrollmentStatus();
 
   const handleApprove = async (enrollmentId: string) => {
@@ -168,27 +178,27 @@ const ProviderStudents = () => {
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full">
-            <TabsTrigger value="all" className="flex-1">All</TabsTrigger>
-            <TabsTrigger value="active" className="flex-1">Active</TabsTrigger>
-            <TabsTrigger value="pending" className="flex-1">Pending</TabsTrigger>
+            <TabsTrigger value="all" className="flex-1 text-xs">All</TabsTrigger>
+            <TabsTrigger value="active" className="flex-1 text-xs">Active</TabsTrigger>
+            <TabsTrigger value="pending" className="flex-1 text-xs">Pending</TabsTrigger>
+            <TabsTrigger value="removed" className="flex-1 text-xs">Removed</TabsTrigger>
           </TabsList>
 
           <TabsContent value={tab} className="mt-4">
-            {isLoading ? (
+            {displayLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <Skeleton key={i} className="h-28 rounded-xl" />
                 ))}
               </div>
-            ) : enrollments && enrollments.length > 0 ? (
+            ) : displayEnrollments.length > 0 ? (
               <div className="space-y-3">
-                {enrollments.map((enrollment) => {
+                {displayEnrollments.map((enrollment) => {
                   const member = enrollment.family_members as any;
                   const enrolledUser = (enrollment as any).enrolled_user;
                   const batch = enrollment.batches as any;
                   const cls = batch?.classes;
                   const schedules = batch?.batch_schedules ?? [];
-                  const family = member?.families;
                   const payments = (enrollment as any).payments as any[] ?? [];
                   const latestPayment = payments.length > 0
                     ? payments.sort((a: any, b: any) => new Date(b.paid_at ?? b.created_at ?? 0).getTime() - new Date(a.paid_at ?? a.created_at ?? 0).getTime())[0]
@@ -200,22 +210,28 @@ const ProviderStudents = () => {
                     : "";
 
                   return (
-                    <Card key={enrollment.id} className="p-4 space-y-3">
+                    <Card key={enrollment.id} className={`p-4 space-y-3 ${isRemovedTab ? "border-destructive/20 bg-destructive/5" : ""}`}>
                       {/* Student info row */}
                       <div className="flex items-start gap-3">
                         <Avatar className="h-10 w-10 mt-0.5">
-                          <AvatarImage src={member?.avatar_url} />
                           <AvatarFallback className="bg-provider/10 text-provider text-xs">
-                            {member?.name?.[0]?.toUpperCase()}
+                            {(member?.full_name ?? member?.name ?? "")[0]?.toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold truncate">{member?.name}</p>
+                            <p className="text-sm font-semibold truncate">
+                              {member?.full_name ?? member?.name}
+                            </p>
                             <Badge className={`text-[9px] border-0 shrink-0 ${STATUS_COLORS[enrollment.status ?? ""] ?? "bg-gray-100"}`}>
                               {enrollment.status}
                             </Badge>
-                            {enrolledUser?.id && (
+                            {isRemovedTab && (
+                              <span className="ml-auto flex items-center gap-1 text-[9px] text-destructive font-medium shrink-0">
+                                <UserMinus size={10} /> Removed from family
+                              </span>
+                            )}
+                            {!isRemovedTab && enrolledUser?.id && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); navigate(`/chat?with=${enrolledUser.id}`); }}
                                 className="ml-auto shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-indigo-500/10 transition-colors hover:bg-indigo-500/20"
@@ -230,12 +246,10 @@ const ProviderStudents = () => {
                             {age && <span>· {age}</span>}
                             {member?.age_group && !age && <span>· {member.age_group}</span>}
                           </div>
-                          {(family?.flat_number || family?.block_tower) && (
-                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
-                              <Home size={10} />
-                              {family.flat_number && <span>Flat {family.flat_number}</span>}
-                              {family.block_tower && <span>· {family.block_tower}</span>}
-                            </div>
+                          {isRemovedTab && (enrollment as any).dropped_at && (
+                            <p className="text-[10px] text-destructive/70 mt-0.5">
+                              Removed {new Date((enrollment as any).dropped_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -339,10 +353,21 @@ const ProviderStudents = () => {
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3 py-12 text-center">
-                <Users size={28} className="text-muted-foreground" />
+                {isRemovedTab
+                  ? <UserMinus size={28} className="text-muted-foreground" />
+                  : <Users size={28} className="text-muted-foreground" />}
                 <p className="text-sm text-muted-foreground">
-                  {tab === "pending" ? "No pending enrollments" : "No students found"}
+                  {isRemovedTab
+                    ? "No removed students"
+                    : tab === "pending"
+                    ? "No pending enrollments"
+                    : "No students found"}
                 </p>
+                {isRemovedTab && (
+                  <p className="text-xs text-muted-foreground max-w-xs">
+                    Students removed from their family accounts will appear here
+                  </p>
+                )}
               </div>
             )}
           </TabsContent>

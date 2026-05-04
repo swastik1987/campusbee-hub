@@ -9,6 +9,7 @@ import {
   useTransferPrimary,
 } from "@/hooks/useFamilyLinking";
 import { useAddFamilyMembers, calculateAgeGroup } from "@/hooks/useOnboarding";
+import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -108,6 +109,30 @@ const FamilyManagement = () => {
       refreshFamily();
     } catch {
       toast.error("Failed to add family member");
+    }
+  };
+
+  // ── Delete member ─────────────────────────────────────────────
+  const [confirmDeleteMember, setConfirmDeleteMember] = useState<{
+    id: string; name: string;
+  } | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
+
+  const handleDeleteMember = async () => {
+    if (!confirmDeleteMember) return;
+    setDeletePending(true);
+    try {
+      const { error } = await supabase.rpc("delete_family_member", {
+        p_member_id: confirmDeleteMember.id,
+      });
+      if (error) throw error;
+      toast.success(`${confirmDeleteMember.name} removed from family`);
+      setConfirmDeleteMember(null);
+      refreshFamily();
+    } catch {
+      toast.error("Failed to remove family member");
+    } finally {
+      setDeletePending(false);
     }
   };
 
@@ -235,12 +260,24 @@ const FamilyManagement = () => {
                       {(m.full_name ?? "")[0]?.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm font-medium">{m.full_name}</p>
                     <p className="text-[10px] text-muted-foreground capitalize">
                       {m.relationship}{m.age_group && ` · ${m.age_group}`}
                     </p>
                   </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-destructive hover:bg-destructive/10 shrink-0"
+                    title="Remove family member"
+                    onClick={() => setConfirmDeleteMember({
+                      id: m.id,
+                      name: m.full_name ?? "this member",
+                    })}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
                 </Card>
               ))}
               {/* Always show "Add more" button below the list */}
@@ -517,6 +554,31 @@ const FamilyManagement = () => {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Delete Family Member Confirmation */}
+      <AlertDialog open={!!confirmDeleteMember} onOpenChange={() => !deletePending && setConfirmDeleteMember(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {confirmDeleteMember?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove <strong>{confirmDeleteMember?.name}</strong> from your family.
+              All active class enrollments will be dropped and their providers will be notified.
+              Demo bookings and waitlist spots will also be cancelled. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletePending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteMember}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {deletePending
+                ? <Loader2 size={14} className="animate-spin" />
+                : "Remove Member"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Unlink Confirmation */}
       <AlertDialog open={!!confirmUnlink} onOpenChange={() => setConfirmUnlink(null)}>
