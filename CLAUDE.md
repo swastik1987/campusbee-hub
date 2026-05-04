@@ -396,6 +396,7 @@ v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **n
 | 005 | `005_moderation_helpers.sql` | `submit_for_moderation()`, `resolve_moderation_flag()` |
 | 006 | `006_geo_helpers.sql` | `nearby_classes(seeker_loc, radius_km, category_id?)` SECURITY DEFINER, sponsored injection |
 | 007 | `007_seed_categories.sql` | Initial category tree |
+| hotfix | `supabase_migration_add_location.sql` | Add `seeker_home_address` (TEXT) + `seeker_home_location` (geography Point 4326) + GIST index to `public.users`. Run manually in SQL editor if the live DB was provisioned before this was in the baseline. Also enables PostGIS if not already active. |
 
 ---
 
