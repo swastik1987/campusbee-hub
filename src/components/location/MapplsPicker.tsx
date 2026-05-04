@@ -104,15 +104,17 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
     const searchTimerRef  = React.useRef<ReturnType<typeof setTimeout> | null>(null);
     const wrapperRef      = React.useRef<HTMLDivElement | null>(null);
     const abortRef        = React.useRef<AbortController | null>(null);
+    const reverseAbortRef = React.useRef<AbortController | null>(null);
 
-    const [sdkLoading,     setSdkLoading]     = React.useState(true);
-    const [sdkError,       setSdkError]       = React.useState<string | null>(null);
-    const [mapMoving,      setMapMoving]       = React.useState(false);
-    const [inputText,      setInputText]       = React.useState(value?.address ?? "");
-    const [suggestions,    setSuggestions]     = React.useState<NominatimResult[]>([]);
-    const [showDropdown,   setShowDropdown]    = React.useState(false);
-    const [searchLoading,  setSearchLoading]   = React.useState(false);
-    const [displayAddress, setDisplayAddress]  = React.useState(value?.address ?? "");
+    const [sdkLoading,      setSdkLoading]      = React.useState(true);
+    const [sdkError,        setSdkError]        = React.useState<string | null>(null);
+    const [mapMoving,       setMapMoving]        = React.useState(false);
+    const [inputText,       setInputText]        = React.useState(value?.address ?? "");
+    const [suggestions,     setSuggestions]      = React.useState<NominatimResult[]>([]);
+    const [showDropdown,    setShowDropdown]     = React.useState(false);
+    const [searchLoading,   setSearchLoading]    = React.useState(false);
+    const [reverseLoading,  setReverseLoading]   = React.useState(false);
+    const [displayAddress,  setDisplayAddress]   = React.useState(value?.address ?? "");
 
     /* ── Sync with external value changes ──────────────────────────────── */
     React.useEffect(() => {
@@ -127,10 +129,15 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
         const loc: LocationValue = { address, lat, lng };
         locationRef.current = loc;
         setDisplayAddress(address);
+        setInputText(address);
         onChange(loc);
       },
       [onChange]
     );
+
+    // Keep a ref so the moveend closure (created once) always calls the latest version
+    const emitLocationRef = React.useRef(emitLocation);
+    React.useEffect(() => { emitLocationRef.current = emitLocation; }, [emitLocation]);
 
     /* ── Nominatim search ───────────────────────────────────────────────── */
     const fetchSuggestions = React.useCallback((query: string) => {
@@ -276,12 +283,38 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
                 Math.abs(cur.lng - lng) < SAME_LOC_EPS
               ) return;
 
-              // Keep last known address; update coordinates
-              // (full reverse geocode requires the server-side mappls-proxy edge function)
-              const address =
-                locationRef.current?.address ??
-                `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-              emitLocation(lat, lng, address);
+              // Immediately emit coordinates as a placeholder
+              const coordFallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+              emitLocationRef.current(lat, lng, coordFallback);
+
+              // Reverse-geocode the new centre via Nominatim
+              reverseAbortRef.current?.abort();
+              reverseAbortRef.current = new AbortController();
+              setReverseLoading(true);
+
+              const params = new URLSearchParams({
+                lat: String(lat),
+                lon: String(lng),
+                format: "json",
+              });
+
+              fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, {
+                signal: reverseAbortRef.current.signal,
+                headers: { "Accept": "application/json", "Accept-Language": "en" },
+              })
+                .then(r => r.json())
+                .then((data: { display_name?: string }) => {
+                  if (cancelled) return;
+                  setReverseLoading(false);
+                  const address = (data.display_name ?? "")
+                    .replace(/,\s*India\s*$/, "");
+                  if (address) emitLocationRef.current(lat, lng, address);
+                })
+                .catch(err => {
+                  if ((err as Error).name === "AbortError") return;
+                  setReverseLoading(false);
+                  // keep coordinate fallback already emitted above
+                });
             });
           }
 
@@ -297,6 +330,7 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
       return () => {
         cancelled = true;
         abortRef.current?.abort();
+        reverseAbortRef.current?.abort();
         if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
         try { mapInstanceRef.current?.remove(); } catch { /* ignore */ }
         mapInstanceRef.current = null;
@@ -444,13 +478,16 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
         {/* ── Selected location display ────────────────────────────── */}
         {displayAddress && (
           <div className="flex items-start gap-2.5 rounded-xl bg-primary/5 border border-primary/20 px-3 py-2.5">
-            <Navigation2 size={15} className="mt-0.5 flex-shrink-0 text-primary" />
+            {reverseLoading
+              ? <Loader2 size={15} className="mt-0.5 flex-shrink-0 text-primary animate-spin" />
+              : <Navigation2 size={15} className="mt-0.5 flex-shrink-0 text-primary" />
+            }
             <div className="min-w-0">
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">
                 Selected Location
               </p>
-              <p className="text-sm text-foreground leading-relaxed break-words">
-                {displayAddress}
+              <p className={cn("text-sm leading-relaxed break-words", reverseLoading ? "text-muted-foreground" : "text-foreground")}>
+                {reverseLoading ? "Finding address…" : displayAddress}
               </p>
             </div>
           </div>
