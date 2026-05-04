@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -20,10 +19,8 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft,
-  Building2,
   Camera,
   Check,
-  ChevronLeft,
   GraduationCap,
   Loader2,
   User,
@@ -31,11 +28,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-const STEPS = ["Type", "Profile", "Payment", "Apartments"];
+const STEPS = ["Type", "Profile", "Payment"];
 
 const BecomeProvider = () => {
   const navigate = useNavigate();
-  const { profile, family, providerProfile, refreshProfile } = useUser();
+  const { profile, providerProfile, refreshProfile } = useUser();
   const [step, setStep] = useState(0);
   const [prefilled, setPrefilled] = useState(false);
 
@@ -56,15 +53,7 @@ const BecomeProvider = () => {
   const [upiQrUrl, setUpiQrUrl] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState(profile?.mobile_number ?? "");
 
-  // Step 4 state
-  const [selectedApartments, setSelectedApartments] = useState<string[]>(
-    family?.apartment_id ? [family.apartment_id] : []
-  );
-  const [availableApartments, setAvailableApartments] = useState<
-    { id: string; name: string; locality: string; city: string }[]
-  >([]);
-
-  // Pre-fill from existing provider profile (re-application after rejection)
+  // Pre-fill from existing provider profile (re-application)
   useEffect(() => {
     if (prefilled || !profile) return;
     const loadExisting = async () => {
@@ -85,23 +74,6 @@ const BecomeProvider = () => {
         setWhatsappNumber(sp.whatsapp_number || profile.mobile_number || "");
         setUpiId(sp.upi_id || "");
         setUpiQrUrl(sp.upi_qr_image_url || "");
-
-        // Load previously registered apartments for re-apply
-        const { data: regs } = await supabase
-          .from("provider_apartment_registrations")
-          .select("apartment_id, status, apartment_complexes:apartment_complexes(id, name, locality, city)")
-          .eq("provider_id", sp.id);
-        if (regs && regs.length > 0) {
-          const apartments = regs
-            .map((r) => {
-              const apt = r.apartment_complexes as any;
-              return apt ? { id: apt.id, name: apt.name, locality: apt.locality, city: apt.city } : null;
-            })
-            .filter(Boolean) as { id: string; name: string; locality: string; city: string }[];
-          setAvailableApartments(apartments);
-          // Pre-select all previously registered apartments
-          setSelectedApartments(apartments.map((a) => a.id));
-        }
       }
       setPrefilled(true);
     };
@@ -152,9 +124,8 @@ const BecomeProvider = () => {
         whatsappNumber,
         upiId,
         upiQrImageUrl: upiQrUrl,
-        apartmentIds: selectedApartments,
       });
-      toast.success("Application submitted! The apartment admin will review your request.");
+      toast.success("You're now a provider on CampusBee! Start creating your first class.");
       await refreshProfile();
       navigate("/provider/dashboard", { replace: true });
     } catch {
@@ -301,7 +272,7 @@ const BecomeProvider = () => {
           </div>
         )}
 
-        {/* Step 3: Payment Details */}
+        {/* Step 3: Payment Details + Submit */}
         {step === 2 && (
           <div className="space-y-5 animate-fade-up">
             <h2 className="text-xl font-bold">Payment Details</h2>
@@ -328,62 +299,9 @@ const BecomeProvider = () => {
               <Label>WhatsApp Number</Label>
               <Input value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} placeholder="+91 98765 43210" className="h-11 rounded-xl" />
             </div>
-            <Button onClick={() => setStep(3)} className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl">
-              Continue
-            </Button>
-          </div>
-        )}
-
-        {/* Step 4: Select Apartments */}
-        {step === 3 && (
-          <div className="space-y-5 animate-fade-up">
-            <h2 className="text-xl font-bold">Select Apartments</h2>
-            <p className="text-sm text-muted-foreground">Choose where you want to teach. Apartment admins will review your application.</p>
-            {family && !availableApartments.find((a) => a.id === family.apartment_id) && (
-              <Card className="p-4">
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    checked={selectedApartments.includes(family.apartment_id)}
-                    onCheckedChange={(checked) => {
-                      setSelectedApartments((prev) =>
-                        checked ? [...prev, family.apartment_id] : prev.filter((id) => id !== family.apartment_id)
-                      );
-                    }}
-                  />
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-provider/10">
-                    <Building2 size={18} className="text-provider" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Your apartment</p>
-                    <p className="text-xs text-muted-foreground">Where you live</p>
-                  </div>
-                </div>
-              </Card>
-            )}
-            {availableApartments.map((apt) => (
-              <Card key={apt.id} className="p-4">
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    checked={selectedApartments.includes(apt.id)}
-                    onCheckedChange={(checked) => {
-                      setSelectedApartments((prev) =>
-                        checked ? [...prev, apt.id] : prev.filter((id) => id !== apt.id)
-                      );
-                    }}
-                  />
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-provider/10">
-                    <Building2 size={18} className="text-provider" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{apt.name}</p>
-                    <p className="text-xs text-muted-foreground">{apt.locality}, {apt.city}</p>
-                  </div>
-                </div>
-              </Card>
-            ))}
             <Button
               onClick={handleSubmit}
-              disabled={selectedApartments.length === 0 || createProvider.isPending}
+              disabled={createProvider.isPending}
               className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
             >
               {createProvider.isPending ? (
@@ -391,7 +309,7 @@ const BecomeProvider = () => {
               ) : (
                 <>
                   <GraduationCap size={18} className="mr-2" />
-                  Submit Application
+                  Start Teaching on CampusBee
                 </>
               )}
             </Button>

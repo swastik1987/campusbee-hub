@@ -20,23 +20,21 @@ export function useCategories() {
 
 // ---- Provider Classes ----
 
-export function useProviderClasses(registrationIds: string[], statusFilter?: string) {
+export function useProviderClasses(providerId: string | undefined, statusFilter?: string) {
   return useQuery({
-    queryKey: ["provider-classes", registrationIds, statusFilter],
-    enabled: registrationIds.length > 0,
+    queryKey: ["provider-classes", providerId, statusFilter],
+    enabled: !!providerId,
     queryFn: async () => {
       let query = supabase
         .from("classes")
         .select(`
           id, title, short_description, cover_image_url, class_type, status,
-          requires_common_area, common_area_approval_status, common_area_rejection_reason,
-          class_terms_status,
-          is_featured, total_rating, rating_count, created_at,
-          provider_registration_id,
-          category_id, class_categories(name, slug, icon),
-          provider_apartment_registrations(apartment_id, apartment_complexes(name))
+          address, is_home_based, moderation_status,
+          total_rating, rating_count, created_at,
+          provider_id,
+          category_id, class_categories(name, slug, icon)
         `)
-        .in("provider_registration_id", registrationIds)
+        .eq("provider_id", providerId!)
         .order("created_at", { ascending: false });
 
       if (statusFilter && statusFilter !== "all") {
@@ -61,14 +59,12 @@ export function useClassDetail(classId: string | undefined) {
           id, title, description, short_description, cover_image_url, gallery_urls,
           promo_video_url, class_type, skill_level, age_group_min, age_group_max,
           venue_details, what_to_bring, trial_available, trial_fee, status,
-          is_featured, total_rating, rating_count, provider_registration_id, category_id,
+          address, is_home_based, moderation_status, moderation_notes,
+          total_rating, rating_count, provider_id, category_id,
           created_at, updated_at,
-          class_categories(id, name, slug, icon_name),
-          provider_apartment_registrations(id, apartment_id, provider_id,
-            apartment_complexes(id, name, city, locality),
-            service_providers(id, user_id, business_name, provider_type, bio, experience_years, whatsapp_number, upi_id, upi_qr_image_url, is_verified,
-              users(full_name, avatar_url)
-            )
+          class_categories(id, name, slug, icon),
+          service_providers(id, user_id, business_name, provider_type, bio, experience_years, whatsapp_number, upi_id, upi_qr_image_url, is_verified,
+            users(full_name, avatar_url)
           )
         `)
         .eq("id", classId!)
@@ -85,7 +81,7 @@ export function useCreateClass() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
-      providerRegistrationId: string;
+      providerId: string;
       categoryId: string;
       title: string;
       description: string;
@@ -102,12 +98,13 @@ export function useCreateClass() {
       trialAvailable: boolean;
       trialFee: number;
       status: string;
-      requiresCommonArea: boolean;
+      address?: string;
+      isHomeBased?: boolean;
     }) => {
       const { data, error } = await supabase
         .from("classes")
         .insert({
-          provider_registration_id: input.providerRegistrationId,
+          provider_id: input.providerId,
           category_id: input.categoryId,
           title: input.title,
           description: input.description || null,
@@ -124,13 +121,8 @@ export function useCreateClass() {
           trial_available: input.trialAvailable,
           trial_fee: input.trialFee,
           status: input.status,
-          requires_common_area: input.requiresCommonArea,
-          // Set approval status: pending_review when submitting common-area for review,
-          // not_required otherwise (home-based or saved as draft)
-          common_area_approval_status:
-            input.requiresCommonArea && input.status === "pending_approval"
-              ? "pending_review"
-              : "not_required",
+          address: input.address || null,
+          is_home_based: input.isHomeBased ?? false,
         })
         .select("id")
         .single();

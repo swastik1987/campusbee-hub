@@ -1,8 +1,12 @@
 import { useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useProviderRegistrations, useTrainers } from "@/hooks/useProvider";
+import { useTrainers } from "@/hooks/useProvider";
 import { useCategories, useCreateClass, useCreateBatch, useUploadClassImage } from "@/hooks/useClasses";
+import { moderateClassPublish } from "@/lib/moderation";
+import { supabase } from "@/integrations/supabase/client";
+import MapplsPicker from "@/components/location/MapplsPicker";
+import type { LocationValue } from "@/hooks/useLocation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +26,6 @@ import {
 import {
   ArrowLeft,
   Camera,
-  Check,
   ImagePlus,
   Loader2,
 } from "lucide-react";
@@ -47,11 +50,10 @@ interface DaySchedule {
 
 const CreateClass = () => {
   const navigate = useNavigate();
-  const { providerProfile } = useUser();
+  const { profile, providerProfile } = useUser();
   const [step, setStep] = useState(0);
 
   // Step 1: Category
-  const [selectedRegId, setSelectedRegId] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedParent, setSelectedParent] = useState("");
 
@@ -65,7 +67,8 @@ const CreateClass = () => {
   const [ageMax, setAgeMax] = useState("");
   const [venue, setVenue] = useState("");
   const [whatToBring, setWhatToBring] = useState("");
-  const [requiresCommonArea, setRequiresCommonArea] = useState(true);
+  const [isHomeBased, setIsHomeBased] = useState(false);
+  const [classLocation, setClassLocation] = useState<LocationValue | null>(null);
 
   // Step 3: Media
   const [coverUrl, setCoverUrl] = useState("");
@@ -95,19 +98,16 @@ const CreateClass = () => {
   const [daySchedules, setDaySchedules] = useState<DaySchedule[]>(
     DAY_NAMES.map(() => ({ enabled: false, startTime: "09:00", endTime: "10:00" }))
   );
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
 
   const isAcademy = providerProfile?.provider_type === "academy";
-  const { data: registrations } = useProviderRegistrations(providerProfile?.id);
   const { data: allCategories } = useCategories();
   const { data: trainers } = useTrainers(providerProfile?.id);
   const createClass = useCreateClass();
   const createBatch = useCreateBatch();
   const uploadImage = useUploadClassImage();
-
-  // All registrations eligible to appear in the dropdown (not rejected or suspended)
-  const eligibleRegs = registrations?.filter((r) => r.status !== "rejected" && r.status !== "suspended") ?? [];
 
   // Filter categories based on provider's specialization_category_ids
   const specializationIds = providerProfile?.specialization_category_ids ?? [];
@@ -123,9 +123,7 @@ const CreateClass = () => {
     if (!allCategories) return [];
     const parents = allCategories.filter((c) => !c.parent_id);
     if (specializationIds.length === 0) return parents;
-    const parentIdsWithChildren = new Set(
-      filteredSubCategories.map((c) => c.parent_id)
-    );
+    const parentIdsWithChildren = new Set(filteredSubCategories.map((c) => c.parent_id));
     return parents.filter((p) => parentIdsWithChildren.has(p.id));
   }, [allCategories, filteredSubCategories, specializationIds]);
 
@@ -169,15 +167,13 @@ const CreateClass = () => {
   const batchValid = batchName.trim() && maxBatchSize && feeAmount && selectedSchedules.length > 0;
 
   const handleSave = async (publish: boolean) => {
-    if (!selectedRegId || !selectedCategoryId || !title.trim()) return;
+    if (!selectedCategoryId || !title.trim() || !providerProfile || !profile) return;
 
-    // Common-area classes go to pending_approval, home-based publish directly
-    const status = !publish ? "draft" : requiresCommonArea ? "pending_approval" : "published";
-
+    setIsPublishing(true);
     try {
-      // 1. Create the class
+      // 1. Create class as draft
       const result = await createClass.mutateAsync({
-        providerRegistrationId: selectedRegId,
+        providerId: providerProfile.id,
         categoryId: selectedCategoryId,
         title: title.trim(),
         description,
@@ -193,8 +189,9 @@ const CreateClass = () => {
         promoVideoUrl: promoUrl,
         trialAvailable,
         trialFee: parseFloat(trialFee) || 0,
-        status,
-        requiresCommonArea,
+        status: "draft",
+        address: isHomeBased ? undefined : (classLocation?.address ?? undefined),
+        isHomeBased,
       });
 
       // 2. Create the batch + schedules
@@ -217,7 +214,7 @@ const CreateClass = () => {
           registrationMode,
           autoWaitlist,
           notes: "",
-          status: status === "published" ? "active" : "draft",
+          status: "draft",
           schedules: selectedSchedules.map((s) => ({
             dayOfWeek: s.dayOfWeek,
             startTime: s.startTime,
@@ -226,19 +223,48 @@ const CreateClass = () => {
         });
       }
 
-      const successMsg = status === "published"
-        ? "Class published!"
-        : status === "pending_approval"
-        ? "Class submitted for admin review!"
-        : "Draft saved!";
-      toast.success(successMsg);
-      navigate(`/provider/classes`, { replace: true });
-    } catch {
+      if (!publish) {
+        toast.success("Draft saved!");
+        navigate("/provider/classes", { replace: true });
+        return;
+      }
+
+      // 3. Run content moderation before publishing
+      const { overallStatus } = await moderateClassPublish({
+        classId: result.id,
+        title: title.trim(),
+        description: description || undefined,
+        ownerUserId: profile.id,
+      });
+
+      if (overallStatus === "rejected") {
+        toast.error("Content was flagged by our moderation system. Please edit and resubmit.");
+        navigate("/provider/classes", { replace: true });
+        return;
+      }
+
+      if (overallStatus === "approved") {
+        // Update class + batch to published/active
+        await supabase.from("classes").update({ status: "published" }).eq("id", result.id);
+        if (batchValid && result.id) {
+          await supabase.from("batches").update({ status: "active" }).eq("class_id", result.id).eq("status", "draft");
+        }
+        toast.success("Class published! Students can now find it nearby.");
+      } else {
+        // in_review — awaiting platform admin
+        toast.success("Class submitted for review. It will go live once approved by our team.");
+      }
+
+      navigate("/provider/classes", { replace: true });
+    } catch (err) {
+      console.error(err);
       toast.error("Failed to save class");
+    } finally {
+      setIsPublishing(false);
     }
   };
 
-  const isSaving = createClass.isPending || createBatch.isPending;
+  const isSaving = createClass.isPending || createBatch.isPending || isPublishing;
 
   // Helper to get category name by id
   const getCategoryName = (id: string) => allCategories?.find((c) => c.id === id)?.name ?? "";
@@ -261,29 +287,10 @@ const CreateClass = () => {
       </div>
 
       <div className="flex-1 px-6 py-4">
-        {/* Step 1: Apartment & Category */}
+        {/* Step 1: Category */}
         {step === 0 && (
           <div className="space-y-5 animate-fade-up">
-            <h2 className="text-xl font-bold">Apartment & Category</h2>
-
-            <div className="space-y-2">
-              <Label>Select Apartment</Label>
-              {eligibleRegs.length === 0 && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  You don't have any active registrations. Please register for an apartment first.
-                </div>
-              )}
-              <Select value={selectedRegId} onValueChange={setSelectedRegId}>
-                <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Choose apartment" /></SelectTrigger>
-                <SelectContent>
-                  {eligibleRegs.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {(r.apartment_complexes as any)?.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <h2 className="text-xl font-bold">Category</h2>
 
             <div className="space-y-2">
               <Label>Category</Label>
@@ -321,7 +328,7 @@ const CreateClass = () => {
             )}
 
             <Button
-              disabled={!selectedRegId || !selectedCategoryId}
+              disabled={!selectedCategoryId}
               onClick={() => setStep(1)}
               className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
             >
@@ -383,40 +390,28 @@ const CreateClass = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Venue Details</Label>
+              <Label>Venue / Landmark</Label>
               <Input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Community Hall, Block A" className="h-11 rounded-xl" />
             </div>
 
-            <div className="space-y-2">
+            {/* Location */}
+            <div className="space-y-3">
               <Label>Class Location</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRequiresCommonArea(false)}
-                  className={`flex flex-col items-center gap-1.5 rounded-xl border-2 p-4 text-sm transition-all ${
-                    !requiresCommonArea
-                      ? "border-provider bg-provider/5 text-provider font-medium"
-                      : "border-border hover:border-provider/40"
-                  }`}
-                >
-                  <span className="text-xl">🏠</span>
-                  <span>My home / own premises</span>
-                  <span className="text-[10px] text-muted-foreground text-center leading-tight">No admin approval needed</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRequiresCommonArea(true)}
-                  className={`flex flex-col items-center gap-1.5 rounded-xl border-2 p-4 text-sm transition-all ${
-                    requiresCommonArea
-                      ? "border-provider bg-provider/5 text-provider font-medium"
-                      : "border-border hover:border-provider/40"
-                  }`}
-                >
-                  <span className="text-xl">🏢</span>
-                  <span>Society common area</span>
-                  <span className="text-[10px] text-muted-foreground text-center leading-tight">Requires admin approval</span>
-                </button>
+              <div className="flex items-center justify-between p-3 rounded-xl border">
+                <div>
+                  <p className="text-sm font-medium">Home-based / I travel to students</p>
+                  <p className="text-xs text-muted-foreground">No fixed class address needed</p>
+                </div>
+                <Switch checked={isHomeBased} onCheckedChange={setIsHomeBased} />
               </div>
+              {!isHomeBased && (
+                <MapplsPicker
+                  value={classLocation}
+                  onChange={setClassLocation}
+                  showMap={false}
+                  placeholder="Search class address"
+                />
+              )}
             </div>
 
             <div className="space-y-2">
@@ -502,12 +497,7 @@ const CreateClass = () => {
 
             <div className="space-y-2">
               <Label>Batch Name</Label>
-              <Input
-                value={batchName}
-                onChange={(e) => setBatchName(e.target.value)}
-                placeholder="e.g. Morning Beginners"
-                className="h-11 rounded-xl"
-              />
+              <Input value={batchName} onChange={(e) => setBatchName(e.target.value)} placeholder="e.g. Morning Beginners" className="h-11 rounded-xl" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -576,28 +566,16 @@ const CreateClass = () => {
                       <Checkbox
                         id={`day-${i}`}
                         checked={daySchedules[i].enabled}
-                        onCheckedChange={(checked) =>
-                          updateDaySchedule(i, { enabled: !!checked })
-                        }
+                        onCheckedChange={(checked) => updateDaySchedule(i, { enabled: !!checked })}
                       />
                       <label htmlFor={`day-${i}`} className="text-sm font-medium w-10 cursor-pointer">
                         {day}
                       </label>
                       {daySchedules[i].enabled && (
                         <div className="flex items-center gap-2 flex-1">
-                          <Input
-                            type="time"
-                            value={daySchedules[i].startTime}
-                            onChange={(e) => updateDaySchedule(i, { startTime: e.target.value })}
-                            className="h-9 rounded-xl text-sm"
-                          />
+                          <Input type="time" value={daySchedules[i].startTime} onChange={(e) => updateDaySchedule(i, { startTime: e.target.value })} className="h-9 rounded-xl text-sm" />
                           <span className="text-xs text-muted-foreground">to</span>
-                          <Input
-                            type="time"
-                            value={daySchedules[i].endTime}
-                            onChange={(e) => updateDaySchedule(i, { endTime: e.target.value })}
-                            className="h-9 rounded-xl text-sm"
-                          />
+                          <Input type="time" value={daySchedules[i].endTime} onChange={(e) => updateDaySchedule(i, { endTime: e.target.value })} className="h-9 rounded-xl text-sm" />
                         </div>
                       )}
                     </div>
@@ -608,25 +586,13 @@ const CreateClass = () => {
 
             <div className="space-y-2">
               <Label>Max Batch Size</Label>
-              <Input
-                type="number"
-                value={maxBatchSize}
-                onChange={(e) => setMaxBatchSize(e.target.value)}
-                placeholder="e.g. 15"
-                className="h-11 rounded-xl"
-              />
+              <Input type="number" value={maxBatchSize} onChange={(e) => setMaxBatchSize(e.target.value)} placeholder="e.g. 15" className="h-11 rounded-xl" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Fee Amount (₹)</Label>
-                <Input
-                  type="number"
-                  value={feeAmount}
-                  onChange={(e) => setFeeAmount(e.target.value)}
-                  placeholder="e.g. 2000"
-                  className="h-11 rounded-xl"
-                />
+                <Input type="number" value={feeAmount} onChange={(e) => setFeeAmount(e.target.value)} placeholder="e.g. 2000" className="h-11 rounded-xl" />
               </div>
               <div className="space-y-2">
                 <Label>Fee Frequency</Label>
@@ -643,13 +609,7 @@ const CreateClass = () => {
 
             <div className="space-y-2">
               <Label>Registration Fee (₹, one-time)</Label>
-              <Input
-                type="number"
-                value={registrationFee}
-                onChange={(e) => setRegistrationFee(e.target.value)}
-                placeholder="e.g. 500"
-                className="h-11 rounded-xl"
-              />
+              <Input type="number" value={registrationFee} onChange={(e) => setRegistrationFee(e.target.value)} placeholder="e.g. 500" className="h-11 rounded-xl" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -690,11 +650,7 @@ const CreateClass = () => {
               <Switch checked={autoWaitlist} onCheckedChange={setAutoWaitlist} />
             </div>
 
-            <Button
-              onClick={() => setStep(5)}
-              disabled={!batchValid}
-              className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
-            >
+            <Button onClick={() => setStep(5)} disabled={!batchValid} className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl">
               Review
             </Button>
           </div>
@@ -721,13 +677,11 @@ const CreateClass = () => {
                 ))}
               </div>
               {(ageMin || ageMax) && (
-                <p className="text-xs text-muted-foreground">
-                  Age: {ageMin || "Any"} - {ageMax || "Any"}
-                </p>
+                <p className="text-xs text-muted-foreground">Age: {ageMin || "Any"} – {ageMax || "Any"}</p>
               )}
               {venue && <p className="text-xs text-muted-foreground">Venue: {venue}</p>}
               <p className="text-xs text-muted-foreground">
-                Location: {requiresCommonArea ? "🏢 Society common area" : "🏠 Home-based / own premises"}
+                Location: {isHomeBased ? "🏠 Home-based / I travel to students" : (classLocation?.address || "Not set")}
               </p>
               {trialAvailable && <p className="text-xs text-muted-foreground">Trial: ₹{trialFee}</p>}
             </Card>
@@ -739,7 +693,7 @@ const CreateClass = () => {
               <div className="space-y-1">
                 {selectedSchedules.map((s) => (
                   <p key={s.dayOfWeek} className="text-sm text-muted-foreground">
-                    {DAY_NAMES[s.dayOfWeek]}: {s.startTime} - {s.endTime}
+                    {DAY_NAMES[s.dayOfWeek]}: {s.startTime} – {s.endTime}
                   </p>
                 ))}
               </div>
@@ -757,11 +711,10 @@ const CreateClass = () => {
               </p>
             </Card>
 
-            {requiresCommonArea && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                This class uses society common areas. It will be sent to the apartment admin for review before going live.
-              </div>
-            )}
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+              Content is reviewed by our moderation system before going live. Most classes are approved instantly.
+            </div>
+
             <div className="flex gap-3">
               <Button
                 variant="outline"
@@ -776,7 +729,7 @@ const CreateClass = () => {
                 disabled={isSaving}
                 className="flex-1 h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
               >
-                {isSaving ? <Loader2 size={20} className="animate-spin" /> : requiresCommonArea ? "Submit for Review" : "Publish"}
+                {isSaving ? <Loader2 size={20} className="animate-spin" /> : "Publish"}
               </Button>
             </div>
           </div>

@@ -2,11 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUser } from "@/contexts/UserContext";
 
-// ---- Become a Provider ----
+// ---- Become a Provider (v2: auto-approved, no apartment registration) ----
 
 export function useCreateProvider() {
   const { refreshProfile } = useUser();
-  const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async (input: {
@@ -22,7 +21,6 @@ export function useCreateProvider() {
       whatsappNumber: string;
       upiId: string;
       upiQrImageUrl: string;
-      apartmentIds: string[];
     }) => {
       const providerFields = {
         user_id: input.userId,
@@ -38,9 +36,10 @@ export function useCreateProvider() {
         upi_id: input.upiId || null,
         upi_qr_image_url: input.upiQrImageUrl || null,
         is_verified: false,
+        subscription_tier: "basic" as const,
       };
 
-      // 1. Check if provider row already exists (e.g. previously rejected)
+      // Upsert service_providers row (handles re-application)
       const { data: existing } = await supabase
         .from("service_providers")
         .select("id")
@@ -50,7 +49,6 @@ export function useCreateProvider() {
       let providerId: string;
 
       if (existing) {
-        // Update the existing row with new details
         const { error: upErr } = await supabase
           .from("service_providers")
           .update(providerFields)
@@ -58,7 +56,6 @@ export function useCreateProvider() {
         if (upErr) throw upErr;
         providerId = existing.id;
       } else {
-        // Create new service_providers row
         const { data: provider, error: pErr } = await supabase
           .from("service_providers")
           .insert(providerFields)
@@ -68,45 +65,7 @@ export function useCreateProvider() {
         providerId = provider.id;
       }
 
-      // 2. Create registrations for selected apartments (skip if already registered)
-      if (input.apartmentIds.length > 0) {
-        // Find existing registrations for this provider
-        const { data: existingRegs } = await supabase
-          .from("provider_apartment_registrations")
-          .select("apartment_id, status")
-          .eq("provider_id", providerId);
-        const existingAptIds = new Set((existingRegs ?? []).map((r) => r.apartment_id));
-
-        // Only create registrations for apartments not already registered
-        const newAptIds = input.apartmentIds.filter((id) => !existingAptIds.has(id));
-
-        // Re-activate rejected/suspended registrations for selected apartments (auto-approved)
-        const reactivateAptIds = input.apartmentIds.filter(
-          (id) => existingRegs?.find((r) => r.apartment_id === id && (r.status === "rejected" || r.status === "suspended"))
-        );
-        if (reactivateAptIds.length > 0) {
-          await supabase
-            .from("provider_apartment_registrations")
-            .update({ status: "approved", approved_at: new Date().toISOString() })
-            .eq("provider_id", providerId)
-            .in("apartment_id", reactivateAptIds);
-        }
-
-        if (newAptIds.length > 0) {
-          const regs = newAptIds.map((aptId) => ({
-            provider_id: providerId,
-            apartment_id: aptId,
-            status: "approved" as const,
-            approved_at: new Date().toISOString(),
-          }));
-          const { error: rErr } = await supabase
-            .from("provider_apartment_registrations")
-            .insert(regs);
-          if (rErr) throw rErr;
-        }
-      }
-
-      // 3. Mark user as provider
+      // Mark user as provider (auto-approved — no apartment admin gate in v2)
       const { error: uErr } = await supabase
         .from("users")
         .update({ is_provider: true })
@@ -117,7 +76,6 @@ export function useCreateProvider() {
     },
     onSuccess: async () => {
       await refreshProfile();
-      qc.invalidateQueries({ queryKey: ["provider-registrations"] });
     },
   });
 }
@@ -135,47 +93,28 @@ export function useUploadProviderMedia() {
   });
 }
 
-// ---- Provider Dashboard Data ----
+// ---- Provider Dashboard Data (v2: all queries use provider_id directly) ----
 
-export function useProviderRegistrations(providerId: string | undefined) {
+export function useProviderStats(providerId: string | undefined) {
   return useQuery({
-    queryKey: ["provider-registrations", providerId],
+    queryKey: ["provider-stats", providerId],
     enabled: !!providerId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("provider_apartment_registrations")
-        .select("id, provider_id, apartment_id, status, terms_status, admin_fee_type, admin_fee_amount, created_at, apartment_complexes(id, name, city, locality)")
-        .eq("provider_id", providerId!);
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
-export function useProviderStats(providerId: string | undefined, apartmentRegIds: string[]) {
-  return useQuery({
-    queryKey: ["provider-stats", providerId, apartmentRegIds],
-    enabled: !!providerId && apartmentRegIds.length > 0,
-    queryFn: async () => {
-      // Active classes count
       const { count: classCount } = await supabase
         .from("classes")
         .select("id", { count: "exact", head: true })
-        .in("provider_registration_id", apartmentRegIds)
+        .eq("provider_id", providerId!)
         .eq("status", "published");
 
-      // Get class IDs for batch queries
       const { data: classes } = await supabase
         .from("classes")
         .select("id")
-        .in("provider_registration_id", apartmentRegIds);
+        .eq("provider_id", providerId!);
       const classIds = classes?.map((c) => c.id) ?? [];
 
       let studentCount = 0;
-      let pendingPayments = 0;
 
       if (classIds.length > 0) {
-        // Get batch IDs
         const { data: batches } = await supabase
           .from("batches")
           .select("id")
@@ -183,7 +122,6 @@ export function useProviderStats(providerId: string | undefined, apartmentRegIds
         const batchIds = batches?.map((b) => b.id) ?? [];
 
         if (batchIds.length > 0) {
-          // Active students
           const { count: sCount } = await supabase
             .from("enrollments")
             .select("id", { count: "exact", head: true })
@@ -193,34 +131,31 @@ export function useProviderStats(providerId: string | undefined, apartmentRegIds
         }
       }
 
-      // Pending payments for this provider
-      const { count: pCount } = await supabase
+      const { count: pendingPayments } = await supabase
         .from("payments")
         .select("id", { count: "exact", head: true })
         .eq("provider_id", providerId!)
         .eq("status", "recorded");
-      pendingPayments = pCount ?? 0;
 
       return {
         activeClasses: classCount ?? 0,
         activeStudents: studentCount,
-        pendingPayments,
+        pendingPayments: pendingPayments ?? 0,
       };
     },
   });
 }
 
-export function useProviderTodaySchedule(providerId: string | undefined, apartmentRegIds: string[]) {
+export function useProviderTodaySchedule(providerId: string | undefined) {
   const today = new Date().getDay(); // 0=Sun
   return useQuery({
     queryKey: ["provider-today-schedule", providerId, today],
-    enabled: !!providerId && apartmentRegIds.length > 0,
+    enabled: !!providerId,
     queryFn: async () => {
-      // Get provider's classes
       const { data: classes } = await supabase
         .from("classes")
-        .select("id, title, provider_registration_id")
-        .in("provider_registration_id", apartmentRegIds)
+        .select("id, title")
+        .eq("provider_id", providerId!)
         .eq("status", "published");
       if (!classes?.length) return [];
 
@@ -258,9 +193,8 @@ export function useProviderTodaySchedule(providerId: string | undefined, apartme
   });
 }
 
-export function useProviderUpcomingSchedule(providerId: string | undefined, apartmentRegIds: string[]) {
+export function useProviderUpcomingSchedule(providerId: string | undefined) {
   const today = new Date();
-  // Next 3 days (excluding today)
   const upcomingDays = [1, 2, 3].map((offset) => {
     const d = new Date(today);
     d.setDate(d.getDate() + offset);
@@ -270,12 +204,12 @@ export function useProviderUpcomingSchedule(providerId: string | undefined, apar
 
   return useQuery({
     queryKey: ["provider-upcoming-schedule", providerId, dayNumbers.join(",")],
-    enabled: !!providerId && apartmentRegIds.length > 0,
+    enabled: !!providerId,
     queryFn: async () => {
       const { data: classes } = await supabase
         .from("classes")
-        .select("id, title, provider_registration_id")
-        .in("provider_registration_id", apartmentRegIds)
+        .select("id, title")
+        .eq("provider_id", providerId!)
         .eq("status", "published");
       if (!classes?.length) return [];
 
@@ -312,25 +246,21 @@ export function useProviderUpcomingSchedule(providerId: string | undefined, apar
               endTime: s.end_time,
             };
           });
-        return {
-          date: day.date,
-          dayOfWeek: day.dayOfWeek,
-          schedules: daySchedules,
-        };
+        return { date: day.date, dayOfWeek: day.dayOfWeek, schedules: daySchedules };
       });
     },
   });
 }
 
-export function usePendingEnrollments(providerId: string | undefined, apartmentRegIds: string[]) {
+export function usePendingEnrollments(providerId: string | undefined) {
   return useQuery({
     queryKey: ["pending-enrollments", providerId],
-    enabled: !!providerId && apartmentRegIds.length > 0,
+    enabled: !!providerId,
     queryFn: async () => {
       const { data: classes } = await supabase
         .from("classes")
         .select("id, title")
-        .in("provider_registration_id", apartmentRegIds);
+        .eq("provider_id", providerId!);
       if (!classes?.length) return [];
 
       const classIds = classes.map((c) => c.id);
@@ -430,173 +360,17 @@ export function useDeleteTrainer() {
   });
 }
 
-// ---- Provider: Pending Commercial Terms ----
-
-export function useProviderPendingTerms(providerId: string | undefined) {
-  return useQuery({
-    queryKey: ["provider-pending-terms", providerId],
-    enabled: !!providerId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("provider_apartment_registrations")
-        .select(`
-          id, status, admin_fee_type, admin_fee_amount,
-          min_guaranteed_fee, revenue_share_pct, payment_frequency,
-          free_trial_days, commercial_notes, terms_status,
-          terms_version, created_at, approved_at,
-          apartment_complexes(id, name, city, locality)
-        `)
-        .eq("provider_id", providerId!)
-        .eq("terms_status", "pending_acceptance");
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
-// ---- Provider: Accept or Reject Terms ----
-
-export function useRespondToTerms() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ registrationId, accept }: { registrationId: string; accept: boolean }) => {
-      const { error } = await supabase.rpc("accept_provider_terms", {
-        p_registration_id: registrationId,
-        p_accept: accept,
-      });
-      if (error) throw error;
-
-      // Notify the admin who approved
-      const { data: reg } = await supabase
-        .from("provider_apartment_registrations")
-        .select("approved_by, apartment_id, service_providers(business_name, users(full_name))")
-        .eq("id", registrationId)
-        .single();
-
-      const adminUserId = (reg as any)?.approved_by;
-      const provName = (reg as any)?.service_providers?.business_name
-        || (reg as any)?.service_providers?.users?.full_name;
-
-      if (adminUserId) {
-        await supabase.rpc("send_notification", {
-          p_user_id: adminUserId,
-          p_title: accept ? "Terms Accepted" : "Terms Rejected",
-          p_body: accept
-            ? `${provName} has accepted the commercial terms.`
-            : `${provName} has rejected the commercial terms. You may want to renegotiate.`,
-          p_type: accept ? "terms_accepted" : "terms_rejected",
-          p_ref_type: "provider_apartment_registration",
-          p_ref_id: registrationId,
-        });
-      }
-
-      // Auto-publish common-area draft classes that were waiting for approval
-      if (accept) {
-        const { data: draftClasses } = await supabase
-          .from("classes")
-          .select("id")
-          .eq("provider_registration_id", registrationId)
-          .eq("requires_common_area", true)
-          .eq("status", "draft");
-
-        if (draftClasses && draftClasses.length > 0) {
-          const classIds = draftClasses.map((c) => c.id);
-          await supabase
-            .from("classes")
-            .update({ status: "published" })
-            .in("id", classIds);
-          await supabase
-            .from("batches")
-            .update({ status: "active" })
-            .in("class_id", classIds)
-            .eq("status", "draft");
-        }
-      }
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["provider-pending-terms"] });
-      qc.invalidateQueries({ queryKey: ["provider-registrations"] });
-      qc.invalidateQueries({ queryKey: ["provider-classes"] });
-    },
-  });
-}
-
-// ---- Provider: Class-level action items (pending approval, terms to accept, rejections) ----
-
-export function useProviderClassActionItems(registrationIds: string[]) {
-  return useQuery({
-    queryKey: ["provider-class-actions", registrationIds],
-    enabled: registrationIds.length > 0,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("classes")
-        .select(`
-          id, title, status, requires_common_area,
-          common_area_approval_status, common_area_rejection_reason,
-          class_terms_status, class_fee_type, class_fee_amount,
-          class_revenue_share_pct, class_payment_frequency, class_commercial_notes
-        `)
-        .in("provider_registration_id", registrationIds)
-        .or("status.eq.pending_approval,class_terms_status.eq.pending_acceptance,common_area_approval_status.eq.rejected");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-}
-
-// ---- Provider: Accept or Reject Class-level Terms ----
-
-export function useRespondToClassTerms() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ classId, accept }: { classId: string; accept: boolean }) => {
-      const { error } = await supabase.rpc("accept_class_terms", {
-        p_class_id: classId,
-        p_accept: accept,
-      });
-      if (error) throw error;
-
-      // Notify the admin who proposed the terms
-      const { data: cls } = await supabase
-        .from("classes")
-        .select("title, class_terms_proposed_by")
-        .eq("id", classId)
-        .single();
-
-      const adminUserId = (cls as any)?.class_terms_proposed_by;
-      const classTitle = (cls as any)?.title ?? "a class";
-
-      if (adminUserId) {
-        await supabase.rpc("send_notification", {
-          p_user_id: adminUserId,
-          p_title: accept ? "Class Terms Accepted" : "Class Terms Rejected",
-          p_body: accept
-            ? `The provider has accepted the commercial terms for "${classTitle}".`
-            : `The provider has rejected the commercial terms for "${classTitle}". You may want to renegotiate.`,
-          p_type: accept ? "terms_accepted" : "terms_rejected",
-          p_ref_type: "class",
-          p_ref_id: classId,
-        });
-      }
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["provider-class-actions"] });
-      qc.invalidateQueries({ queryKey: ["provider-classes"] });
-    },
-  });
-}
-
 // ---- Provider: All active batches (for attendance picker) ----
 
-export function useProviderActiveBatches(providerId: string | undefined, apartmentRegIds: string[]) {
+export function useProviderActiveBatches(providerId: string | undefined) {
   return useQuery({
-    queryKey: ["provider-active-batches", providerId, apartmentRegIds],
-    enabled: !!providerId && apartmentRegIds.length > 0,
+    queryKey: ["provider-active-batches", providerId],
+    enabled: !!providerId,
     queryFn: async () => {
       const { data: classes } = await supabase
         .from("classes")
         .select("id, title")
-        .in("provider_registration_id", apartmentRegIds)
+        .eq("provider_id", providerId!)
         .eq("status", "published");
       if (!classes?.length) return [];
 
@@ -619,5 +393,48 @@ export function useProviderActiveBatches(providerId: string | undefined, apartme
         };
       });
     },
+  });
+}
+
+// ---- Backward-compat stubs (v1 hooks no longer active in v2) ----
+
+/** @deprecated v2 has no apartment registrations */
+export function useProviderRegistrations(_providerId: string | undefined) {
+  return useQuery({
+    queryKey: ["provider-registrations-stub"],
+    queryFn: async () => [] as any[],
+    staleTime: Infinity,
+  });
+}
+
+/** @deprecated v2 has no apartment-level commercial terms */
+export function useProviderPendingTerms(_providerId: string | undefined) {
+  return useQuery({
+    queryKey: ["provider-pending-terms-stub"],
+    queryFn: async () => [] as any[],
+    staleTime: Infinity,
+  });
+}
+
+/** @deprecated v2 has no apartment-level commercial terms */
+export function useRespondToTerms() {
+  return useMutation({ mutationFn: async (_: any) => {} });
+}
+
+/** @deprecated v2 has no class-level commercial terms or common-area approval */
+export function useProviderClassActionItems(_registrationIds: string[]) {
+  return useQuery({
+    queryKey: ["provider-class-actions-stub"],
+    queryFn: async () => [] as any[],
+    staleTime: Infinity,
+  });
+}
+
+/** @deprecated v2 has no class-level commercial terms */
+export function useRespondToClassTerms() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (_: { classId: string; accept: boolean }) => {},
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["provider-class-actions"] }),
   });
 }

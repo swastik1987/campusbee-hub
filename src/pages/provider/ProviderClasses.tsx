@@ -1,20 +1,19 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useProviderRegistrations } from "@/hooks/useProvider";
-import { useProviderClasses, useUpdateClassStatus } from "@/hooks/useClasses";
+import { useProviderClasses } from "@/hooks/useClasses";
+import ModerationStatusBadge from "@/components/moderation/ModerationStatusBadge";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, Plus, Star, Users } from "lucide-react";
+import { BookOpen, Plus, Star } from "lucide-react";
 
-const STATUS_FILTERS = ["all", "draft", "pending_approval", "published", "paused", "archived"];
+const STATUS_FILTERS = ["all", "draft", "published", "paused", "archived"];
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600",
-  pending_approval: "bg-blue-100 text-blue-700",
   published: "bg-green-100 text-green-700",
   paused: "bg-amber-100 text-amber-700",
   archived: "bg-gray-200 text-gray-500",
@@ -22,7 +21,6 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   all: "All",
   draft: "Draft",
-  pending_approval: "In Review",
   published: "Published",
   paused: "Paused",
   archived: "Archived",
@@ -33,10 +31,7 @@ const ProviderClasses = () => {
   const { providerProfile } = useUser();
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const { data: registrations } = useProviderRegistrations(providerProfile?.id);
-  const allRegIds = registrations?.map((r) => r.id) ?? [];
-
-  const { data: classes, isLoading } = useProviderClasses(allRegIds, statusFilter);
+  const { data: classes, isLoading } = useProviderClasses(providerProfile?.id, statusFilter);
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-20">
@@ -95,17 +90,18 @@ const ProviderClasses = () => {
                       {STATUS_LABELS[cls.status ?? "draft"] ?? cls.status}
                     </Badge>
                   </div>
-                  {(cls as any).common_area_approval_status === "rejected" && (
-                    <p className="text-[10px] text-red-600 mt-0.5">
-                      Rejected{(cls as any).common_area_rejection_reason ? `: ${(cls as any).common_area_rejection_reason}` : ""}
-                    </p>
-                  )}
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {(cls.class_categories as any)?.name} · {(cls.provider_apartment_registrations as any)?.apartment_complexes?.name}
+                    {(cls.class_categories as any)?.name}
+                    {(cls as any).address && ` · ${(cls as any).address.split(",")[0]}`}
                   </p>
-                  <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                  <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                    <ModerationStatusBadge
+                      status={(cls as any).moderation_status}
+                      showIcon={true}
+                      size="sm"
+                    />
                     {(cls.rating_count ?? 0) > 0 && (
-                      <span className="flex items-center gap-0.5">
+                      <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
                         <Star size={12} className="text-amber-500 fill-amber-500" />
                         {cls.total_rating}
                       </span>
