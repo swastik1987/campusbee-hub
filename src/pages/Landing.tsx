@@ -45,10 +45,10 @@ function shortAddr(address: string): string {
   return first.length > 30 ? first.slice(0, 28) + "…" : first;
 }
 
-const features = [
+const guestFeatures = [
   {
     title: "Discover Classes",
-    desc: "Browse sports, arts, dance, music & tuition classes in your apartment.",
+    desc: "Browse sports, arts, dance, music & tuition classes near you.",
     icon: Search,
   },
   {
@@ -100,11 +100,12 @@ const LoggedInLanding = () => {
     .toUpperCase()
     .slice(0, 2) ?? "";
 
-  // Action items per role
+  // ── Tab system ─────────────────────────────────────────────────
+
   type ActionItem = { label: string; desc: string; icon: typeof Home; path: string; color: string; bgColor: string };
 
-  const residentActions: ActionItem[] = [
-    { label: "Explore Classes", desc: "Browse, search & discover classes in your community", icon: Search, path: "/explore", color: "text-primary", bgColor: "bg-primary/10" },
+  const seekerActions: ActionItem[] = [
+    { label: "Explore Classes", desc: "Browse, search & discover classes near you", icon: Search, path: "/explore", color: "text-primary", bgColor: "bg-primary/10" },
     { label: "My Classes", desc: "View enrollments & schedules", icon: BookOpen, path: "/my-classes", color: "text-primary", bgColor: "bg-primary/10" },
     { label: "Messages", desc: "Chat with providers", icon: MessageCircle, path: "/chat", color: "text-primary", bgColor: "bg-primary/10" },
   ];
@@ -113,7 +114,7 @@ const LoggedInLanding = () => {
     { label: "Provider Dashboard", desc: "Manage classes, students & payments", icon: LayoutDashboard, path: "/provider/dashboard", color: "text-indigo-600", bgColor: "bg-indigo-500/10" },
     { label: "My Classes", desc: "Create & manage your class listings", icon: BookOpen, path: "/provider/classes", color: "text-indigo-600", bgColor: "bg-indigo-500/10" },
     { label: "My Students", desc: "View enrollments & take attendance", icon: Users, path: "/provider/students", color: "text-indigo-600", bgColor: "bg-indigo-500/10" },
-    { label: "Messages", desc: "Chat with students & parents", icon: MessageCircle, path: "/provider-chat", color: "text-indigo-600", bgColor: "bg-indigo-500/10" },
+    { label: "Messages", desc: "Chat with students & parents", icon: MessageCircle, path: "/chat", color: "text-indigo-600", bgColor: "bg-indigo-500/10" },
   ];
 
   const platformActions: ActionItem[] = [
@@ -123,7 +124,6 @@ const LoggedInLanding = () => {
     { label: "Providers", desc: "View & manage all providers", icon: Users, path: "/platform/providers", color: "text-emerald-600", bgColor: "bg-emerald-500/10" },
   ];
 
-  // Build tabs in precedence order with accent colors (v2: no apartment-admin tab)
   const tabs = useMemo(() => {
     const t: { id: string; label: string; icon: typeof Home; activeClass: string; inactiveClass: string }[] = [];
     if (profile?.is_platform_admin) t.push({
@@ -144,14 +144,31 @@ const LoggedInLanding = () => {
     return t;
   }, [profile]);
 
-  const [activeTab, setActiveTab] = useState(tabs[0]?.id ?? "seeker");
+  /**
+   * Default to the user's highest-priority role tab.
+   * Uses an override state so the user can switch tabs manually.
+   * A null override means "use computed preferred tab" — this handles
+   * the case where profile loads after the first render.
+   */
+  const preferredTab = profile?.is_platform_admin
+    ? "platform"
+    : profile?.is_provider
+    ? "provider"
+    : "seeker";
+  const [tabOverride, setTabOverride] = useState<string | null>(null);
+  const activeTab = tabOverride ?? preferredTab;
+
+  // Reset override when user's roles change (e.g. after completing provider signup)
+  useEffect(() => {
+    setTabOverride(null);
+  }, [profile?.is_provider, profile?.is_platform_admin]);
 
   const renderActionList = (actions: ActionItem[]) => (
     <div className="space-y-2">
       {actions.map((action) => (
         <button
-          key={action.path}
-          onClick={() => navigate(action.path === "/provider-chat" ? "/chat" : action.path)}
+          key={action.path + action.label}
+          onClick={() => navigate(action.path)}
           className="flex w-full items-center gap-3 rounded-xl bg-card p-3.5 text-left shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
         >
           <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${action.bgColor}`}>
@@ -166,6 +183,108 @@ const LoggedInLanding = () => {
       ))}
     </div>
   );
+
+  // ── Seeker tab content ─────────────────────────────────────────
+
+  const isFreshUser = !family && !profile?.is_provider;
+
+  const SeekerTabContent = () => (
+    <div className="space-y-4">
+      {/* Fresh user: show upfront bifurcation */}
+      {isFreshUser && (
+        <div className="space-y-3 animate-fade-up">
+          <div>
+            <p className="text-sm font-semibold">What brings you to CampusBee?</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Choose how you'd like to get started
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {/* Find classes */}
+            <button
+              onClick={() => navigate("/onboarding")}
+              className="flex flex-col gap-3 rounded-2xl border-2 border-primary/25 bg-primary/5 p-4 text-left transition-all hover:border-primary hover:bg-primary/10 active:scale-[0.97]"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15">
+                <Search size={22} className="text-primary" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-sm font-bold text-primary leading-tight">Find Classes</p>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Discover &amp; enroll in sports, arts &amp; more near you
+                </p>
+              </div>
+              <span className="flex items-center gap-0.5 text-xs font-semibold text-primary">
+                Get started <ChevronRight size={12} />
+              </span>
+            </button>
+
+            {/* Teach classes */}
+            <button
+              onClick={() => navigate("/become-provider")}
+              className="flex flex-col gap-3 rounded-2xl border-2 border-indigo-200 bg-indigo-50 p-4 text-left transition-all hover:border-indigo-500 hover:bg-indigo-100 active:scale-[0.97]"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/15">
+                <GraduationCap size={22} className="text-indigo-600" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-sm font-bold text-indigo-600 leading-tight">Teach Classes</p>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  List classes, manage students &amp; grow your business
+                </p>
+              </div>
+              <span className="flex items-center gap-0.5 text-xs font-semibold text-indigo-600">
+                Get started <ChevronRight size={12} />
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Seeker with family: show seeker actions */}
+      {family && renderActionList(seekerActions)}
+
+      {/* Seeker without family (has done role choice — came from onboarding flow): show setup CTA */}
+      {!family && profile?.is_provider === false && !isFreshUser && (
+        <button
+          onClick={() => navigate("/onboarding")}
+          className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-primary/30 p-4 text-left transition-colors hover:border-primary hover:bg-primary/5 active:scale-[0.98]"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            <ClipboardList size={20} className="text-primary" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-primary">Complete Your Setup</p>
+            <p className="text-xs text-muted-foreground">
+              Add family members to start discovering classes near you
+            </p>
+          </div>
+          <ChevronRight size={16} className="text-primary" />
+        </button>
+      )}
+
+      {/* "Start Teaching" CTA — visible to any logged-in user who isn't a provider yet */}
+      {!profile?.is_provider && !isFreshUser && (
+        <button
+          onClick={() => navigate("/become-provider")}
+          className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-indigo-300 p-4 text-left transition-colors hover:border-indigo-500 hover:bg-indigo-50 active:scale-[0.98]"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10">
+            <GraduationCap size={20} className="text-indigo-600" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-indigo-600">Start Teaching</p>
+            <p className="text-xs text-muted-foreground">
+              Become a provider on CampusBee — free to join
+            </p>
+          </div>
+          <ChevronRight size={16} className="text-indigo-400" />
+        </button>
+      )}
+    </div>
+  );
+
+  const isMultiRole = tabs.length > 1;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -205,7 +324,7 @@ const LoggedInLanding = () => {
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-base font-bold truncate">
-                Welcome, {profile?.full_name?.split(" ")[0] || "User"}!
+                Welcome, {profile?.full_name?.split(" ")[0] || "there"}!
               </p>
               {profile?.seeker_home_address ? (
                 <button
@@ -231,7 +350,7 @@ const LoggedInLanding = () => {
           <div className="mt-3 flex flex-wrap gap-1.5">
             {family && (
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold text-primary">
-                <Home size={10} /> Member
+                <Home size={10} /> Seeker
               </span>
             )}
             {profile?.is_provider && (
@@ -247,17 +366,16 @@ const LoggedInLanding = () => {
           </div>
         </Card>
 
-        {/* Role-based tabs */}
-        {tabs.length > 1 ? (
+        {/* Multi-role tab switcher */}
+        {isMultiRole ? (
           <div className="space-y-4">
-            {/* Tab buttons */}
             <div className="flex gap-2 rounded-xl bg-muted/50 p-1.5">
               {tabs.map((t) => {
                 const isActive = activeTab === t.id;
                 return (
                   <button
                     key={t.id}
-                    onClick={() => setActiveTab(t.id)}
+                    onClick={() => setTabOverride(t.id)}
                     className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
                       isActive ? t.activeClass : t.inactiveClass
                     }`}
@@ -269,94 +387,17 @@ const LoggedInLanding = () => {
               })}
             </div>
 
-            {/* Tab content */}
             {activeTab === "platform" && profile?.is_platform_admin && (
               <div className="space-y-4">{renderActionList(platformActions)}</div>
             )}
-
             {activeTab === "provider" && profile?.is_provider && (
               <div className="space-y-4">{renderActionList(providerActions)}</div>
             )}
-
-            {activeTab === "seeker" && (
-              <div className="space-y-4">
-                {!family && (
-                  <button
-                    onClick={() => navigate("/onboarding")}
-                    className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-primary/30 p-4 text-left transition-colors hover:border-primary hover:bg-primary/5 active:scale-[0.98]"
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                      <ClipboardList size={20} className="text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-primary">Complete Your Setup</p>
-                      <p className="text-xs text-muted-foreground">
-                        Select your apartment & add family members to discover classes
-                      </p>
-                    </div>
-                    <ChevronRight size={16} className="text-primary" />
-                  </button>
-                )}
-                {family && renderActionList(residentActions)}
-                {!profile?.is_provider && family && (
-                  <button
-                    onClick={() => navigate("/become-provider")}
-                    className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-indigo-300 p-4 text-left transition-colors hover:border-indigo-500 hover:bg-indigo-50 active:scale-[0.98]"
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10">
-                      <GraduationCap size={20} className="text-indigo-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-indigo-600">Start Teaching</p>
-                      <p className="text-xs text-muted-foreground">
-                        Become a provider on CampusBee
-                      </p>
-                    </div>
-                    <ChevronRight size={16} className="text-indigo-400" />
-                  </button>
-                )}
-              </div>
-            )}
+            {activeTab === "seeker" && <SeekerTabContent />}
           </div>
         ) : (
-          /* Single role — no tabs needed, just show resident content */
-          <div className="space-y-4">
-            {!family && (
-              <button
-                onClick={() => navigate("/onboarding")}
-                className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-primary/30 p-4 text-left transition-colors hover:border-primary hover:bg-primary/5 active:scale-[0.98]"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                  <ClipboardList size={20} className="text-primary" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-primary">Complete Your Setup</p>
-                  <p className="text-xs text-muted-foreground">
-                    Select your apartment & add family members to discover classes
-                  </p>
-                </div>
-                <ChevronRight size={16} className="text-primary" />
-              </button>
-            )}
-            {family && renderActionList(residentActions)}
-            {!profile?.is_provider && family && (
-              <button
-                onClick={() => navigate("/become-provider")}
-                className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-indigo-300 p-4 text-left transition-colors hover:border-indigo-500 hover:bg-indigo-50 active:scale-[0.98]"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10">
-                  <GraduationCap size={20} className="text-indigo-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-indigo-600">Start Teaching</p>
-                  <p className="text-xs text-muted-foreground">
-                    Become a provider on CampusBee
-                  </p>
-                </div>
-                <ChevronRight size={16} className="text-indigo-400" />
-              </button>
-            )}
-          </div>
+          /* Single role — show content directly */
+          <SeekerTabContent />
         )}
 
         <Separator />
@@ -374,7 +415,7 @@ const LoggedInLanding = () => {
 
       {/* Footer */}
       <footer className="py-4 text-center text-xs text-muted-foreground">
-        Made for apartment communities across India 🇮🇳
+        Discover classes near you 🇮🇳
       </footer>
 
       {/* Location Picker Sheet */}
@@ -459,7 +500,7 @@ const GuestLanding = () => {
 
         {/* Feature cards */}
         <div className="mt-10 w-full max-w-sm space-y-3">
-          {features.map((f, i) => (
+          {guestFeatures.map((f, i) => (
             <div
               key={f.title}
               className="flex items-start gap-4 rounded-xl bg-card p-4 shadow-sm animate-fade-up"
@@ -475,20 +516,17 @@ const GuestLanding = () => {
             </div>
           ))}
         </div>
-
       </div>
 
       {/* Footer */}
       <footer className="py-6 text-center text-xs text-muted-foreground">
-        Made for apartment communities across India 🇮🇳
+        Discover classes near you 🇮🇳
       </footer>
     </div>
   );
 };
 
 // ─── MAIN LANDING COMPONENT ──────────────────────────────────────
-
-const ROLE_STORAGE_KEY = "campusbee_intended_role";
 
 const Landing = () => {
   const { session, profile, loading } = useUser();
@@ -503,23 +541,6 @@ const Landing = () => {
     }
     if (profile) setProfileTimeout(false);
   }, [session, profile, loading]);
-
-  // After OAuth callback lands on "/", check if there's a pending admin
-  // role redirect stored before the OAuth flow began
-  useEffect(() => {
-    if (!session || !profile) return;
-    const pendingRole = localStorage.getItem(ROLE_STORAGE_KEY);
-    if (!pendingRole) return;
-
-    localStorage.removeItem(ROLE_STORAGE_KEY);
-
-    if (pendingRole === "platform_admin" && profile.is_platform_admin) {
-      navigate("/platform", { replace: true });
-    } else if (pendingRole === "apartment_admin" && profile.is_apartment_admin) {
-      navigate("/admin/dashboard", { replace: true });
-    }
-    // If role doesn't match, just stay on landing (normal logged-in view)
-  }, [session, profile, navigate]);
 
   // Show loading only during initial auth check
   if (loading) {
@@ -576,7 +597,6 @@ const Landing = () => {
     );
   }
 
-  // If profile loaded, show logged-in hub. Otherwise show guest page.
   return (session && profile) ? <LoggedInLanding /> : <GuestLanding />;
 };
 
