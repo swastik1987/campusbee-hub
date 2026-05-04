@@ -2,7 +2,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 
 // Routes accessible without completing onboarding (any authenticated user)
-const ONBOARDING_EXEMPT_ROUTES = ["/onboarding", "/profile", "/notifications"];
+const ONBOARDING_EXEMPT_ROUTES = ["/onboarding", "/profile", "/notifications", "/become-provider"];
 
 // Routes that require platform-admin role. (v1's /admin/* removed entirely.)
 const ADMIN_ROUTES = ["/platform"];
@@ -11,10 +11,10 @@ const ADMIN_ROUTES = ["/platform"];
 const PROVIDER_ROUTES_PREFIX = "/provider/";
 
 // Routes that require a completed onboarding (family setup)
-// i.e., seeker routes that depend on apartment context
+// i.e., seeker routes that depend on family/location context
 const REQUIRES_FAMILY_PREFIXES = [
   "/home", "/explore", "/my-classes", "/class/", "/enroll/",
-  "/enrollment/", "/chat", "/family", "/become-provider",
+  "/enrollment/", "/chat", "/family",
   "/provider-profile/",
 ];
 
@@ -61,12 +61,7 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/" replace />;
   }
 
-  // Allow /become-provider for existing providers (re-apply after rejection)
-  if (path === "/become-provider" && profile?.is_provider) {
-    return <>{children}</>;
-  }
-
-  // For routes that require family/apartment context, redirect to landing hub
+  // For routes that require family context, redirect to landing hub
   // (which shows the "Complete Your Setup" card) if onboarding isn't done
   if (!family && REQUIRES_FAMILY_PREFIXES.some((r) => path.startsWith(r))) {
     return <Navigate to="/" replace />;
