@@ -144,9 +144,9 @@ export interface ClassCategory {
   id: string;
   name: string;
   slug: string;
-  icon_name: string | null;
-  parent_category_id: string | null;
-  display_order: number;
+  icon: string | null;
+  parent_id: string | null;
+  sort_order: number;
   is_active: boolean;
 }
 

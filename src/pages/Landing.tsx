@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useUpdateSeekerLocation, type LocationValue } from "@/hooks/useLocation";
+import MapplsPicker from "@/components/location/MapplsPicker";
 import {
   Search,
   UserPlus,
@@ -10,7 +12,6 @@ import {
   Dumbbell,
   Palette,
   Shield,
-  Building2,
   ChevronRight,
   Home,
   BookOpen,
@@ -18,19 +19,31 @@ import {
   Users,
   LogOut,
   ClipboardList,
-  UserCog,
   BarChart3,
   FolderTree,
   MessageCircle,
   Bell,
   Settings,
+  MapPin,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-// Tabs import removed — using custom colored tab buttons
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { toast } from "sonner";
+
+/** Return the first comma-segment of an address, capped at 30 chars. */
+function shortAddr(address: string): string {
+  const first = address.split(",")[0]?.trim() ?? address;
+  return first.length > 30 ? first.slice(0, 28) + "…" : first;
+}
 
 const features = [
   {
@@ -54,7 +67,25 @@ const features = [
 
 const LoggedInLanding = () => {
   const navigate = useNavigate();
-  const { profile, family, currentApartment, activePersona } = useUser();
+  const { profile, family, refreshProfile } = useUser();
+  const updateLocation = useUpdateSeekerLocation();
+
+  // Location picker sheet
+  const [showLocationSheet, setShowLocationSheet] = useState(false);
+  const [pendingLocation, setPendingLocation] = useState<LocationValue | null>(null);
+
+  const handleSaveLocation = async () => {
+    if (!profile || !pendingLocation) return;
+    try {
+      await updateLocation.mutateAsync({ userId: profile.id, ...pendingLocation });
+      await refreshProfile();
+      setShowLocationSheet(false);
+      setPendingLocation(null);
+      toast.success("Location updated");
+    } catch {
+      toast.error("Failed to save location");
+    }
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -85,20 +116,14 @@ const LoggedInLanding = () => {
     { label: "Messages", desc: "Chat with students & parents", icon: MessageCircle, path: "/provider-chat", color: "text-indigo-600", bgColor: "bg-indigo-500/10" },
   ];
 
-  const adminActions: ActionItem[] = [
-    { label: "Admin Dashboard", desc: "Manage your apartment community", icon: Building2, path: "/admin/dashboard", color: "text-indigo-600", bgColor: "bg-indigo-500/10" },
-    { label: "Manage Providers", desc: "Approve & manage service providers", icon: UserCog, path: "/admin/providers", color: "text-indigo-600", bgColor: "bg-indigo-500/10" },
-    { label: "Admin Reports", desc: "View revenue & commission reports", icon: BarChart3, path: "/admin/reports", color: "text-indigo-600", bgColor: "bg-indigo-500/10" },
-  ];
-
   const platformActions: ActionItem[] = [
     { label: "Platform Dashboard", desc: "Manage the CampusBee platform", icon: Shield, path: "/platform", color: "text-emerald-600", bgColor: "bg-emerald-500/10" },
-    { label: "Manage Apartments", desc: "Approve & assign apartment admins", icon: Building2, path: "/platform/apartments", color: "text-emerald-600", bgColor: "bg-emerald-500/10" },
     { label: "Categories", desc: "Manage class categories", icon: FolderTree, path: "/platform/categories", color: "text-emerald-600", bgColor: "bg-emerald-500/10" },
-    { label: "Platform Analytics", desc: "Growth & city-wise metrics", icon: BarChart3, path: "/platform/analytics", color: "text-emerald-600", bgColor: "bg-emerald-500/10" },
+    { label: "Platform Analytics", desc: "Growth & city-wide metrics", icon: BarChart3, path: "/platform/analytics", color: "text-emerald-600", bgColor: "bg-emerald-500/10" },
+    { label: "Providers", desc: "View & manage all providers", icon: Users, path: "/platform/providers", color: "text-emerald-600", bgColor: "bg-emerald-500/10" },
   ];
 
-  // Build tabs in precedence order with accent colors
+  // Build tabs in precedence order with accent colors (v2: no apartment-admin tab)
   const tabs = useMemo(() => {
     const t: { id: string; label: string; icon: typeof Home; activeClass: string; inactiveClass: string }[] = [];
     if (profile?.is_platform_admin) t.push({
@@ -106,25 +131,20 @@ const LoggedInLanding = () => {
       activeClass: "bg-emerald-600 text-white shadow-sm shadow-emerald-200",
       inactiveClass: "text-emerald-700 bg-emerald-50 hover:bg-emerald-100",
     });
-    if (profile?.is_apartment_admin) t.push({
-      id: "admin", label: "Admin", icon: Building2,
-      activeClass: "bg-indigo-600 text-white shadow-sm shadow-indigo-200",
-      inactiveClass: "text-indigo-700 bg-indigo-50 hover:bg-indigo-100",
-    });
     if (profile?.is_provider) t.push({
       id: "provider", label: "Provider", icon: GraduationCap,
       activeClass: "bg-indigo-600 text-white shadow-sm shadow-indigo-200",
       inactiveClass: "text-indigo-700 bg-indigo-50 hover:bg-indigo-100",
     });
     t.push({
-      id: "resident", label: "Resident", icon: Home,
+      id: "seeker", label: "Seeker", icon: Home,
       activeClass: "bg-primary text-primary-foreground shadow-sm shadow-primary/20",
       inactiveClass: "text-primary bg-primary/10 hover:bg-primary/15",
     });
     return t;
   }, [profile]);
 
-  const [activeTab, setActiveTab] = useState(tabs[0]?.id ?? "resident");
+  const [activeTab, setActiveTab] = useState(tabs[0]?.id ?? "seeker");
 
   const renderActionList = (actions: ActionItem[]) => (
     <div className="space-y-2">
@@ -187,14 +207,22 @@ const LoggedInLanding = () => {
               <p className="text-base font-bold truncate">
                 Welcome, {profile?.full_name?.split(" ")[0] || "User"}!
               </p>
-              {currentApartment ? (
-                <p className="text-xs text-muted-foreground truncate">
-                  {currentApartment.name} · {currentApartment.locality}
-                </p>
+              {profile?.seeker_home_address ? (
+                <button
+                  onClick={() => setShowLocationSheet(true)}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-0.5"
+                >
+                  <MapPin size={10} className="text-primary shrink-0" />
+                  <span className="truncate max-w-[160px]">{shortAddr(profile.seeker_home_address)}</span>
+                  <Pencil size={9} className="text-primary shrink-0" />
+                </button>
               ) : (
-                <p className="text-xs text-amber-600 font-medium">
-                  Complete setup to explore classes
-                </p>
+                <button
+                  onClick={() => setShowLocationSheet(true)}
+                  className="text-xs text-amber-600 font-medium hover:opacity-80 transition-opacity mt-0.5 text-left"
+                >
+                  Set your location to explore nearby classes →
+                </button>
               )}
             </div>
           </div>
@@ -203,17 +231,12 @@ const LoggedInLanding = () => {
           <div className="mt-3 flex flex-wrap gap-1.5">
             {family && (
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold text-primary">
-                <Home size={10} /> Resident
+                <Home size={10} /> Member
               </span>
             )}
             {profile?.is_provider && (
               <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-600">
                 <GraduationCap size={10} /> Provider
-              </span>
-            )}
-            {profile?.is_apartment_admin && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-600">
-                <Building2 size={10} /> Apt Admin
               </span>
             )}
             {profile?.is_platform_admin && (
@@ -251,15 +274,11 @@ const LoggedInLanding = () => {
               <div className="space-y-4">{renderActionList(platformActions)}</div>
             )}
 
-            {activeTab === "admin" && profile?.is_apartment_admin && (
-              <div className="space-y-4">{renderActionList(adminActions)}</div>
-            )}
-
             {activeTab === "provider" && profile?.is_provider && (
               <div className="space-y-4">{renderActionList(providerActions)}</div>
             )}
 
-            {activeTab === "resident" && (
+            {activeTab === "seeker" && (
               <div className="space-y-4">
                 {!family && (
                   <button
@@ -357,6 +376,34 @@ const LoggedInLanding = () => {
       <footer className="py-4 text-center text-xs text-muted-foreground">
         Made for apartment communities across India 🇮🇳
       </footer>
+
+      {/* Location Picker Sheet */}
+      <Sheet open={showLocationSheet} onOpenChange={(open) => {
+        setShowLocationSheet(open);
+        if (!open) setPendingLocation(null);
+      }}>
+        <SheetContent side="bottom" className="rounded-t-2xl pb-8">
+          <SheetHeader className="mb-4">
+            <SheetTitle>
+              {profile?.seeker_home_address ? "Update Your Location" : "Set Your Location"}
+            </SheetTitle>
+          </SheetHeader>
+          <div className="space-y-4">
+            <MapplsPicker
+              value={pendingLocation}
+              onChange={setPendingLocation}
+              showMap={false}
+            />
+            <Button
+              className="w-full"
+              disabled={!pendingLocation || updateLocation.isPending}
+              onClick={handleSaveLocation}
+            >
+              {updateLocation.isPending ? "Saving…" : "Save Location"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };

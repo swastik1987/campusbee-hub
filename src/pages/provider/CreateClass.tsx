@@ -114,17 +114,17 @@ const CreateClass = () => {
 
   const filteredSubCategories = useMemo(() => {
     if (!allCategories) return [];
-    const subs = allCategories.filter((c) => c.parent_category_id);
+    const subs = allCategories.filter((c) => c.parent_id);
     if (specializationIds.length === 0) return subs;
     return subs.filter((c) => specializationIds.includes(c.id));
   }, [allCategories, specializationIds]);
 
   const filteredParentCategories = useMemo(() => {
     if (!allCategories) return [];
-    const parents = allCategories.filter((c) => !c.parent_category_id);
+    const parents = allCategories.filter((c) => !c.parent_id);
     if (specializationIds.length === 0) return parents;
     const parentIdsWithChildren = new Set(
-      filteredSubCategories.map((c) => c.parent_category_id)
+      filteredSubCategories.map((c) => c.parent_id)
     );
     return parents.filter((p) => parentIdsWithChildren.has(p.id));
   }, [allCategories, filteredSubCategories, specializationIds]);
@@ -305,7 +305,7 @@ const CreateClass = () => {
                 <Label>Sub-category</Label>
                 <div className="flex flex-wrap gap-2">
                   {filteredSubCategories
-                    .filter((c) => c.parent_category_id === selectedParent)
+                    .filter((c) => c.parent_id === selectedParent)
                     .map((cat) => (
                       <Badge
                         key={cat.id}

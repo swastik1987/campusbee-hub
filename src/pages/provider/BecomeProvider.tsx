@@ -112,8 +112,8 @@ const BecomeProvider = () => {
   const uploadMedia = useUploadProviderMedia();
   const { data: allCategories } = useCategories();
 
-  const parentCategories = allCategories?.filter((c) => !c.parent_category_id) ?? [];
-  const subCategories = allCategories?.filter((c) => c.parent_category_id) ?? [];
+  const parentCategories = allCategories?.filter((c) => !c.parent_id) ?? [];
+  const subCategories = allCategories?.filter((c) => c.parent_id) ?? [];
 
   const toggleCategoryId = (catId: string, catName: string) => {
     setSelectedCategoryIds((prev) =>
@@ -271,7 +271,7 @@ const BecomeProvider = () => {
             <div className="space-y-3">
               <Label>What will you teach? (select sub-categories)</Label>
               {parentCategories.map((parent) => {
-                const children = subCategories.filter((c) => c.parent_category_id === parent.id);
+                const children = subCategories.filter((c) => c.parent_id === parent.id);
                 if (children.length === 0) return null;
                 return (
                   <div key={parent.id} className="space-y-1.5">

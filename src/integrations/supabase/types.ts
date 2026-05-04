@@ -583,36 +583,39 @@ export type Database = {
       }
       class_categories: {
         Row: {
-          display_order: number | null
-          icon_name: string | null
+          sort_order: number | null
+          icon: string | null
           id: string
           is_active: boolean | null
           name: string
-          parent_category_id: string | null
+          parent_id: string | null
           slug: string
+          created_at: string | null
         }
         Insert: {
-          display_order?: number | null
-          icon_name?: string | null
+          sort_order?: number | null
+          icon?: string | null
           id?: string
           is_active?: boolean | null
           name: string
-          parent_category_id?: string | null
+          parent_id?: string | null
           slug: string
+          created_at?: string | null
         }
         Update: {
-          display_order?: number | null
-          icon_name?: string | null
+          sort_order?: number | null
+          icon?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
-          parent_category_id?: string | null
+          parent_id?: string | null
           slug?: string
+          created_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "class_categories_parent_category_id_fkey"
-            columns: ["parent_category_id"]
+            foreignKeyName: "class_categories_parent_id_fkey"
+            columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "class_categories"
             referencedColumns: ["id"]

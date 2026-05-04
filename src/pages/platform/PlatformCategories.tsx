@@ -56,9 +56,9 @@ type Category = {
   id: string;
   name: string;
   slug: string;
-  icon_name: string | null;
-  parent_category_id: string | null;
-  display_order: number;
+  icon: string | null;
+  parent_id: string | null;
+  sort_order: number;
   is_active: boolean | null;
 };
 
@@ -98,7 +98,7 @@ function SortableParentCard({
             <GripVertical size={16} />
           </button>
           <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-            {parent.display_order}
+            {parent.sort_order}
           </div>
           <div>
             <p className="text-sm font-semibold">{parent.name}</p>
@@ -233,11 +233,11 @@ const PlatformCategories = () => {
   );
 
   const parentCategories = useMemo(
-    () => (categories ?? []).filter((c) => !c.parent_category_id).sort((a, b) => a.display_order - b.display_order),
+    () => (categories ?? []).filter((c) => !c.parent_id).sort((a, b) => a.sort_order - b.sort_order),
     [categories]
   );
   const getChildren = (pid: string) =>
-    (categories ?? []).filter((c) => c.parent_category_id === pid).sort((a, b) => a.display_order - b.display_order);
+    (categories ?? []).filter((c) => c.parent_id === pid).sort((a, b) => a.sort_order - b.sort_order);
 
   const resetForm = () => {
     setName(""); setSlug(""); setIconName(""); setParentId("none"); setDisplayOrder("0");
@@ -274,9 +274,9 @@ const PlatformCategories = () => {
     setEditId(cat.id);
     setName(cat.name);
     setSlug(cat.slug);
-    setIconName(cat.icon_name ?? "");
-    setDisplayOrder(String(cat.display_order));
-    setParentId(cat.parent_category_id ?? "none");
+    setIconName(cat.icon ?? "");
+    setDisplayOrder(String(cat.sort_order));
+    setParentId(cat.parent_id ?? "none");
     setShowAdd(true);
   };
 
@@ -323,9 +323,9 @@ const PlatformCategories = () => {
       const newIndex = parentCategories.findIndex((p) => p.id === overId);
       const reordered = arrayMove(parentCategories, oldIndex, newIndex);
 
-      // Batch update display_order
+      // Batch update sort_order
       for (let i = 0; i < reordered.length; i++) {
-        if (reordered[i].display_order !== i + 1) {
+        if (reordered[i].sort_order !== i + 1) {
           await updateCategory.mutateAsync({ id: reordered[i].id, displayOrder: i + 1 });
         }
       }
@@ -344,7 +344,7 @@ const PlatformCategories = () => {
         const reordered = arrayMove(children, oldIndex, newIndex);
 
         for (let i = 0; i < reordered.length; i++) {
-          if (reordered[i].display_order !== i + 1) {
+          if (reordered[i].sort_order !== i + 1) {
             await updateCategory.mutateAsync({ id: reordered[i].id, displayOrder: i + 1 });
           }
         }

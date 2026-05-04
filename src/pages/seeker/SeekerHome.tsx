@@ -22,6 +22,10 @@ import {
   Guitar,
   Heart,
   Globe,
+  Dumbbell,
+  Leaf,
+  Code,
+  Sparkles,
   BookOpen,
   ChevronRight,
   Users,
@@ -29,6 +33,7 @@ import {
 
 const CATEGORY_ICONS: Record<string, typeof Trophy> = {
   Trophy, Swords, Music, Palette, GraduationCap, Guitar, Heart, Globe,
+  Dumbbell, Leaf, Code, Sparkles,
 };
 
 const SeekerHome = () => {
@@ -43,10 +48,10 @@ const SeekerHome = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("class_categories")
-        .select("id, name, slug, icon_name, display_order")
-        .is("parent_category_id", null)
+        .select("id, name, slug, icon, sort_order")
+        .is("parent_id", null)
         .eq("is_active", true)
-        .order("display_order");
+        .order("sort_order");
       if (error) throw error;
       return data;
     },
@@ -171,7 +176,7 @@ const SeekerHome = () => {
           ) : (
             <div className="grid grid-cols-2 gap-3">
               {categories?.map((cat) => {
-                const IconComponent = CATEGORY_ICONS[cat.icon_name ?? ""] ?? BookOpen;
+                const IconComponent = CATEGORY_ICONS[cat.icon ?? ""] ?? BookOpen;
                 return (
                   <Card
                     key={cat.id}

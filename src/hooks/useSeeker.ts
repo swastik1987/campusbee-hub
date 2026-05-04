@@ -109,7 +109,7 @@ export function useExploreClasses(filters: {
           id, title, short_description, cover_image_url, class_type,
           skill_level, age_group_min, age_group_max, total_rating, rating_count,
           trial_available, trial_fee, created_at, category_id, requires_common_area,
-          class_categories!inner(id, name, slug, parent_category_id),
+          class_categories!inner(id, name, slug, parent_id),
           provider_apartment_registrations(
             id,
             service_providers(id, business_name, provider_type,
@@ -171,7 +171,7 @@ export function useSeekerClassDetail(classId: string | undefined) {
           promo_video_url, class_type, skill_level, age_group_min, age_group_max,
           venue_details, what_to_bring, trial_available, trial_fee, status,
           total_rating, rating_count, created_at,
-          class_categories(id, name, slug, icon_name),
+          class_categories(id, name, slug, icon),
           provider_apartment_registrations(
             id, apartment_id,
             apartment_complexes(id, name, city, locality),

@@ -5,14 +5,17 @@ import { useExploreClasses, useNewClasses, usePopularClasses } from "@/hooks/use
 import { useActiveFeaturedListings } from "@/hooks/useFeatured";
 import { useIncomingInvites } from "@/hooks/useFamilyLinking";
 import { useCategories } from "@/hooks/useClasses";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUpdateSeekerLocation, type LocationValue } from "@/hooks/useLocation";
+import MapplsPicker from "@/components/location/MapplsPicker";
 import Header from "@/components/layout/Header";
 import ClassCard from "@/components/shared/ClassCard";
 import BottomNav from "@/components/BottomNav";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sheet,
@@ -39,10 +42,17 @@ import {
   Guitar,
   Heart,
   Globe,
+  Dumbbell,
+  Leaf,
+  Code,
+  Sparkles,
   BookOpen,
   ChevronRight,
   Users,
+  MapPin,
+  Pencil,
 } from "lucide-react";
+import { toast } from "sonner";
 
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest" },
@@ -52,12 +62,33 @@ const SORT_OPTIONS = [
 
 const CATEGORY_ICONS: Record<string, typeof Trophy> = {
   Trophy, Swords, Music, Palette, GraduationCap, Guitar, Heart, Globe,
+  Dumbbell, Leaf, Code, Sparkles,
 };
 
 const Explore = () => {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const { profile } = useUser();
+  const { profile, refreshProfile } = useUser();
+  const queryClient = useQueryClient();
+  const updateLocation = useUpdateSeekerLocation();
+
+  // Location picker sheet
+  const [showLocationSheet, setShowLocationSheet] = useState(false);
+  const [pendingLocation, setPendingLocation] = useState<LocationValue | null>(null);
+
+  const handleSaveLocation = async () => {
+    if (!profile || !pendingLocation) return;
+    try {
+      await updateLocation.mutateAsync({ userId: profile.id, ...pendingLocation });
+      await refreshProfile();
+      queryClient.invalidateQueries({ queryKey: ["explore-classes"] });
+      setShowLocationSheet(false);
+      setPendingLocation(null);
+      toast.success("Location updated");
+    } catch {
+      toast.error("Failed to save location");
+    }
+  };
 
   const [search, setSearch] = useState(params.get("search") ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState(search);
@@ -66,15 +97,15 @@ const Explore = () => {
   const [filterSheet, setFilterSheet] = useState(false);
 
   const { data: allCategories } = useCategories();
-  const parentCategories = allCategories?.filter((c) => !c.parent_category_id) ?? [];
+  const parentCategories = allCategories?.filter((c) => !c.parent_id) ?? [];
 
   // Resolve selected parent category to include all its subcategory IDs
   const selectedCategoryIds = (() => {
     if (!categorySlug || !allCategories) return undefined;
-    const parent = allCategories.find((c) => c.slug === categorySlug && !c.parent_category_id);
+    const parent = allCategories.find((c) => c.slug === categorySlug && !c.parent_id);
     if (parent) {
       const childIds = allCategories
-        .filter((c) => c.parent_category_id === parent.id)
+        .filter((c) => c.parent_id === parent.id)
         .map((c) => c.id);
       return [parent.id, ...childIds];
     }
@@ -127,7 +158,7 @@ const Explore = () => {
 
   // When searching, also fetch all classes (no text filter) so we can client-side match provider names
   const { data: allAptClasses } = useExploreClasses({
-    apartmentId: isSearching ? aptId : undefined,
+    apartmentId: undefined,
     categoryIds: selectedCategoryIds,
     sort,
     limit: 100,
@@ -168,10 +199,10 @@ const Explore = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("class_categories")
-        .select("id, name, slug, icon_name, display_order")
-        .is("parent_category_id", null)
+        .select("id, name, slug, icon, sort_order")
+        .is("parent_id", null)
         .eq("is_active", true)
-        .order("display_order");
+        .order("sort_order");
       if (error) throw error;
       return data;
     },
@@ -235,6 +266,28 @@ const Explore = () => {
             <ChevronRight size={16} className="text-primary" />
           </button>
         )}
+
+        {/* Location bar */}
+        <div className="flex items-center justify-between rounded-xl bg-primary/5 border border-primary/10 px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <MapPin size={15} className="text-primary shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[10px] text-muted-foreground leading-none mb-0.5">Classes near</p>
+              <p className="text-xs font-semibold truncate max-w-[200px]">
+                {profile?.seeker_home_address
+                  ? (profile.seeker_home_address.split(",")[0]?.trim() ?? profile.seeker_home_address)
+                  : "Set your location"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowLocationSheet(true)}
+            className="flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors shrink-0"
+          >
+            <Pencil size={11} />
+            {profile?.seeker_home_address ? "Edit" : "Set"}
+          </button>
+        </div>
 
         {/* Featured Classes Banner Carousel */}
         {!isSearching && featuredListings && featuredListings.length > 0 && (
@@ -421,7 +474,7 @@ const Explore = () => {
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   {categories?.map((cat) => {
-                    const IconComponent = CATEGORY_ICONS[cat.icon_name ?? ""] ?? BookOpen;
+                    const IconComponent = CATEGORY_ICONS[cat.icon ?? ""] ?? BookOpen;
                     const isActive = categorySlug === cat.slug;
                     return (
                       <Card
@@ -482,6 +535,34 @@ const Explore = () => {
           </>
         )}
       </div>
+
+      {/* Location Picker Sheet */}
+      <Sheet open={showLocationSheet} onOpenChange={(open) => {
+        setShowLocationSheet(open);
+        if (!open) setPendingLocation(null);
+      }}>
+        <SheetContent side="bottom" className="rounded-t-2xl pb-8">
+          <SheetHeader className="mb-4">
+            <SheetTitle>
+              {profile?.seeker_home_address ? "Update Location" : "Set Your Location"}
+            </SheetTitle>
+          </SheetHeader>
+          <div className="space-y-4">
+            <MapplsPicker
+              value={pendingLocation}
+              onChange={setPendingLocation}
+              showMap={false}
+            />
+            <Button
+              className="w-full"
+              disabled={!pendingLocation || updateLocation.isPending}
+              onClick={handleSaveLocation}
+            >
+              {updateLocation.isPending ? "Saving…" : "Save Location"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Filter Sheet */}
       <Sheet open={filterSheet} onOpenChange={setFilterSheet}>

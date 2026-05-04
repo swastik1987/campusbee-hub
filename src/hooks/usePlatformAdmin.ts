@@ -201,8 +201,8 @@ export function usePlatformCategories() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("class_categories")
-        .select("id, name, slug, icon_name, parent_category_id, display_order, is_active")
-        .order("display_order");
+        .select("id, name, slug, icon, parent_id, sort_order, is_active")
+        .order("sort_order");
       if (error) throw error;
       return data;
     },
@@ -222,9 +222,9 @@ export function useCreateCategory() {
       const { error } = await supabase.from("class_categories").insert({
         name: input.name,
         slug: input.slug,
-        icon_name: input.iconName || null,
-        parent_category_id: input.parentCategoryId || null,
-        display_order: input.displayOrder ?? 0,
+        icon: input.iconName || null,
+        parent_id: input.parentCategoryId || null,
+        sort_order: input.displayOrder ?? 0,
       });
       if (error) throw error;
     },
@@ -247,10 +247,10 @@ export function useUpdateCategory() {
       const payload: any = {};
       if (updates.name !== undefined) payload.name = updates.name;
       if (updates.slug !== undefined) payload.slug = updates.slug;
-      if (updates.iconName !== undefined) payload.icon_name = updates.iconName;
-      if (updates.displayOrder !== undefined) payload.display_order = updates.displayOrder;
+      if (updates.iconName !== undefined) payload.icon = updates.iconName;
+      if (updates.displayOrder !== undefined) payload.sort_order = updates.displayOrder;
       if (updates.isActive !== undefined) payload.is_active = updates.isActive;
-      if (updates.parentCategoryId !== undefined) payload.parent_category_id = updates.parentCategoryId;
+      if (updates.parentCategoryId !== undefined) payload.parent_id = updates.parentCategoryId;
 
       const { error } = await supabase
         .from("class_categories")

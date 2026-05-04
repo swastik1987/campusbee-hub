@@ -9,9 +9,9 @@ export function useCategories() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("class_categories")
-        .select("id, name, slug, icon_name, parent_category_id, display_order, is_active")
+        .select("id, name, slug, icon, parent_id, sort_order, is_active")
         .eq("is_active", true)
-        .order("display_order");
+        .order("sort_order");
       if (error) throw error;
       return data;
     },
@@ -33,7 +33,7 @@ export function useProviderClasses(registrationIds: string[], statusFilter?: str
           class_terms_status,
           is_featured, total_rating, rating_count, created_at,
           provider_registration_id,
-          category_id, class_categories(name, slug, icon_name),
+          category_id, class_categories(name, slug, icon),
           provider_apartment_registrations(apartment_id, apartment_complexes(name))
         `)
         .in("provider_registration_id", registrationIds)
