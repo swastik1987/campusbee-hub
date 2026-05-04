@@ -23,7 +23,7 @@ const CONFIG: Record<string, {
 };
 
 const ModerationStatusBadge = React.forwardRef<
-  HTMLSpanElement,
+  HTMLDivElement,
   ModerationStatusBadgeProps
 >(({ status, showIcon = true, size = "sm" }, ref) => {
   const cfg = CONFIG[status ?? "pending"] ?? CONFIG.pending;
