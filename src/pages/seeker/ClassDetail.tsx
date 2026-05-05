@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useSeekerClassDetail, useClassReviews } from "@/hooks/useSeeker";
+import { useSeekerProviderCertifications, useSeekerTrainerCertifications } from "@/hooks/useCertifications";
+import CertificationGallery from "@/components/shared/CertificationGallery";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,9 @@ const ClassDetail = () => {
   const { profile } = useUser();
   const { data: cls, isLoading } = useSeekerClassDetail(classId);
   const { data: reviews } = useClassReviews(classId);
+  // Certifications — loaded after class data resolves
+  const providerId = cls ? (cls as any).service_providers?.id : undefined;
+  const { data: providerCerts } = useSeekerProviderCertifications(providerId);
 
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [galleryIdx, setGalleryIdx] = useState(0);
@@ -214,6 +219,11 @@ const ClassDetail = () => {
               ))}
             </div>
           </div>
+        )}
+
+        {/* Provider Certifications */}
+        {providerCerts && providerCerts.length > 0 && (
+          <CertificationGallery certs={providerCerts} layout="scroll" />
         )}
 
         {/* Full description */}

@@ -81,7 +81,10 @@ export function useCreateClass() {
   return useMutation({
     mutationFn: async (input: {
       providerId: string;
-      categoryId: string;
+      /** Pass categoryId OR pendingCategoryRequestId — not both */
+      categoryId?: string | null;
+      /** Set when class is created under a pending category request */
+      pendingCategoryRequestId?: string | null;
       title: string;
       description: string;
       shortDescription: string;
@@ -112,7 +115,8 @@ export function useCreateClass() {
         .from("classes")
         .insert({
           provider_id: input.providerId,
-          category_id: input.categoryId,
+          category_id: input.categoryId ?? null,
+          pending_category_request_id: (input.pendingCategoryRequestId ?? null) as any,
           title: input.title,
           description: input.description || null,
           short_description: input.shortDescription || null,

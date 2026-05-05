@@ -1,6 +1,9 @@
+import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProviderProfile, useProviderClasses as useProviderPublicClasses, useProviderTrainers } from "@/hooks/useSeeker";
+import { useSeekerProviderCertifications, useSeekerTrainerCertifications } from "@/hooks/useCertifications";
 import ClassCard from "@/components/shared/ClassCard";
+import CertificationGallery from "@/components/shared/CertificationGallery";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,12 +11,47 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, CheckCircle2, MessageCircle, Star } from "lucide-react";
 
+// ── TrainerCard with inline certifications ─────────────────────────────────────
+
+const TrainerCard = React.forwardRef<
+  HTMLDivElement,
+  { trainer: any; providerId: string }
+>(({ trainer }, ref) => {
+  const { data: certs } = useSeekerTrainerCertifications(trainer.id);
+  return (
+    <Card ref={ref} className="p-3 space-y-2">
+      <div className="flex items-center gap-3">
+        <Avatar className="h-10 w-10">
+          <AvatarImage src={trainer.photo_url ?? undefined} />
+          <AvatarFallback className="bg-provider/10 text-provider text-xs">{trainer.name[0]}</AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <p className="text-sm font-semibold">{trainer.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {trainer.experience_years ? `${trainer.experience_years} yrs` : ""}
+            {trainer.specializations && trainer.specializations.length > 0 &&
+              ` · ${trainer.specializations.slice(0, 2).join(", ")}`
+            }
+          </p>
+        </div>
+      </div>
+      {certs && certs.length > 0 && (
+        <CertificationGallery certs={certs} layout="scroll" />
+      )}
+    </Card>
+  );
+});
+TrainerCard.displayName = "TrainerCard";
+
+// ── Main page ──────────────────────────────────────────────────────────────────
+
 const ProviderProfilePage = () => {
   const { providerId } = useParams();
   const navigate = useNavigate();
   const { data: provider, isLoading } = useProviderProfile(providerId);
   const { data: classes } = useProviderPublicClasses(providerId);
   const { data: trainers } = useProviderTrainers(providerId);
+  const { data: providerCerts } = useSeekerProviderCertifications(providerId);
 
   if (isLoading) {
     return (
@@ -105,6 +143,11 @@ const ProviderProfilePage = () => {
           </div>
         )}
 
+        {/* Provider Certifications */}
+        {providerCerts && providerCerts.length > 0 && (
+          <CertificationGallery certs={providerCerts} layout="scroll" />
+        )}
+
         {/* Contact */}
         <div className="flex gap-2">
           <Button
@@ -127,21 +170,7 @@ const ProviderProfilePage = () => {
             <h3 className="text-sm font-bold mb-3">Our Team</h3>
             <div className="space-y-2">
               {trainers.map((t) => (
-                <Card key={t.id} className="flex items-center gap-3 p-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={t.photo_url ?? undefined} />
-                    <AvatarFallback className="bg-provider/10 text-provider text-xs">{t.name[0]}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {t.experience_years ? `${t.experience_years} yrs` : ""}
-                      {t.specializations && t.specializations.length > 0 &&
-                        ` · ${t.specializations.slice(0, 2).join(", ")}`
-                      }
-                    </p>
-                  </div>
-                </Card>
+                <TrainerCard key={t.id} trainer={t} providerId={provider.id} />
               ))}
             </div>
           </div>

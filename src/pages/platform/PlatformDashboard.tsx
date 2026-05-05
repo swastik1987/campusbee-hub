@@ -1,8 +1,11 @@
 import { useNavigate } from "react-router-dom";
 import { usePlatformStats } from "@/hooks/usePlatformAdmin";
+import { usePendingCategoryRequestCount } from "@/hooks/useCategoryRequests";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  FolderTree,
   GraduationCap,
   Users,
   UserCheck,
@@ -11,6 +14,7 @@ import {
 
 const PlatformDashboard = () => {
   const { data: stats, isLoading } = usePlatformStats();
+  const { data: pendingCatCount } = usePendingCategoryRequestCount();
   const navigate = useNavigate();
 
   return (
@@ -65,6 +69,13 @@ const PlatformDashboard = () => {
           icon={<GraduationCap size={20} className="text-indigo-600" />}
           onClick={() => navigate("/platform/categories")}
         />
+        <QuickLinkCard
+          title="Category Requests"
+          description="Review provider requests for new categories"
+          icon={<FolderTree size={20} className="text-amber-600" />}
+          onClick={() => navigate("/platform/categories")}
+          badge={pendingCatCount && pendingCatCount > 0 ? pendingCatCount : undefined}
+        />
       </div>
     </div>
   );
@@ -95,11 +106,13 @@ const QuickLinkCard = ({
   description,
   icon,
   onClick,
+  badge,
 }: {
   title: string;
   description: string;
   icon: React.ReactNode;
   onClick: () => void;
+  badge?: number;
 }) => (
   <Card
     className="p-4 cursor-pointer hover:shadow-md transition-shadow flex items-center gap-4"
@@ -109,7 +122,14 @@ const QuickLinkCard = ({
       {icon}
     </div>
     <div className="flex-1">
-      <p className="text-sm font-semibold">{title}</p>
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-semibold">{title}</p>
+        {badge !== undefined && (
+          <Badge className="bg-amber-500 text-white text-[10px] h-4 px-1.5 min-w-4 flex items-center justify-center">
+            {badge}
+          </Badge>
+        )}
+      </div>
       <p className="text-xs text-muted-foreground">{description}</p>
     </div>
     <ArrowRight size={16} className="text-muted-foreground" />

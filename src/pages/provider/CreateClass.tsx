@@ -6,6 +6,7 @@ import { useCategories, useCreateClass, useCreateBatch, useUploadClassImage } fr
 import { moderateClassPublish } from "@/lib/moderation";
 import { supabase } from "@/integrations/supabase/client";
 import ClassLocationPicker from "@/components/location/ClassLocationPicker";
+import CategoryRequestSheet from "@/components/provider/CategoryRequestSheet";
 import type { LocationValue } from "@/hooks/useLocation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,8 +27,11 @@ import {
 import {
   ArrowLeft,
   Camera,
+  CheckCircle2,
+  Clock,
   ImagePlus,
   Loader2,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -56,6 +60,10 @@ const CreateClass = () => {
   // Step 1: Category
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedParent, setSelectedParent] = useState("");
+  // Pending category request path
+  const [showCatRequestSheet, setShowCatRequestSheet] = useState(false);
+  const [pendingRequestId, setPendingRequestId] = useState<string | null>(null);
+  const [pendingCategoryName, setPendingCategoryName] = useState("");
 
   // Step 2: Details
   const [title, setTitle] = useState("");
@@ -168,14 +176,19 @@ const CreateClass = () => {
   const batchValid = batchName.trim() && maxBatchSize && feeAmount && selectedSchedules.length > 0;
 
   const handleSave = async (publish: boolean) => {
-    if (!selectedCategoryId || !title.trim() || !providerProfile || !profile) return;
+    const hasCategoryChoice = !!selectedCategoryId || !!pendingRequestId;
+    if (!hasCategoryChoice || !title.trim() || !providerProfile || !profile) return;
+
+    // If using a pending category request, always save as draft (can't publish until approved)
+    const effectivePublish = pendingRequestId ? false : publish;
 
     setIsPublishing(true);
     try {
       // 1. Create class as draft
       const result = await createClass.mutateAsync({
         providerId: providerProfile.id,
-        categoryId: selectedCategoryId,
+        categoryId: selectedCategoryId || null,
+        pendingCategoryRequestId: pendingRequestId ?? null,
         title: title.trim(),
         description,
         shortDescription: shortDesc,
@@ -227,8 +240,12 @@ const CreateClass = () => {
         });
       }
 
-      if (!publish) {
-        toast.success("Draft saved!");
+      if (!effectivePublish) {
+        if (pendingRequestId) {
+          toast.success("Class saved! It will auto-publish once your category request is approved.");
+        } else {
+          toast.success("Draft saved!");
+        }
         navigate("/provider/classes", { replace: true });
         return;
       }
@@ -296,43 +313,77 @@ const CreateClass = () => {
           <div className="space-y-5 animate-fade-up">
             <h2 className="text-xl font-bold">Category</h2>
 
-            <div className="space-y-2">
-              <Label>Category</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {filteredParentCategories.map((cat) => (
-                  <Card
-                    key={cat.id}
-                    className={`cursor-pointer p-3 text-center transition-all text-sm ${selectedParent === cat.id ? "border-provider bg-provider/5" : "hover:border-provider/50"}`}
-                    onClick={() => { setSelectedParent(cat.id); setSelectedCategoryId(""); }}
-                  >
-                    {cat.name}
-                  </Card>
-                ))}
-              </div>
-            </div>
-
-            {selectedParent && (
-              <div className="space-y-2">
-                <Label>Sub-category</Label>
-                <div className="flex flex-wrap gap-2">
-                  {filteredSubCategories
-                    .filter((c) => c.parent_id === selectedParent)
-                    .map((cat) => (
-                      <Badge
-                        key={cat.id}
-                        variant={selectedCategoryId === cat.id ? "default" : "outline"}
-                        className={`cursor-pointer ${selectedCategoryId === cat.id ? "bg-provider" : ""}`}
-                        onClick={() => setSelectedCategoryId(cat.id)}
-                      >
-                        {cat.name}
-                      </Badge>
-                    ))}
+            {/* Pending category request banner */}
+            {pendingRequestId && (
+              <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <Clock size={15} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-800">
+                    Category request submitted: "{pendingCategoryName}"
+                  </p>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    Your class will be saved as a draft and auto-published once approved.
+                  </p>
                 </div>
+                <button
+                  className="text-amber-500 hover:text-amber-700"
+                  onClick={() => { setPendingRequestId(null); setPendingCategoryName(""); }}
+                >
+                  ✕
+                </button>
               </div>
             )}
 
+            {!pendingRequestId && (
+              <>
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {filteredParentCategories.map((cat) => (
+                      <Card
+                        key={cat.id}
+                        className={`cursor-pointer p-3 text-center transition-all text-sm ${selectedParent === cat.id ? "border-provider bg-provider/5" : "hover:border-provider/50"}`}
+                        onClick={() => { setSelectedParent(cat.id); setSelectedCategoryId(""); }}
+                      >
+                        {cat.name}
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+
+                {selectedParent && (
+                  <div className="space-y-2">
+                    <Label>Sub-category</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {filteredSubCategories
+                        .filter((c) => c.parent_id === selectedParent)
+                        .map((cat) => (
+                          <Badge
+                            key={cat.id}
+                            variant={selectedCategoryId === cat.id ? "default" : "outline"}
+                            className={`cursor-pointer ${selectedCategoryId === cat.id ? "bg-provider" : ""}`}
+                            onClick={() => setSelectedCategoryId(cat.id)}
+                          >
+                            {cat.name}
+                          </Badge>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Request new category link */}
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 text-xs text-provider hover:underline"
+                  onClick={() => setShowCatRequestSheet(true)}
+                >
+                  <Plus size={13} /> Don't see your category? Request a new one
+                </button>
+              </>
+            )}
+
             <Button
-              disabled={!selectedCategoryId}
+              disabled={!selectedCategoryId && !pendingRequestId}
               onClick={() => setStep(1)}
               className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
             >
@@ -674,6 +725,11 @@ const CreateClass = () => {
                 {selectedCategoryId && (
                   <Badge variant="outline" className="text-xs">{getCategoryName(selectedCategoryId)}</Badge>
                 )}
+                {pendingRequestId && (
+                  <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
+                    <Clock size={10} className="mr-1" />{pendingCategoryName} (pending)
+                  </Badge>
+                )}
                 <Badge variant="outline" className="capitalize">{classType.replace("_", " ")}</Badge>
                 {skillLevels.map((s) => (
                   <Badge key={s} variant="secondary" className="capitalize">{s.replace("_", " ")}</Badge>
@@ -719,6 +775,12 @@ const CreateClass = () => {
               Content is reviewed by our moderation system before going live. Most classes are approved instantly.
             </div>
 
+            {pendingRequestId && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                <span className="font-semibold">Pending category:</span> This class will be saved as a draft and published automatically once "{pendingCategoryName}" is approved by our team.
+              </div>
+            )}
+
             <div className="flex gap-3">
               <Button
                 variant="outline"
@@ -728,17 +790,43 @@ const CreateClass = () => {
               >
                 Save as Draft
               </Button>
-              <Button
-                onClick={() => handleSave(true)}
-                disabled={isSaving}
-                className="flex-1 h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
-              >
-                {isSaving ? <Loader2 size={20} className="animate-spin" /> : "Publish"}
-              </Button>
+              {!pendingRequestId && (
+                <Button
+                  onClick={() => handleSave(true)}
+                  disabled={isSaving}
+                  className="flex-1 h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
+                >
+                  {isSaving ? <Loader2 size={20} className="animate-spin" /> : "Publish"}
+                </Button>
+              )}
+              {pendingRequestId && (
+                <Button
+                  onClick={() => handleSave(false)}
+                  disabled={isSaving}
+                  className="flex-1 h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
+                >
+                  {isSaving ? <Loader2 size={20} className="animate-spin" /> : "Save & Wait for Approval"}
+                </Button>
+              )}
             </div>
           </div>
         )}
       </div>
+
+      {/* Category Request Sheet */}
+      {providerProfile && (
+        <CategoryRequestSheet
+          open={showCatRequestSheet}
+          onOpenChange={setShowCatRequestSheet}
+          providerId={providerProfile.id}
+          onSubmitted={(requestId, catName) => {
+            setPendingRequestId(requestId);
+            setPendingCategoryName(catName);
+            setSelectedCategoryId("");
+            setSelectedParent("");
+          }}
+        />
+      )}
     </div>
   );
 };

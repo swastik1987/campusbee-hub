@@ -4,6 +4,12 @@ import {
   useCreateCategory,
   useUpdateCategory,
 } from "@/hooks/usePlatformAdmin";
+import {
+  usePlatformCategoryRequests,
+  useApproveCategoryRequest,
+  useRejectCategoryRequest,
+} from "@/hooks/useCategoryRequests";
+import { useUser } from "@/contexts/UserContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Sheet,
   SheetContent,
@@ -25,13 +32,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Check,
   ChevronRight,
+  Clock,
   Edit2,
   FolderTree,
   GripVertical,
   Loader2,
   MoveRight,
   Plus,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import ErrorState from "@/components/shared/ErrorState";
@@ -216,9 +226,21 @@ function SortableChildRow({
 }
 
 const PlatformCategories = () => {
+  const { profile } = useUser();
   const { data: categories, isLoading, isError, refetch } = usePlatformCategories();
   const createCategory = useCreateCategory();
   const updateCategory = useUpdateCategory();
+
+  // Category requests
+  const [activeTab, setActiveTab] = useState<"categories" | "requests">("categories");
+  const [requestStatusFilter, setRequestStatusFilter] = useState("pending");
+  const { data: catRequests, isLoading: reqLoading } = usePlatformCategoryRequests(requestStatusFilter);
+  const approveRequest = useApproveCategoryRequest();
+  const rejectRequest = useRejectCategoryRequest();
+
+  // Reject dialog state
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -354,50 +376,226 @@ const PlatformCategories = () => {
     }
   };
 
+  const handleApprove = async (req: any) => {
+    if (!profile) return;
+    try {
+      await approveRequest.mutateAsync({
+        requestId: req.id,
+        name: req.name,
+        icon: req.icon ?? undefined,
+        parentCategoryId: req.parent_category_id ?? undefined,
+        adminUserId: profile.id,
+      });
+      toast.success(`"${req.name}" approved and added to categories`);
+    } catch {
+      toast.error("Failed to approve request");
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectTarget || !rejectReason.trim() || !profile) return;
+    try {
+      await rejectRequest.mutateAsync({
+        requestId: rejectTarget,
+        reason: rejectReason.trim(),
+        adminUserId: profile.id,
+      });
+      toast.success("Request rejected");
+      setRejectTarget(null);
+      setRejectReason("");
+    } catch {
+      toast.error("Failed to reject request");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold flex items-center gap-2">
           <FolderTree size={22} /> Categories
         </h2>
-        <Button
-          size="sm"
-          className="gap-1"
-          onClick={() => { resetForm(); setShowAdd(true); }}
-        >
-          <Plus size={14} /> Add Category
-        </Button>
+        {activeTab === "categories" && (
+          <Button
+            size="sm"
+            className="gap-1"
+            onClick={() => { resetForm(); setShowAdd(true); }}
+          >
+            <Plus size={14} /> Add Category
+          </Button>
+        )}
       </div>
 
-      {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 rounded-xl" />
-          ))}
-        </div>
-      ) : isError ? (
-        <ErrorState onRetry={() => refetch()} />
-      ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={parentCategories.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+      {/* Tabs */}
+      <div className="flex border-b border-border">
+        {(["categories", "requests"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
+              activeTab === tab
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* Categories tab */}
+      {activeTab === "categories" && (
+        <>
+          {isLoading ? (
             <div className="space-y-3">
-              {parentCategories.map((parent) => (
-                <SortableParentCard
-                  key={parent.id}
-                  parent={parent}
-                  children={getChildren(parent.id)}
-                  onToggle={handleToggleActive}
-                  onEdit={openEdit}
-                  onEditChild={openEdit}
-                  onToggleChild={handleToggleActive}
-                  onMoveChild={handleMoveChild}
-                  parentCategories={parentCategories}
-                />
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 rounded-xl" />
               ))}
             </div>
-          </SortableContext>
-        </DndContext>
+          ) : isError ? (
+            <ErrorState onRetry={() => refetch()} />
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={parentCategories.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-3">
+                  {parentCategories.map((parent) => (
+                    <SortableParentCard
+                      key={parent.id}
+                      parent={parent}
+                      children={getChildren(parent.id)}
+                      onToggle={handleToggleActive}
+                      onEdit={openEdit}
+                      onEditChild={openEdit}
+                      onToggleChild={handleToggleActive}
+                      onMoveChild={handleMoveChild}
+                      parentCategories={parentCategories}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
+        </>
       )}
+
+      {/* Requests tab */}
+      {activeTab === "requests" && (
+        <div className="space-y-4">
+          {/* Status filter */}
+          <div className="flex gap-2">
+            {["pending", "approved", "rejected", "all"].map((s) => (
+              <Button
+                key={s}
+                size="sm"
+                variant={requestStatusFilter === s ? "default" : "outline"}
+                className="capitalize text-xs h-7"
+                onClick={() => setRequestStatusFilter(s)}
+              >
+                {s}
+              </Button>
+            ))}
+          </div>
+
+          {reqLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-20 rounded-xl" />
+              ))}
+            </div>
+          ) : !catRequests || catRequests.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-12 text-center">
+              <FolderTree size={28} className="text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">No {requestStatusFilter !== "all" ? requestStatusFilter : ""} requests</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {catRequests.map((req: any) => (
+                <Card key={req.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-sm">{req.name}</p>
+                        {req.icon && (
+                          <Badge variant="outline" className="text-[10px] font-mono">{req.icon}</Badge>
+                        )}
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] capitalize ${
+                            req.status === "pending" ? "border-amber-300 text-amber-700" :
+                            req.status === "approved" ? "border-green-300 text-green-700" :
+                            "border-red-300 text-red-700"
+                          }`}
+                        >
+                          {req.status}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        By: {(req.service_providers as any)?.business_name ?? "Unknown provider"}
+                        {req.class_categories && ` · Under: ${(req.class_categories as any)?.name}`}
+                      </p>
+                      {req.description && (
+                        <p className="text-xs text-muted-foreground mt-1">{req.description}</p>
+                      )}
+                      {req.rejection_reason && (
+                        <p className="text-xs text-red-600 mt-1">Reason: {req.rejection_reason}</p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {new Date(req.requested_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      </p>
+                    </div>
+                  </div>
+
+                  {req.status === "pending" && (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 text-xs gap-1 border-red-200 text-red-600 hover:bg-red-50"
+                        onClick={() => setRejectTarget(req.id)}
+                      >
+                        <X size={12} /> Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="flex-1 text-xs gap-1 bg-green-600 hover:bg-green-700"
+                        onClick={() => handleApprove(req)}
+                        disabled={approveRequest.isPending}
+                      >
+                        {approveRequest.isPending ? <Loader2 size={12} className="animate-spin" /> : <><Check size={12} /> Approve</>}
+                      </Button>
+                    </div>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Reject reason sheet */}
+      <Sheet open={!!rejectTarget} onOpenChange={(o) => !o && (setRejectTarget(null), setRejectReason(""))}>
+        <SheetContent side="bottom" className="rounded-t-2xl">
+          <SheetHeader><SheetTitle>Reject Category Request</SheetTitle></SheetHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Reason (shown to provider)</Label>
+              <Textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="e.g., This category already exists under Arts…"
+                className="rounded-lg"
+                rows={3}
+              />
+            </div>
+            <Button
+              onClick={handleReject}
+              disabled={!rejectReason.trim() || rejectRequest.isPending}
+              className="w-full rounded-lg bg-destructive hover:bg-destructive/90"
+            >
+              {rejectRequest.isPending ? <Loader2 size={16} className="animate-spin" /> : "Confirm Rejection"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Add/Edit Category Sheet */}
       <Sheet open={showAdd} onOpenChange={() => resetForm()}>

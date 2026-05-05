@@ -7,6 +7,8 @@ import {
   usePendingEnrollments,
   useProviderActiveBatches,
 } from "@/hooks/useProvider";
+import { useProviderCategoryRequests } from "@/hooks/useCategoryRequests";
+import CertificationManager from "@/components/provider/CertificationManager";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { Card } from "@/components/ui/card";
@@ -28,7 +30,11 @@ import {
   Plus,
   ClipboardCheck,
   AlertCircle,
+  Award,
   CalendarDays,
+  CheckCircle2,
+  XCircle,
+  FolderTree,
 } from "lucide-react";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -43,10 +49,14 @@ const ProviderDashboard = () => {
   const { data: upcomingSchedule } = useProviderUpcomingSchedule(providerId);
   const { data: pendingEnrollments } = usePendingEnrollments(providerId);
   const { data: allBatches } = useProviderActiveBatches(providerId);
+  const { data: catRequests } = useProviderCategoryRequests(providerId);
 
   const [showBatchPicker, setShowBatchPicker] = useState(false);
+  const [showCerts, setShowCerts] = useState(false);
 
   const actionCount = pendingEnrollments?.length ?? 0;
+  const pendingCatRequests = (catRequests ?? []).filter((r) => r.status === "pending");
+  const rejectedCatRequests = (catRequests ?? []).filter((r) => r.status === "rejected");
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-20">
@@ -207,6 +217,65 @@ const ProviderDashboard = () => {
             </div>
           </div>
         )}
+        {/* Category Requests Status */}
+        {((pendingCatRequests.length > 0) || (rejectedCatRequests.length > 0)) && (
+          <div>
+            <h2 className="mb-3 text-base font-bold flex items-center gap-2">
+              <FolderTree size={18} className="text-provider" />
+              Category Requests
+            </h2>
+            <div className="space-y-2">
+              {pendingCatRequests.map((r) => (
+                <Card key={r.id} className="flex items-center gap-3 p-3 border-amber-200 bg-amber-50/50">
+                  <Clock size={16} className="text-amber-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{r.name}</p>
+                    <p className="text-xs text-muted-foreground">Awaiting review</p>
+                  </div>
+                  <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">Pending</Badge>
+                </Card>
+              ))}
+              {rejectedCatRequests.map((r) => (
+                <Card key={r.id} className="flex items-center gap-3 p-3 border-red-200 bg-red-50/50">
+                  <XCircle size={16} className="text-red-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{r.name}</p>
+                    {r.rejection_reason && (
+                      <p className="text-xs text-red-600 line-clamp-1">{r.rejection_reason}</p>
+                    )}
+                  </div>
+                  <Badge variant="outline" className="text-red-600 border-red-300 text-xs">Rejected</Badge>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Certifications */}
+        {providerId && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-bold flex items-center gap-2">
+                <Award size={18} className="text-provider" />
+                My Certifications
+              </h2>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs text-provider h-7"
+                onClick={() => setShowCerts(true)}
+              >
+                Manage
+              </Button>
+            </div>
+            <Card className="p-4 text-sm text-muted-foreground border-dashed cursor-pointer hover:border-provider/50 transition-colors" onClick={() => setShowCerts(true)}>
+              <div className="flex items-center gap-2">
+                <Award size={16} className="text-provider" />
+                <span>Add certificates, degrees & credentials to build trust</span>
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
 
       {/* FAB */}
@@ -218,6 +287,18 @@ const ProviderDashboard = () => {
           <Plus size={24} />
         </Button>
       </div>
+
+      {/* Certifications Sheet */}
+      <Sheet open={showCerts} onOpenChange={setShowCerts}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
+          <SheetHeader className="pb-3">
+            <SheetTitle>My Certifications</SheetTitle>
+          </SheetHeader>
+          {providerId && (
+            <CertificationManager ownerType="provider" providerId={providerId} />
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Batch Picker Sheet for Past Attendance */}
       <Sheet open={showBatchPicker} onOpenChange={setShowBatchPicker}>

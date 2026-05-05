@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useTrainers, useCreateTrainer, useDeleteTrainer, useUploadProviderMedia } from "@/hooks/useProvider";
+import CertificationManager from "@/components/provider/CertificationManager";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +17,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { ArrowLeft, Camera, Loader2, Plus, Trash2, UserCircle, Users } from "lucide-react";
+import { ArrowLeft, Award, Camera, Loader2, Plus, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 
 const TrainerManagement = () => {
@@ -28,6 +29,7 @@ const TrainerManagement = () => {
   const uploadMedia = useUploadProviderMedia();
 
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [certTrainer, setCertTrainer] = useState<{ id: string; name: string } | null>(null);
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [qualifications, setQualifications] = useState("");
@@ -111,6 +113,13 @@ const TrainerManagement = () => {
                   </div>
                 )}
               </div>
+              <button
+                onClick={() => setCertTrainer({ id: t.id, name: t.name })}
+                className="p-1 text-muted-foreground hover:text-provider mr-1"
+                title="Manage certifications"
+              >
+                <Award size={16} />
+              </button>
               <button onClick={() => handleDelete(t.id)} className="p-1 text-muted-foreground hover:text-destructive">
                 <Trash2 size={16} />
               </button>
@@ -184,6 +193,23 @@ const TrainerManagement = () => {
           </SheetContent>
         </Sheet>
       </div>
+
+      {/* Trainer Certifications Sheet */}
+      <Sheet open={!!certTrainer} onOpenChange={(o) => !o && setCertTrainer(null)}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
+          <SheetHeader className="pb-3">
+            <SheetTitle>{certTrainer?.name} — Certifications</SheetTitle>
+          </SheetHeader>
+          {certTrainer && providerProfile && (
+            <CertificationManager
+              ownerType="trainer"
+              providerId={providerProfile.id}
+              trainerId={certTrainer.id}
+              trainerName={certTrainer.name}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
