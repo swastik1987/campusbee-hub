@@ -327,7 +327,7 @@ const FamilyManagement = () => {
                   </div>
                   <p className="text-[10px] text-muted-foreground capitalize">{familyRole}</p>
                 </div>
-                {familyRole === "member" && (
+                {familyRole !== "primary" && (
                   <Button
                     size="sm"
                     variant="outline"

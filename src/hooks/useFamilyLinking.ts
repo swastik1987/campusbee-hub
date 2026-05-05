@@ -11,17 +11,19 @@ export function useFamilyLinks(userId: string | undefined) {
       // Get user's active link
       const { data: myLink, error: linkErr } = await supabase
         .from("family_links")
-        .select("id, family_id, user_id, role, status, linked_at, linked_via")
+        .select("id, family_id, user_id, role, status, accepted_at")
         .eq("user_id", userId!)
         .eq("status", "active")
         .maybeSingle();
       if (linkErr) throw linkErr;
       if (!myLink) return { myLink: null, allLinks: [], linkedUsers: [] };
 
-      // Get all links for this family via RPC (bypasses RLS recursion)
-      const { data: allLinks, error: allErr } = await supabase.rpc("get_family_co_links", {
-        for_family_id: myLink.family_id,
-      });
+      // Get all links for this family via direct query
+      const { data: allLinks, error: allErr } = await supabase
+        .from("family_links")
+        .select("id, user_id, role, accepted_at")
+        .eq("family_id", myLink.family_id)
+        .eq("status", "active");
       if (allErr) throw allErr;
 
       const otherLinks = (allLinks ?? []).filter((l: any) => l.user_id !== userId);
@@ -38,8 +40,7 @@ export function useFamilyLinks(userId: string | undefined) {
             linkId: l.id,
             userId: l.user_id,
             role: l.role,
-            linkedAt: l.linked_at,
-            linkedVia: l.linked_via,
+            linkedAt: l.accepted_at,
             user: userData,
           };
         })
@@ -84,9 +85,6 @@ export function useSendFamilyInvite() {
           invited_phone: input.invitedPhone || null,
           invited_email: input.invitedEmail || null,
           invite_code: inviteCode,
-          invite_type: input.inviteType || "join_family",
-          claimed_member_id: input.claimedMemberId || null,
-          message: input.message || null,
         })
         .select("id, invite_code")
         .single();
@@ -108,7 +106,7 @@ export function useSentInvites(userId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("family_invites")
-        .select("id, invite_code, invite_type, status, invited_phone, invited_email, message, created_at, expires_at, invited_user_id, users!family_invites_invited_user_id_fkey(full_name)")
+        .select("id, invite_code, status, invited_phone, invited_email, created_at, expires_at, invited_user_id, users!family_invites_invited_user_id_fkey(full_name)")
         .eq("invited_by", userId!)
         .eq("status", "pending")
         .order("created_at", { ascending: false });
@@ -136,8 +134,8 @@ export function useIncomingInvites(userId: string | undefined, email: string | n
       const { data, error } = await supabase
         .from("family_invites")
         .select(`
-          id, invite_code, invite_type, status, message, created_at, expires_at,
-          family_id, claimed_member_id,
+          id, invite_code, status, created_at, expires_at,
+          family_id,
           inviter:users!family_invites_invited_by_fkey(id, full_name, avatar_url),
           families(id)
         `)
@@ -170,7 +168,6 @@ export function useAcceptInvite() {
           user_id: input.userId,
           role: "member",
           status: "active",
-          linked_via: "invite",
         });
       if (linkErr) throw linkErr;
 
@@ -186,7 +183,7 @@ export function useAcceptInvite() {
         // Deactivate old family link
         await supabase
           .from("family_links")
-          .update({ status: "unlinked", unlinked_at: new Date().toISOString() })
+          .update({ status: "inactive" })
           .eq("family_id", input.mergeOldFamilyId)
           .eq("user_id", input.userId);
       }
@@ -260,12 +257,7 @@ export function useUnlinkFromFamily() {
     }) => {
       const { error } = await supabase
         .from("family_links")
-        .update({
-          status: "unlinked",
-          unlinked_at: new Date().toISOString(),
-          unlinked_by: input.unlinkedBy,
-          unlink_reason: input.reason || null,
-        })
+        .update({ status: "inactive" })
         .eq("id", input.linkId);
       if (error) throw error;
     },
@@ -285,11 +277,13 @@ export function useTransferPrimary() {
       currentPrimaryLinkId: string;
       newPrimaryLinkId: string;
     }) => {
-      const { error } = await supabase.rpc("transfer_family_primary", {
-        current_primary_link_id: input.currentPrimaryLinkId,
-        new_primary_link_id: input.newPrimaryLinkId,
-      });
-      if (error) throw error;
+      // Demote current primary, promote new primary
+      const [r1, r2] = await Promise.all([
+        supabase.from("family_links").update({ role: "co_primary" }).eq("id", input.currentPrimaryLinkId),
+        supabase.from("family_links").update({ role: "primary" }).eq("id", input.newPrimaryLinkId),
+      ]);
+      if (r1.error) throw r1.error;
+      if (r2.error) throw r2.error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["family-links"] });
@@ -307,8 +301,8 @@ export function useInviteByCode(code: string | undefined) {
       const { data, error } = await supabase
         .from("family_invites")
         .select(`
-          id, invite_code, invite_type, status, message, created_at, expires_at,
-          family_id, claimed_member_id,
+          id, invite_code, status, created_at, expires_at,
+          family_id,
           inviter:users!family_invites_invited_by_fkey(id, full_name, avatar_url),
           families(id)
         `)
@@ -327,11 +321,13 @@ export function useSearchApartmentUsers(_apartmentId: string | undefined, search
     queryKey: ["users-search", searchTerm],
     enabled: searchTerm.length >= 2,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("admin_search_users", {
-        search_query: searchTerm,
-      });
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, full_name, email, mobile_number, avatar_url")
+        .or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
+        .limit(20);
       if (error) throw error;
-      return data as { id: string; full_name: string; email: string; mobile_number: string; avatar_url: string }[];
+      return (data ?? []) as { id: string; full_name: string; email: string; mobile_number: string; avatar_url: string }[];
     },
   });
 }

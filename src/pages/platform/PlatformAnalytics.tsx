@@ -2,7 +2,7 @@ import { usePlatformStats, usePlatformGrowth } from "@/hooks/usePlatformAdmin";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart3, Building2, MapPin } from "lucide-react";
+import { BarChart3, MapPin } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -36,10 +36,10 @@ const PlatformAnalytics = () => {
         </div>
       ) : stats ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MiniStat label="Apartments" value={stats.totalApartments} />
           <MiniStat label="Providers" value={stats.totalProviders} />
+          <MiniStat label="Classes" value={stats.totalPublishedClasses} />
           <MiniStat label="Users" value={stats.totalSeekers} />
-          <MiniStat label="Enrollments" value={stats.totalEnrollments} />
+          <MiniStat label="Active Enrolments" value={stats.totalActiveEnrollments} />
         </div>
       ) : null}
 
@@ -82,29 +82,29 @@ const PlatformAnalytics = () => {
             </ResponsiveContainer>
           </Card>
 
-          {/* City Breakdown */}
+          {/* Category Breakdown */}
           <Card className="p-4 md:p-6">
             <p className="text-sm font-semibold mb-4 flex items-center gap-2">
-              <MapPin size={16} /> Apartments by City
+              <MapPin size={16} /> Classes by Category
             </p>
-            {growth.cityBreakdown.length === 0 ? (
+            {growth.categoryBreakdown.length === 0 ? (
               <p className="text-xs text-muted-foreground">No data yet</p>
             ) : (
               <>
-                <ResponsiveContainer width="100%" height={Math.max(120, growth.cityBreakdown.length * 40)}>
-                  <BarChart data={growth.cityBreakdown} layout="vertical">
+                <ResponsiveContainer width="100%" height={Math.max(120, growth.categoryBreakdown.length * 40)}>
+                  <BarChart data={growth.categoryBreakdown} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                    <YAxis dataKey="city" type="category" tick={{ fontSize: 11 }} width={80} />
+                    <YAxis dataKey="category" type="category" tick={{ fontSize: 11 }} width={90} />
                     <Tooltip />
-                    <Bar dataKey="count" fill="#F59E0B" radius={[0, 4, 4, 0]} name="Apartments" />
+                    <Bar dataKey="count" fill="#F59E0B" radius={[0, 4, 4, 0]} name="Classes" />
                   </BarChart>
                 </ResponsiveContainer>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {growth.cityBreakdown.map((c) => (
-                    <Badge key={c.city} variant="secondary" className="text-xs">
-                      {c.city}: {c.count}
+                  {growth.categoryBreakdown.map((c) => (
+                    <Badge key={c.category} variant="secondary" className="text-xs">
+                      {c.category}: {c.count}
                     </Badge>
                   ))}
                 </div>

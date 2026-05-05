@@ -261,13 +261,12 @@ const EnrollFlow = () => {
                     onClick={() => setSelectedMemberId(member.id)}
                   >
                     <Avatar className="h-10 w-10">
-                      <AvatarImage src={member.avatar_url ?? undefined} />
                       <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                        {member.name[0]?.toUpperCase()}
+                        {member.full_name?.[0]?.toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <p className="text-sm font-semibold">{member.name}</p>
+                      <p className="text-sm font-semibold">{member.full_name}</p>
                       <p className="text-xs text-muted-foreground">
                         {member.relationship}
                         {member.age_group && ` · ${member.age_group}`}
@@ -315,7 +314,7 @@ const EnrollFlow = () => {
             <Card className="p-4 space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Enrolling</p>
               <p className="text-sm font-semibold">
-                {familyMembers.find((m) => m.id === selectedMemberId)?.name}
+                {familyMembers.find((m) => m.id === selectedMemberId)?.full_name}
               </p>
             </Card>
 

@@ -341,7 +341,7 @@ export function useGetOrCreateConversation() {
       // Create new
       const { data, error } = await supabase
         .from("chat_conversations")
-        .insert({ participant_1: userId, participant_2: otherUserId })
+        .insert({ participant_1: userId, participant_2: otherUserId, participant_ids: [userId, otherUserId] })
         .select("id")
         .single();
       if (error) throw error;

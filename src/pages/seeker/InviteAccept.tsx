@@ -176,11 +176,6 @@ const InviteAccept = () => {
             </div>
           </div>
 
-          {invite.message && (
-            <div className="bg-muted rounded-lg p-3">
-              <p className="text-xs text-muted-foreground italic">"{invite.message}"</p>
-            </div>
-          )}
 
           <div className="bg-blue-50 rounded-lg p-3">
             <div className="flex items-start gap-2">
@@ -227,7 +222,7 @@ const InviteAccept = () => {
                 <div className="bg-muted rounded-lg p-3 mt-2">
                   <p className="text-xs font-semibold mb-1">Your family members:</p>
                   {familyMembers.map((m) => (
-                    <p key={m.id} className="text-xs text-foreground">{m.name} ({m.relationship})</p>
+                    <p key={m.id} className="text-xs text-foreground">{m.full_name} ({m.relationship})</p>
                   ))}
                 </div>
               )}

@@ -11,14 +11,14 @@ export function usePlatformStats() {
         supabase.from("service_providers").select("id", { count: "exact", head: true }),
         supabase.from("classes").select("id", { count: "exact", head: true }).eq("status", "published"),
         supabase.from("enrollments").select("id", { count: "exact", head: true }).eq("status", "active"),
-        supabase.rpc("admin_get_user_count"),
+        supabase.from("users").select("id", { count: "exact", head: true }),
       ]);
 
       return {
         totalProviders: providers.count ?? 0,
         totalPublishedClasses: classes.count ?? 0,
         totalActiveEnrollments: enrollments.count ?? 0,
-        totalSeekers: (userCount.data as number) ?? 0,
+        totalSeekers: userCount.count ?? 0,
       };
     },
   });
@@ -326,11 +326,13 @@ export function useSearchUsers(searchTerm: string) {
     queryKey: ["search-users", searchTerm],
     enabled: searchTerm.length >= 2,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("admin_search_users", {
-        search_query: searchTerm,
-      });
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, full_name, email, mobile_number, avatar_url")
+        .or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
+        .limit(20);
       if (error) throw error;
-      return data as { id: string; full_name: string; email: string; mobile_number: string; avatar_url: string }[];
+      return (data ?? []) as { id: string; full_name: string; email: string; mobile_number: string; avatar_url: string }[];
     },
   });
 }
@@ -411,7 +413,7 @@ export function usePlatformGrowth(months: number = 6) {
     queryKey: ["platform-growth", months],
     queryFn: async () => {
       const [usersRes, enrollmentsRes, providersRes] = await Promise.all([
-        supabase.rpc("admin_get_users_growth"),
+        supabase.from("users").select("id, created_at").order("created_at"),
         supabase.from("enrollments").select("id, created_at").order("created_at"),
         supabase.from("service_providers").select("id, created_at").order("created_at"),
       ]);

@@ -86,9 +86,9 @@ const Notifications = () => {
       markRead.mutate(notification.id);
     }
     // Navigate to reference
-    const routeFn = notification.reference_type ? ROUTE_MAP[notification.reference_type] : undefined;
-    if (routeFn && notification.reference_id) {
-      navigate(routeFn(notification.reference_id));
+    const routeFn = notification.ref_type ? ROUTE_MAP[notification.ref_type] : undefined;
+    if (routeFn && notification.ref_id) {
+      navigate(routeFn(notification.ref_id));
     }
   };
 
@@ -177,7 +177,7 @@ const Notifications = () => {
         )}
       </div>
 
-      <BottomNav persona={activePersona === "provider" ? "provider" : activePersona === "apartment_admin" ? "admin" : "seeker"} />
+      <BottomNav persona={activePersona === "provider" ? "provider" : "seeker"} />
     </div>
   );
 };

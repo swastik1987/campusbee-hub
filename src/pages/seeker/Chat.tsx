@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, GraduationCap, MessageCircle, Send } from "lucide-react";
+import { ArrowLeft, GraduationCap, MessageCircle, Send, Users } from "lucide-react";
 
 const Chat = () => {
   const navigate = useNavigate();
@@ -81,7 +81,7 @@ const Chat = () => {
     }
     return (
       <Badge className="text-[9px] border-0 bg-primary/10 text-primary gap-0.5 px-1.5 py-0">
-        <Home size={9} /> Resident
+        <Users size={9} /> Seeker
       </Badge>
     );
   };
@@ -124,7 +124,7 @@ const Chat = () => {
                       : "bg-muted rounded-bl-sm"
                   }`}
                 >
-                  <p className="text-sm whitespace-pre-wrap break-words">{msg.message_text}</p>
+                  <p className="text-sm whitespace-pre-wrap break-words">{msg.body}</p>
                   <p className={`text-[9px] mt-0.5 ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                     {new Date(msg.created_at).toLocaleTimeString("en-IN", {
                       hour: "2-digit", minute: "2-digit",

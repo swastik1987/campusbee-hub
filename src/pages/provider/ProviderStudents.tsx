@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useProviderRegistrations } from "@/hooks/useProvider";
 import { useProviderEnrollments, useRemovedEnrollments, useUpdateEnrollmentStatus } from "@/hooks/useEngagement";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,18 +57,15 @@ const ProviderStudents = () => {
   const [classFilter, setClassFilter] = useState("all");
   const [batchFilter, setBatchFilter] = useState("all");
 
-  const { data: registrations } = useProviderRegistrations(providerProfile?.id);
-  const approvedRegIds = registrations?.filter((r) => r.status === "approved").map((r) => r.id) ?? [];
-
   // Fetch all classes and batches for this provider (for filters + batch IDs)
   const { data: providerClasses } = useQuery({
-    queryKey: ["provider-classes-for-filter", approvedRegIds],
-    enabled: approvedRegIds.length > 0,
+    queryKey: ["provider-classes-for-filter", providerProfile?.id],
+    enabled: !!providerProfile?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("classes")
         .select("id, title")
-        .in("provider_registration_id", approvedRegIds)
+        .eq("provider_id", providerProfile!.id)
         .order("title");
       if (error) throw error;
       return data ?? [];

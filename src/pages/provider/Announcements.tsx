@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useProviderRegistrations } from "@/hooks/useProvider";
 import { useProviderClasses } from "@/hooks/useClasses";
 import { useAnnouncements, useCreateAnnouncement } from "@/hooks/useEngagement";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -57,14 +56,12 @@ const TYPE_COLORS: Record<string, string> = {
 
 const Announcements = () => {
   const navigate = useNavigate();
-  const { profile, providerProfile, currentApartment } = useUser();
+  const { profile, providerProfile } = useUser();
 
-  const { data: registrations } = useProviderRegistrations(providerProfile?.id);
-  const approvedRegIds = registrations?.filter((r) => r.status === "approved").map((r) => r.id) ?? [];
-  const { data: classes } = useProviderClasses(approvedRegIds);
+  const { data: classes } = useProviderClasses(providerProfile?.id);
 
   const { data: announcements, isLoading } = useAnnouncements({
-    apartmentId: currentApartment?.id,
+    classId: undefined,
   });
   const createAnnouncement = useCreateAnnouncement();
 
@@ -81,7 +78,7 @@ const Announcements = () => {
     try {
       await createAnnouncement.mutateAsync({
         authorId: profile.id,
-        apartmentId: targetAudience === "all_apartment" ? currentApartment?.id : undefined,
+        providerId: providerProfile?.id ?? "",
         classId: targetAudience === "class_students" ? selectedClassId : undefined,
         targetAudience,
         title: title.trim(),

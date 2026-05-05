@@ -65,10 +65,8 @@ const ClassDetail = () => {
 
   if (!cls) return null;
 
-  const par = cls.provider_apartment_registrations as any;
-  const provider = par?.service_providers;
+  const provider = (cls as any).service_providers;
   const providerUser = provider?.users;
-  const apartment = par?.apartment_complexes;
   const activeBatches = (cls.batches ?? []).filter((b: any) => b.status === "active" || b.status === "full");
   const lowestFee = activeBatches.length > 0
     ? Math.min(...activeBatches.map((b: any) => b.fee_amount))
@@ -77,7 +75,7 @@ const ClassDetail = () => {
   const gallery = [cls.cover_image_url, ...(cls.gallery_urls ?? [])].filter(Boolean) as string[];
 
   const handleShare = () => {
-    const text = `Check out ${cls.title}${apartment ? ` at ${apartment.name}` : ""} on CampusBee!`;
+    const text = `Check out ${cls.title} on CampusBee!`;
     if (navigator.share) {
       navigator.share({ title: cls.title, text });
     } else {

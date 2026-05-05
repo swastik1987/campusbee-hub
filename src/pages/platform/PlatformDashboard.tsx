@@ -3,7 +3,6 @@ import { usePlatformStats } from "@/hooks/usePlatformAdmin";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Building2,
   GraduationCap,
   Users,
   UserCheck,
@@ -27,16 +26,16 @@ const PlatformDashboard = () => {
       ) : stats ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
-            label="Apartments"
-            value={stats.totalApartments}
-            icon={<Building2 size={20} className="text-blue-600" />}
-            color="bg-blue-50"
-          />
-          <StatCard
             label="Providers"
             value={stats.totalProviders}
             icon={<UserCheck size={20} className="text-indigo-600" />}
             color="bg-indigo-50"
+          />
+          <StatCard
+            label="Classes"
+            value={stats.totalPublishedClasses}
+            icon={<GraduationCap size={20} className="text-blue-600" />}
+            color="bg-blue-50"
           />
           <StatCard
             label="Users"
@@ -45,8 +44,8 @@ const PlatformDashboard = () => {
             color="bg-green-50"
           />
           <StatCard
-            label="Enrollments"
-            value={stats.totalEnrollments}
+            label="Active Enrolments"
+            value={stats.totalActiveEnrollments}
             icon={<GraduationCap size={20} className="text-amber-600" />}
             color="bg-amber-50"
           />
@@ -55,10 +54,10 @@ const PlatformDashboard = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <QuickLinkCard
-          title="Manage Apartments"
-          description="Approve pending apartments, assign admins"
-          icon={<Building2 size={20} className="text-blue-600" />}
-          onClick={() => navigate("/platform/apartments")}
+          title="Manage Providers"
+          description="View providers, verify badges, manage subscriptions"
+          icon={<UserCheck size={20} className="text-indigo-600" />}
+          onClick={() => navigate("/platform/providers")}
         />
         <QuickLinkCard
           title="Manage Categories"

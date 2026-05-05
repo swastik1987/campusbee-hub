@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useUser } from "@/contexts/UserContext";
-import { useProviderRegistrations } from "@/hooks/useProvider";
 import { useProviderReviews, useReplyToReview } from "@/hooks/useEngagement";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
@@ -23,18 +22,15 @@ import { useQuery } from "@tanstack/react-query";
 
 const ProviderReviews = () => {
   const { providerProfile } = useUser();
-  const { data: registrations } = useProviderRegistrations(providerProfile?.id);
-  const regIds = registrations?.filter((r) => r.status === "approved").map((r) => r.id) ?? [];
-
-  // Get class IDs for this provider
+  // Get class IDs for this provider (v2: direct provider_id FK)
   const { data: classIds } = useQuery({
-    queryKey: ["provider-class-ids", regIds],
-    enabled: regIds.length > 0,
+    queryKey: ["provider-class-ids", providerProfile?.id],
+    enabled: !!providerProfile?.id,
     queryFn: async () => {
       const { data } = await supabase
         .from("classes")
         .select("id")
-        .in("provider_registration_id", regIds);
+        .eq("provider_id", providerProfile!.id);
       return data?.map((c) => c.id) ?? [];
     },
   });
