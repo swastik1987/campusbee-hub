@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import {
@@ -13,12 +13,11 @@ import {
   useDeleteAddon,
 } from "@/hooks/useClasses";
 import {
-  useRequestFeaturedListing,
-  useProviderFeaturedRequests,
   useUploadBannerImage,
-  useProviderRespondToFeaturedFee,
 } from "@/hooks/useFeatured";
-import { useProviderRegistrations, useTrainers } from "@/hooks/useProvider";
+import { useTrainers } from "@/hooks/useProvider";
+import ClassLocationPicker from "@/components/location/ClassLocationPicker";
+import type { LocationValue } from "@/hooks/useLocation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,13 +98,8 @@ const ProviderClassDetail = () => {
   const isAcademy = providerProfile?.provider_type === "academy";
   const { data: trainers } = useTrainers(providerProfile?.id);
 
-  // Featured listing hooks
-  const { data: registrations } = useProviderRegistrations(providerProfile?.id);
-  const approvedRegIds = registrations?.filter((r) => r.status === "approved").map((r) => r.id) ?? [];
-  const { data: featuredRequests } = useProviderFeaturedRequests(providerProfile?.id, approvedRegIds);
-  const requestFeatured = useRequestFeaturedListing();
+  // Featured (v2: stubs — upload still works for banner image)
   const uploadBanner = useUploadBannerImage();
-  const respondToFee = useProviderRespondToFeaturedFee();
 
   // Addon form state
   const [addonName, setAddonName] = useState("");
@@ -124,6 +118,10 @@ const ProviderClassDetail = () => {
   const [editWhatToBring, setEditWhatToBring] = useState("");
   const [editTrialAvailable, setEditTrialAvailable] = useState(false);
   const [editTrialFee, setEditTrialFee] = useState("");
+  // Location edit state
+  const [editIsHomeBased, setEditIsHomeBased] = useState(false);
+  const [editClassLocation, setEditClassLocation] = useState<LocationValue | null>(null);
+  const [editHomeRadiusKm, setEditHomeRadiusKm] = useState(5);
 
   // Featured listing state
   const [featuredSheetOpen, setFeaturedSheetOpen] = useState(false);
@@ -190,6 +188,16 @@ const ProviderClassDetail = () => {
     setEditWhatToBring(cls.what_to_bring || "");
     setEditTrialAvailable(cls.trial_available ?? false);
     setEditTrialFee(cls.trial_fee ? String(cls.trial_fee) : "0");
+    setEditIsHomeBased((cls as any).is_home_based ?? false);
+    setEditHomeRadiusKm((cls as any).home_radius_km ?? 5);
+    // Pre-populate address text; lat/lng initialised if available
+    const lat = (cls as any).location_lat;
+    const lng = (cls as any).location_lng;
+    setEditClassLocation(
+      cls.address
+        ? { address: cls.address, lat: lat ?? 0, lng: lng ?? 0 }
+        : null
+    );
     setEditClassOpen(true);
   };
 
@@ -205,6 +213,11 @@ const ProviderClassDetail = () => {
         whatToBring: editWhatToBring,
         trialAvailable: editTrialAvailable,
         trialFee: editTrialAvailable ? parseFloat(editTrialFee) || 0 : 0,
+        address: editClassLocation?.address,
+        isHomeBased: editIsHomeBased,
+        locationLat: editClassLocation?.lat ?? null,
+        locationLng: editClassLocation?.lng ?? null,
+        homeRadiusKm: editIsHomeBased ? editHomeRadiusKm : 5,
       });
       toast.success("Class updated");
       setEditClassOpen(false);
@@ -288,10 +301,6 @@ const ProviderClassDetail = () => {
     }
   };
 
-  // Featured listing for this class
-  const classFeatured = featuredRequests?.filter((r) => r.class_id === classId) ?? [];
-  const hasActiveFeatured = classFeatured.some((r) => r.status === "active" || r.status === "pending_approval" || r.status === "fee_proposed");
-
   const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -299,39 +308,19 @@ const ProviderClassDetail = () => {
     setBannerPreview(URL.createObjectURL(file));
   };
 
+  // In v2, featured requests go through the sponsored_listings workflow
+  // managed from /provider/sponsored — see useProviderSponsoredRequests
   const handleRequestFeatured = async () => {
-    if (!bannerFile || !cls || !profile) return;
-    const par = cls.provider_apartment_registrations as any;
-    const apartmentId = par?.apartment_id;
-    const regId = cls.provider_registration_id;
-    if (!apartmentId || !regId) {
-      toast.error("Missing apartment info");
-      return;
-    }
+    if (!bannerFile || !cls) return;
     try {
-      const bannerUrl = await uploadBanner.mutateAsync({ classId: cls.id, file: bannerFile });
-      await requestFeatured.mutateAsync({
-        classId: cls.id,
-        apartmentId,
-        providerRegistrationId: regId,
-        bannerImageUrl: bannerUrl,
-        requestedBy: profile.id,
-      });
-      toast.success("Featured request submitted! The apartment admin will review it.");
+      // Upload banner image for future use
+      await uploadBanner.mutateAsync({ classId: cls.id, file: bannerFile });
+      toast.success("Banner uploaded. Go to Sponsored tab to submit a featured listing request.");
       setFeaturedSheetOpen(false);
       setBannerFile(null);
       setBannerPreview("");
     } catch {
-      toast.error("Failed to submit featured request");
-    }
-  };
-
-  const handleRespondToFee = async (listingId: string, accept: boolean) => {
-    try {
-      await respondToFee.mutateAsync({ listingId, accept });
-      toast.success(accept ? "Fee accepted — your class is now featured!" : "Fee rejected");
-    } catch {
-      toast.error("Failed to respond");
+      toast.error("Failed to upload banner");
     }
   };
 
@@ -561,81 +550,25 @@ const ProviderClassDetail = () => {
 
           {/* Featured Tab */}
           <TabsContent value="featured" className="space-y-4 mt-4">
-            {/* Existing featured requests for this class */}
-            {classFeatured.length > 0 ? (
-              <div className="space-y-3">
-                {classFeatured.map((req) => {
-                  const st = FEATURED_STATUS_LABELS[req.status ?? ""] ?? { label: req.status, color: "bg-gray-100 text-gray-600" };
-                  return (
-                    <Card key={req.id} className="p-4 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-sm font-semibold">Featured Request</p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(req.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <Badge className={`text-[10px] border-0 ${st.color}`}>{st.label}</Badge>
-                      </div>
-                      {req.banner_image_url && (
-                        <img src={req.banner_image_url} alt="Banner" className="w-full rounded-lg aspect-[3/1] object-cover" />
-                      )}
-                      {req.status === "fee_proposed" && (
-                        <div className="space-y-2 rounded-lg bg-blue-50 p-3">
-                          <p className="text-sm font-medium">Admin proposed ad fee: <span className="text-provider font-bold">₹{req.ad_fee}</span></p>
-                          {req.valid_from && req.valid_until && (
-                            <p className="text-xs text-muted-foreground">
-                              Valid: {new Date(req.valid_from).toLocaleDateString()} — {new Date(req.valid_until).toLocaleDateString()}
-                            </p>
-                          )}
-                          {req.admin_notes && (
-                            <p className="text-xs text-muted-foreground">Note: {req.admin_notes}</p>
-                          )}
-                          <div className="flex gap-2 pt-1">
-                            <Button
-                              size="sm"
-                              className="flex-1 bg-provider text-white text-xs h-8"
-                              onClick={() => handleRespondToFee(req.id, true)}
-                              disabled={respondToFee.isPending}
-                            >
-                              Accept Fee
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="flex-1 text-xs h-8"
-                              onClick={() => handleRespondToFee(req.id, false)}
-                              disabled={respondToFee.isPending}
-                            >
-                              Reject
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                      {req.status === "active" && req.valid_until && (
-                        <p className="text-xs text-green-700">
-                          Active until {new Date(req.valid_until).toLocaleDateString()}
-                        </p>
-                      )}
-                    </Card>
-                  );
-                })}
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-amber-600" />
+                <p className="text-sm font-semibold text-amber-800">Sponsored Listings</p>
               </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2 py-6 text-center">
-                <Sparkles size={24} className="text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">No featured requests yet</p>
-              </div>
-            )}
+              <p className="text-xs text-amber-700">
+                In v2, featured spots are managed as <strong>sponsored listings</strong>. Visit{" "}
+                <strong>/provider/sponsored</strong> to request a sponsored slot for this class.
+              </p>
+            </div>
 
-            {/* Request Featured button — only for published classes with no active/pending request */}
-            {cls.status === "published" && !hasActiveFeatured && (
+            {/* Banner upload (can still upload a banner image here) */}
+            {cls.status === "published" && (
               <Button
                 onClick={() => setFeaturedSheetOpen(true)}
                 className="w-full border-dashed border-provider text-provider"
                 variant="outline"
               >
-                <Sparkles size={14} className="mr-1" /> Request Featured Listing
+                <Sparkles size={14} className="mr-1" /> Upload Banner Image
               </Button>
             )}
           </TabsContent>
@@ -723,6 +656,25 @@ const ProviderClassDetail = () => {
                 <Input type="number" value={editTrialFee} onChange={(e) => setEditTrialFee(e.target.value)} placeholder="0 for free" className="h-10 rounded-lg" />
               </div>
             )}
+
+            {/* Location section */}
+            <div className="space-y-2 pt-2 border-t">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Class Location</Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground">Home-based</span>
+                  <Switch checked={editIsHomeBased} onCheckedChange={setEditIsHomeBased} />
+                </div>
+              </div>
+              <ClassLocationPicker
+                isHomeBased={editIsHomeBased}
+                location={editClassLocation}
+                homeRadiusKm={editHomeRadiusKm}
+                onLocationChange={setEditClassLocation}
+                onRadiusChange={setEditHomeRadiusKm}
+              />
+            </div>
+
             <Button onClick={handleSaveClass} disabled={!editTitle.trim() || updateClass.isPending} className="w-full bg-provider text-white rounded-lg">
               {updateClass.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save Changes"}
             </Button>
@@ -736,7 +688,7 @@ const ProviderClassDetail = () => {
           <SheetHeader><SheetTitle>Request Featured Listing</SheetTitle></SheetHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Upload a banner image (3:1 ratio recommended) for your class. The apartment admin will review your request and propose an ad fee.
+              Upload a banner image (3:1 ratio recommended) for your class. Then visit <strong>/provider/sponsored</strong> to submit a sponsored listing request.
             </p>
             <div className="space-y-2">
               <Label className="text-xs">Banner Image</Label>
@@ -755,14 +707,14 @@ const ProviderClassDetail = () => {
             </div>
             <Button
               onClick={handleRequestFeatured}
-              disabled={!bannerFile || requestFeatured.isPending || uploadBanner.isPending}
+              disabled={!bannerFile || uploadBanner.isPending}
               className="w-full bg-provider text-white rounded-lg"
             >
-              {(requestFeatured.isPending || uploadBanner.isPending) ? (
+              {uploadBanner.isPending ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : (
                 <>
-                  <Sparkles size={14} className="mr-1" /> Submit Request
+                  <Sparkles size={14} className="mr-1" /> Upload Banner
                 </>
               )}
             </Button>

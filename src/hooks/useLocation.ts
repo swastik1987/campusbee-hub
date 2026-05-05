@@ -51,27 +51,34 @@ export function useUpdateSeekerLocation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { userId: string } & LocationValue) => {
-      // Try saving both text address + PostGIS geography column
+      // Save text address + PostGIS geography column + explicit lat/lng columns
       const { error } = await supabase
         .from("users")
         .update({
           seeker_home_address: input.address,
           // PostGIS EWKT: POINT(lng lat) — lng first is required by WKT spec
           seeker_home_location: `SRID=4326;POINT(${input.lng} ${input.lat})`,
+          // Denormalized for client-side distance filtering (migration 021)
+          seeker_home_lat: input.lat,
+          seeker_home_lng: input.lng,
         })
         .eq("id", input.userId);
 
       if (!error) return input;
 
       // If the geography column doesn't exist yet (migration not applied),
-      // fall back to saving the text address only so onboarding can proceed.
+      // fall back to saving the text address + explicit lat/lng only.
       if (error.message?.includes("seeker_home_location") || error.code === "42703") {
         const { error: textErr } = await supabase
           .from("users")
-          .update({ seeker_home_address: input.address })
+          .update({
+            seeker_home_address: input.address,
+            seeker_home_lat: input.lat,
+            seeker_home_lng: input.lng,
+          })
           .eq("id", input.userId);
         if (textErr) throw textErr;
-        console.warn("[useLocation] seeker_home_location column missing — saved address only. Run supabase_migration_add_location.sql.");
+        console.warn("[useLocation] seeker_home_location column missing — saved address + lat/lng only. Run migration 010 + 021.");
         return input;
       }
 

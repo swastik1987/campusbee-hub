@@ -5,7 +5,7 @@ import { useTrainers } from "@/hooks/useProvider";
 import { useCategories, useCreateClass, useCreateBatch, useUploadClassImage } from "@/hooks/useClasses";
 import { moderateClassPublish } from "@/lib/moderation";
 import { supabase } from "@/integrations/supabase/client";
-import MapplsPicker from "@/components/location/MapplsPicker";
+import ClassLocationPicker from "@/components/location/ClassLocationPicker";
 import type { LocationValue } from "@/hooks/useLocation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +69,7 @@ const CreateClass = () => {
   const [whatToBring, setWhatToBring] = useState("");
   const [isHomeBased, setIsHomeBased] = useState(false);
   const [classLocation, setClassLocation] = useState<LocationValue | null>(null);
+  const [homeRadiusKm, setHomeRadiusKm] = useState(5);
 
   // Step 3: Media
   const [coverUrl, setCoverUrl] = useState("");
@@ -190,8 +191,11 @@ const CreateClass = () => {
         trialAvailable,
         trialFee: parseFloat(trialFee) || 0,
         status: "draft",
-        address: isHomeBased ? undefined : (classLocation?.address ?? undefined),
+        address: classLocation?.address ?? undefined,
         isHomeBased,
+        locationLat: classLocation?.lat ?? null,
+        locationLng: classLocation?.lng ?? null,
+        homeRadiusKm: isHomeBased ? homeRadiusKm : 5,
       });
 
       // 2. Create the batch + schedules
@@ -400,18 +404,17 @@ const CreateClass = () => {
               <div className="flex items-center justify-between p-3 rounded-xl border">
                 <div>
                   <p className="text-sm font-medium">Home-based / I travel to students</p>
-                  <p className="text-xs text-muted-foreground">No fixed class address needed</p>
+                  <p className="text-xs text-muted-foreground">Enter your base location + service radius</p>
                 </div>
                 <Switch checked={isHomeBased} onCheckedChange={setIsHomeBased} />
               </div>
-              {!isHomeBased && (
-                <MapplsPicker
-                  value={classLocation}
-                  onChange={setClassLocation}
-                  showMap={false}
-                  placeholder="Search class address"
-                />
-              )}
+              <ClassLocationPicker
+                isHomeBased={isHomeBased}
+                location={classLocation}
+                homeRadiusKm={homeRadiusKm}
+                onLocationChange={setClassLocation}
+                onRadiusChange={setHomeRadiusKm}
+              />
             </div>
 
             <div className="space-y-2">
@@ -681,7 +684,8 @@ const CreateClass = () => {
               )}
               {venue && <p className="text-xs text-muted-foreground">Venue: {venue}</p>}
               <p className="text-xs text-muted-foreground">
-                Location: {isHomeBased ? "🏠 Home-based / I travel to students" : (classLocation?.address || "Not set")}
+                Location: {classLocation?.address || "Not set"}
+                {isHomeBased && ` (Home-based · ${homeRadiusKm} km radius)`}
               </p>
               {trialAvailable && <p className="text-xs text-muted-foreground">Trial: ₹{trialFee}</p>}
             </Card>

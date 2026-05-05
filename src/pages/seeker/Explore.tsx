@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useExploreClasses, useNewClasses, usePopularClasses } from "@/hooks/useSeeker";
@@ -7,7 +7,7 @@ import { useIncomingInvites } from "@/hooks/useFamilyLinking";
 import { useCategories } from "@/hooks/useClasses";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useUpdateSeekerLocation, type LocationValue } from "@/hooks/useLocation";
+import { useUpdateSeekerLocation, haversineKm, formatDistance, type LocationValue } from "@/hooks/useLocation";
 import MapplsPicker from "@/components/location/MapplsPicker";
 import Header from "@/components/layout/Header";
 import ClassCard from "@/components/shared/ClassCard";
@@ -23,6 +23,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Slider } from "@/components/ui/slider";
 import {
   Select,
   SelectContent,
@@ -51,6 +52,7 @@ import {
   Users,
   MapPin,
   Pencil,
+  Navigation2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -95,6 +97,8 @@ const Explore = () => {
   const [categorySlug, setCategorySlug] = useState(params.get("category") ?? "");
   const [sort, setSort] = useState(params.get("sort") ?? "newest");
   const [filterSheet, setFilterSheet] = useState(false);
+  const [searchRadius, setSearchRadius] = useState(10); // km — seeker's explore radius
+  const [radiusSheet, setRadiusSheet] = useState(false);
 
   const { data: allCategories } = useCategories();
   const parentCategories = allCategories?.filter((c) => !c.parent_id) ?? [];
@@ -164,20 +168,48 @@ const Explore = () => {
     limit: 100,
   });
 
+  // Seeker location for distance filtering
+  const seekerLat = profile?.seeker_home_lat ?? null;
+  const seekerLng = profile?.seeker_home_lng ?? null;
+  const hasLocation = seekerLat != null && seekerLng != null;
+
+  // Helper: compute distanceKm for a single class record
+  const computeDistance = (cls: any): number | null => {
+    if (!hasLocation || !cls.location_lat || !cls.location_lng) return null;
+    return haversineKm(
+      { lat: seekerLat!, lng: seekerLng! },
+      { lat: cls.location_lat, lng: cls.location_lng }
+    );
+  };
+
+  // Helper: decide if a class should appear given the seeker's radius and the class type
+  const withinRadius = (cls: any): boolean => {
+    if (!hasLocation || !cls.location_lat || !cls.location_lng) return true; // no coords → show
+    const dist = haversineKm(
+      { lat: seekerLat!, lng: seekerLng! },
+      { lat: cls.location_lat, lng: cls.location_lng }
+    );
+    if (cls.is_home_based) {
+      // Home-based: provider travels to the student — show if seeker is within provider's service radius
+      return dist <= (cls.home_radius_km ?? 5);
+    }
+    // Venue-based: show if class venue is within seeker's chosen radius
+    return dist <= searchRadius;
+  };
+
   // Merge and deduplicate search results
-  const displayClasses = (() => {
+  const rawDisplayClasses = (() => {
     if (!isSearching) return classes;
     const map = new Map<string, any>();
     // 1. Title/description matches from server
     (classes ?? []).forEach((c) => map.set(c.id, c));
     // 2. Category name matches
     (catMatchClasses ?? []).forEach((c) => map.set(c.id, c));
-    // 3. Provider name matches (client-side)
+    // 3. Provider name matches (client-side) — v2: service_providers direct join
     if (allAptClasses && debouncedSearch) {
       const term = debouncedSearch.toLowerCase();
       allAptClasses.forEach((c: any) => {
-        const par = c.provider_apartment_registrations;
-        const sp = par?.service_providers;
+        const sp = c.service_providers;
         const providerName = sp?.business_name || sp?.users?.full_name || "";
         if (providerName.toLowerCase().includes(term)) {
           map.set(c.id, c);
@@ -186,6 +218,15 @@ const Explore = () => {
     }
     return Array.from(map.values());
   })();
+
+  // Apply distance filter + attach distanceKm for display
+  const displayClasses = useMemo(() => {
+    if (!rawDisplayClasses) return rawDisplayClasses;
+    return (rawDisplayClasses as any[])
+      .filter(withinRadius)
+      .map((cls: any) => ({ ...cls, distanceKm: computeDistance(cls) }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawDisplayClasses, seekerLat, seekerLng, searchRadius]);
 
   // Discovery data (only fetched when not actively searching)
   const { data: featuredListings } = useActiveFeaturedListings(undefined);
@@ -235,6 +276,15 @@ const Explore = () => {
     return () => el.removeEventListener("scrollend", handleScroll);
   }, []);
 
+  // Apply distance filter + attach distanceKm for the non-search "all classes" list
+  const filteredClasses = useMemo(() => {
+    if (!classes) return classes;
+    return (classes as any[])
+      .filter(withinRadius)
+      .map((cls: any) => ({ ...cls, distanceKm: computeDistance(cls) }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classes, seekerLat, seekerLng, searchRadius]);
+
   const clearFilters = () => {
     setCategorySlug("");
     setSearch("");
@@ -267,26 +317,43 @@ const Explore = () => {
           </button>
         )}
 
-        {/* Location bar */}
-        <div className="flex items-center justify-between rounded-xl bg-primary/5 border border-primary/10 px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <MapPin size={15} className="text-primary shrink-0" />
-            <div className="min-w-0">
-              <p className="text-[10px] text-muted-foreground leading-none mb-0.5">Classes near</p>
-              <p className="text-xs font-semibold truncate max-w-[200px]">
-                {profile?.seeker_home_address
-                  ? (profile.seeker_home_address.split(",")[0]?.trim() ?? profile.seeker_home_address)
-                  : "Set your location"}
-              </p>
+        {/* Location bar + radius control */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between rounded-xl bg-primary/5 border border-primary/10 px-3 py-2.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <MapPin size={15} className="text-primary shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] text-muted-foreground leading-none mb-0.5">Classes near</p>
+                <p className="text-xs font-semibold truncate max-w-[160px]">
+                  {profile?.seeker_home_address
+                    ? (profile.seeker_home_address.split(",")[0]?.trim() ?? profile.seeker_home_address)
+                    : "Set your location"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Radius pill */}
+              <button
+                onClick={() => setRadiusSheet(true)}
+                className="flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors"
+              >
+                <Navigation2 size={11} />
+                {searchRadius} km
+              </button>
+              <button
+                onClick={() => setShowLocationSheet(true)}
+                className="flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors"
+              >
+                <Pencil size={11} />
+                {profile?.seeker_home_address ? "Edit" : "Set"}
+              </button>
             </div>
           </div>
-          <button
-            onClick={() => setShowLocationSheet(true)}
-            className="flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors shrink-0"
-          >
-            <Pencil size={11} />
-            {profile?.seeker_home_address ? "Edit" : "Set"}
-          </button>
+          {hasLocation && (
+            <p className="text-[10px] text-muted-foreground text-center">
+              Showing classes within {searchRadius} km · tap radius to change
+            </p>
+          )}
         </div>
 
         {/* Featured Classes Banner Carousel */}
@@ -428,7 +495,7 @@ const Explore = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
-                  {isLoading ? "Loading..." : `${classes?.length ?? 0} classes available`}
+                  {isLoading ? "Loading..." : `${filteredClasses?.length ?? 0} classes available${hasLocation ? ` within ${searchRadius} km` : ""}`}
                 </p>
                 <Select value={sort} onValueChange={setSort}>
                   <SelectTrigger className="w-32 h-8 text-xs">
@@ -448,16 +515,26 @@ const Explore = () => {
                     <Skeleton key={i} className="h-24 rounded-xl" />
                   ))}
                 </div>
-              ) : classes && classes.length > 0 ? (
+              ) : filteredClasses && filteredClasses.length > 0 ? (
                 <div className="space-y-3">
-                  {classes.map((cls) => (
+                  {filteredClasses.map((cls) => (
                     <ClassCard key={cls.id} cls={cls as any} />
                   ))}
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-3 py-8 text-center">
                   <Search size={28} className="text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">No classes available yet</p>
+                  <p className="text-sm text-muted-foreground">
+                    {hasLocation ? `No classes found within ${searchRadius} km` : "No classes available yet"}
+                  </p>
+                  {hasLocation && (
+                    <button
+                      onClick={() => setRadiusSheet(true)}
+                      className="text-xs text-primary font-medium"
+                    >
+                      Increase radius
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -559,6 +636,58 @@ const Explore = () => {
               onClick={handleSaveLocation}
             >
               {updateLocation.isPending ? "Saving…" : "Save Location"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Radius Sheet */}
+      <Sheet open={radiusSheet} onOpenChange={setRadiusSheet}>
+        <SheetContent side="bottom" className="rounded-t-2xl pb-8">
+          <SheetHeader className="mb-4">
+            <SheetTitle>Search Radius</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Show classes within</p>
+              <span className="text-2xl font-bold text-primary">{searchRadius} km</span>
+            </div>
+            <Slider
+              min={2}
+              max={50}
+              step={1}
+              value={[searchRadius]}
+              onValueChange={([v]) => setSearchRadius(v)}
+              className="w-full"
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground">
+              <span>2 km</span>
+              <span>10 km</span>
+              <span>25 km</span>
+              <span>50 km</span>
+            </div>
+            {!hasLocation && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-700">
+                Set your home location above to enable distance filtering.
+              </div>
+            )}
+            <div className="flex gap-3">
+              {[5, 10, 15, 25].map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setSearchRadius(r)}
+                  className={`flex-1 rounded-xl border py-2 text-xs font-semibold transition-all ${
+                    searchRadius === r
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/50"
+                  }`}
+                >
+                  {r} km
+                </button>
+              ))}
+            </div>
+            <Button className="w-full" onClick={() => setRadiusSheet(false)}>
+              Apply
             </Button>
           </div>
         </SheetContent>

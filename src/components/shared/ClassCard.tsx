@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, Home, Star } from "lucide-react";
+import { BookOpen, Home, MapPin, Star } from "lucide-react";
+import { formatDistance } from "@/hooks/useLocation";
 
 type ClassCardProps = {
   cls: {
@@ -12,14 +13,15 @@ type ClassCardProps = {
     class_type?: string | null;
     total_rating?: number | null;
     rating_count?: number | null;
-    requires_common_area?: boolean | null;
+    is_home_based?: boolean | null;
+    /** Distance from seeker's home (km) — computed client-side, optional */
+    distanceKm?: number | null;
     class_categories?: { name: string; slug: string } | null;
-    provider_apartment_registrations?: {
-      service_providers?: {
-        business_name?: string | null;
-        provider_type?: string | null;
-        users?: { full_name: string; avatar_url: string | null } | null;
-      } | null;
+    /** v2: direct service_providers join on classes */
+    service_providers?: {
+      business_name?: string | null;
+      provider_type?: string | null;
+      users?: { full_name: string; avatar_url: string | null } | null;
     } | null;
     batches?: {
       fee_amount: number;
@@ -45,7 +47,7 @@ const FEE_LABELS: Record<string, string> = {
 const ClassCard = ({ cls, variant = "horizontal" }: ClassCardProps) => {
   const navigate = useNavigate();
 
-  const provider = cls.provider_apartment_registrations?.service_providers;
+  const provider = cls.service_providers;
   const providerName = provider?.business_name || provider?.users?.full_name || "Provider";
 
   // Find lowest fee from active batches
@@ -66,6 +68,8 @@ const ClassCard = ({ cls, variant = "horizontal" }: ClassCardProps) => {
   // Available slots
   const totalSlots = activeBatches.reduce((acc, b) => acc + b.max_batch_size - (b.current_enrollment_count ?? 0), 0);
 
+  const distanceLabel = cls.distanceKm != null ? formatDistance(cls.distanceKm) : null;
+
   if (variant === "vertical") {
     return (
       <Card
@@ -83,7 +87,7 @@ const ClassCard = ({ cls, variant = "horizontal" }: ClassCardProps) => {
           <h4 className="text-xs font-semibold truncate">{cls.title}</h4>
           <p className="text-[10px] text-muted-foreground truncate">{providerName}</p>
           <div className="flex items-center gap-1.5 flex-wrap">
-            {cls.requires_common_area === false && (
+            {cls.is_home_based && (
               <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
                 <Home size={9} />
                 Home-based
@@ -101,6 +105,12 @@ const ClassCard = ({ cls, variant = "horizontal" }: ClassCardProps) => {
               </span>
             )}
           </div>
+          {distanceLabel && (
+            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+              <MapPin size={9} />
+              {distanceLabel}
+            </span>
+          )}
         </div>
       </Card>
     );
@@ -121,6 +131,12 @@ const ClassCard = ({ cls, variant = "horizontal" }: ClassCardProps) => {
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-sm font-semibold truncate">{cls.title}</h3>
+          {distanceLabel && (
+            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground shrink-0">
+              <MapPin size={9} />
+              {distanceLabel}
+            </span>
+          )}
         </div>
         <p className="text-xs text-muted-foreground mt-0.5 truncate">
           {providerName}
@@ -132,7 +148,7 @@ const ClassCard = ({ cls, variant = "horizontal" }: ClassCardProps) => {
           {cls.class_categories?.name && (
             <Badge variant="outline" className="text-[10px]">{cls.class_categories.name}</Badge>
           )}
-          {cls.requires_common_area === false && (
+          {cls.is_home_based && (
             <Badge variant="secondary" className="text-[10px] gap-0.5 px-1.5">
               <Home size={10} />
               Home-based

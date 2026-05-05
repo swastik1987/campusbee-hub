@@ -29,10 +29,9 @@ export function useProviderClasses(providerId: string | undefined, statusFilter?
         .from("classes")
         .select(`
           id, title, short_description, cover_image_url, class_type, status,
-          address, is_home_based, moderation_status,
-          total_rating, rating_count, created_at,
-          provider_id,
-          category_id, class_categories(name, slug, icon)
+          address, is_home_based, home_radius_km, location_lat, location_lng,
+          moderation_status, total_rating, rating_count, created_at,
+          provider_id, category_id, class_categories(name, slug, icon)
         `)
         .eq("provider_id", providerId!)
         .order("created_at", { ascending: false });
@@ -59,8 +58,8 @@ export function useClassDetail(classId: string | undefined) {
           id, title, description, short_description, cover_image_url, gallery_urls,
           promo_video_url, class_type, skill_level, age_group_min, age_group_max,
           venue_details, what_to_bring, trial_available, trial_fee, status,
-          address, is_home_based, moderation_status, moderation_notes,
-          total_rating, rating_count, provider_id, category_id,
+          address, is_home_based, home_radius_km, location_lat, location_lng,
+          moderation_status, moderation_notes, total_rating, rating_count, provider_id, category_id,
           created_at, updated_at,
           class_categories(id, name, slug, icon),
           service_providers(id, user_id, business_name, provider_type, bio, experience_years, whatsapp_number, upi_id, upi_qr_image_url, is_verified,
@@ -100,7 +99,15 @@ export function useCreateClass() {
       status: string;
       address?: string;
       isHomeBased?: boolean;
+      locationLat?: number | null;
+      locationLng?: number | null;
+      homeRadiusKm?: number;
     }) => {
+      const locationWkt =
+        input.locationLat != null && input.locationLng != null
+          ? (`SRID=4326;POINT(${input.locationLng} ${input.locationLat})` as any)
+          : undefined;
+
       const { data, error } = await supabase
         .from("classes")
         .insert({
@@ -123,6 +130,10 @@ export function useCreateClass() {
           status: input.status,
           address: input.address || null,
           is_home_based: input.isHomeBased ?? false,
+          location: locationWkt,
+          location_lat: input.locationLat ?? null,
+          location_lng: input.locationLng ?? null,
+          home_radius_km: input.homeRadiusKm ?? 5,
         })
         .select("id")
         .single();
@@ -172,6 +183,11 @@ export function useUpdateClass() {
       trialAvailable?: boolean;
       trialFee?: number;
       status?: string;
+      address?: string;
+      isHomeBased?: boolean;
+      locationLat?: number | null;
+      locationLng?: number | null;
+      homeRadiusKm?: number;
     }) => {
       const { classId, ...fields } = input;
       const updateObj: any = {};
@@ -190,6 +206,16 @@ export function useUpdateClass() {
       if (fields.trialAvailable !== undefined) updateObj.trial_available = fields.trialAvailable;
       if (fields.trialFee !== undefined) updateObj.trial_fee = fields.trialFee;
       if (fields.status !== undefined) updateObj.status = fields.status;
+      if (fields.address !== undefined) updateObj.address = fields.address || null;
+      if (fields.isHomeBased !== undefined) updateObj.is_home_based = fields.isHomeBased;
+      if (fields.homeRadiusKm !== undefined) updateObj.home_radius_km = fields.homeRadiusKm;
+      if (fields.locationLat !== undefined) {
+        updateObj.location_lat = fields.locationLat;
+        updateObj.location_lng = fields.locationLng ?? null;
+        if (fields.locationLat != null && fields.locationLng != null) {
+          updateObj.location = `SRID=4326;POINT(${fields.locationLng} ${fields.locationLat})` as any;
+        }
+      }
 
       const { error } = await supabase.from("classes").update(updateObj).eq("id", classId);
       if (error) throw error;

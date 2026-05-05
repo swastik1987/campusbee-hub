@@ -18,6 +18,9 @@ export type UserProfile = {
   is_active: boolean;
   is_verified: boolean;
   seeker_home_address: string | null;
+  /** Denormalized from seeker_home_location — set by migration 021 */
+  seeker_home_lat: number | null;
+  seeker_home_lng: number | null;
 };
 
 type FamilyRow = {
@@ -90,7 +93,7 @@ const UserContext = createContext<UserContextType>({
 export const useUser = () => useContext(UserContext);
 
 const PROFILE_COLUMNS =
-  "id, auth_id, full_name, email, avatar_url, mobile_number, is_provider, is_platform_admin, last_active_persona, is_active, is_verified, seeker_home_address";
+  "id, auth_id, full_name, email, avatar_url, mobile_number, is_provider, is_platform_admin, last_active_persona, is_active, is_verified, seeker_home_address, seeker_home_lat, seeker_home_lng";
 
 const PROVIDER_COLUMNS =
   "id, user_id, provider_type, business_name, bio, is_verified, specialization_category_ids, subscription_tier, subscription_valid_until, home_address";
