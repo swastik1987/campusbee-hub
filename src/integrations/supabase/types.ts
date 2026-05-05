@@ -274,6 +274,127 @@ export type Database = {
           },
         ]
       }
+      category_requests: {
+        Row: {
+          description: string | null
+          icon: string | null
+          id: string
+          name: string
+          parent_category_id: string | null
+          provider_id: string
+          rejection_reason: string | null
+          requested_at: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          parent_category_id?: string | null
+          provider_id: string
+          rejection_reason?: string | null
+          requested_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          parent_category_id?: string | null
+          provider_id?: string
+          rejection_reason?: string | null
+          requested_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_requests_parent_category_id_fkey"
+            columns: ["parent_category_id"]
+            isOneToOne: false
+            referencedRelation: "class_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_requests_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      certifications: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string
+          issuing_authority: string | null
+          moderation_notes: string | null
+          moderation_status: string
+          name: string
+          owner_type: string
+          provider_id: string | null
+          trainer_id: string | null
+          year_obtained: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url: string
+          issuing_authority?: string | null
+          moderation_notes?: string | null
+          moderation_status?: string
+          name: string
+          owner_type: string
+          provider_id?: string | null
+          trainer_id?: string | null
+          year_obtained?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string
+          issuing_authority?: string | null
+          moderation_notes?: string | null
+          moderation_status?: string
+          name?: string
+          owner_type?: string
+          provider_id?: string | null
+          trainer_id?: string | null
+          year_obtained?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certifications_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certifications_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_conversations: {
         Row: {
           batch_id: string | null
@@ -559,6 +680,7 @@ export type Database = {
           location_lng: number | null
           moderation_notes: string | null
           moderation_status: string
+          pending_category_request_id: string | null
           promo_video_url: string | null
           provider_id: string
           rating_count: number
@@ -593,6 +715,7 @@ export type Database = {
           location_lng?: number | null
           moderation_notes?: string | null
           moderation_status?: string
+          pending_category_request_id?: string | null
           promo_video_url?: string | null
           provider_id: string
           rating_count?: number
@@ -627,6 +750,7 @@ export type Database = {
           location_lng?: number | null
           moderation_notes?: string | null
           moderation_status?: string
+          pending_category_request_id?: string | null
           promo_video_url?: string | null
           provider_id?: string
           rating_count?: number
@@ -648,6 +772,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "class_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classes_pending_category_request_id_fkey"
+            columns: ["pending_category_request_id"]
+            isOneToOne: false
+            referencedRelation: "category_requests"
             referencedColumns: ["id"]
           },
           {
