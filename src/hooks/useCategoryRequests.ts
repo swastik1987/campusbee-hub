@@ -152,13 +152,13 @@ export function useApproveCategoryRequest() {
       const newCategoryId = (cat as any).id as string;
 
       // 3. Update classes that referenced this pending request
-      await supabase
+      await (supabase as any)
         .from("classes")
         .update({
           category_id: newCategoryId,
           pending_category_request_id: null,
-        } as any)
-        .eq("pending_category_request_id" as any, input.requestId);
+        })
+        .eq("pending_category_request_id", input.requestId);
 
       // 4. Mark request approved
       const { error: reqErr } = await (supabase as any)
