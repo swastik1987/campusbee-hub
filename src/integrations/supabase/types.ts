@@ -16,6 +16,8 @@ export type Database = {
     Tables: {
       announcements: {
         Row: {
+          announcement_type: string
+          author_id: string | null
           batch_id: string | null
           body: string
           class_id: string | null
@@ -24,10 +26,12 @@ export type Database = {
           is_pinned: boolean
           priority: string
           provider_id: string
+          target_audience: string | null
           title: string
-          type: string
         }
         Insert: {
+          announcement_type?: string
+          author_id?: string | null
           batch_id?: string | null
           body: string
           class_id?: string | null
@@ -36,10 +40,12 @@ export type Database = {
           is_pinned?: boolean
           priority?: string
           provider_id: string
+          target_audience?: string | null
           title: string
-          type?: string
         }
         Update: {
+          announcement_type?: string
+          author_id?: string | null
           batch_id?: string | null
           body?: string
           class_id?: string | null
@@ -48,10 +54,17 @@ export type Database = {
           is_pinned?: boolean
           priority?: string
           provider_id?: string
+          target_audience?: string | null
           title?: string
-          type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "announcements_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "announcements_batch_id_fkey"
             columns: ["batch_id"]
@@ -137,6 +150,7 @@ export type Database = {
           day_of_week: number
           end_time: string
           id: string
+          is_active: boolean
           location: string | null
           start_time: string
         }
@@ -146,6 +160,7 @@ export type Database = {
           day_of_week: number
           end_time: string
           id?: string
+          is_active?: boolean
           location?: string | null
           start_time: string
         }
@@ -155,6 +170,7 @@ export type Database = {
           day_of_week?: number
           end_time?: string
           id?: string
+          is_active?: boolean
           location?: string | null
           start_time?: string
         }
@@ -170,7 +186,11 @@ export type Database = {
       }
       batches: {
         Row: {
+          age_group_max: number | null
+          age_group_min: number | null
           auto_waitlist: boolean
+          batch_name: string
+          batch_type: string | null
           class_id: string
           created_at: string
           current_enrollment_count: number
@@ -178,9 +198,10 @@ export type Database = {
           fee_amount: number
           fee_frequency: string
           id: string
-          max_capacity: number
-          name: string
+          max_batch_size: number
           notes: string | null
+          registration_fee: number
+          registration_mode: string
           skill_level: string | null
           start_date: string | null
           status: string
@@ -189,7 +210,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          age_group_max?: number | null
+          age_group_min?: number | null
           auto_waitlist?: boolean
+          batch_name: string
+          batch_type?: string | null
           class_id: string
           created_at?: string
           current_enrollment_count?: number
@@ -197,9 +222,10 @@ export type Database = {
           fee_amount?: number
           fee_frequency?: string
           id?: string
-          max_capacity?: number
-          name: string
+          max_batch_size?: number
           notes?: string | null
+          registration_fee?: number
+          registration_mode?: string
           skill_level?: string | null
           start_date?: string | null
           status?: string
@@ -208,7 +234,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          age_group_max?: number | null
+          age_group_min?: number | null
           auto_waitlist?: boolean
+          batch_name?: string
+          batch_type?: string | null
           class_id?: string
           created_at?: string
           current_enrollment_count?: number
@@ -216,9 +246,10 @@ export type Database = {
           fee_amount?: number
           fee_frequency?: string
           id?: string
-          max_capacity?: number
-          name?: string
+          max_batch_size?: number
           notes?: string | null
+          registration_fee?: number
+          registration_mode?: string
           skill_level?: string | null
           start_date?: string | null
           status?: string
@@ -250,6 +281,9 @@ export type Database = {
           created_at: string
           id: string
           last_message_at: string | null
+          last_message_preview: string | null
+          participant_1: string | null
+          participant_2: string | null
           participant_ids: string[]
           type: string
         }
@@ -259,6 +293,9 @@ export type Database = {
           created_at?: string
           id?: string
           last_message_at?: string | null
+          last_message_preview?: string | null
+          participant_1?: string | null
+          participant_2?: string | null
           participant_ids: string[]
           type?: string
         }
@@ -268,6 +305,9 @@ export type Database = {
           created_at?: string
           id?: string
           last_message_at?: string | null
+          last_message_preview?: string | null
+          participant_1?: string | null
+          participant_2?: string | null
           participant_ids?: string[]
           type?: string
         }
@@ -284,6 +324,20 @@ export type Database = {
             columns: ["class_id"]
             isOneToOne: false
             referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_conversations_participant_1_fkey"
+            columns: ["participant_1"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_conversations_participant_2_fkey"
+            columns: ["participant_2"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -341,27 +395,33 @@ export type Database = {
           class_id: string
           created_at: string
           description: string | null
-          fee: number
+          fee_amount: number
+          fee_type: string | null
           id: string
           is_active: boolean
+          is_mandatory: boolean
           name: string
         }
         Insert: {
           class_id: string
           created_at?: string
           description?: string | null
-          fee?: number
+          fee_amount?: number
+          fee_type?: string | null
           id?: string
           is_active?: boolean
+          is_mandatory?: boolean
           name: string
         }
         Update: {
           class_id?: string
           created_at?: string
           description?: string | null
-          fee?: number
+          fee_amount?: number
+          fee_type?: string | null
           id?: string
           is_active?: boolean
+          is_mandatory?: boolean
           name?: string
         }
         Relationships: [
@@ -424,8 +484,9 @@ export type Database = {
           external_url: string | null
           file_url: string | null
           id: string
+          is_active: boolean
+          material_type: string
           title: string
-          type: string
           uploaded_by: string
         }
         Insert: {
@@ -436,8 +497,9 @@ export type Database = {
           external_url?: string | null
           file_url?: string | null
           id?: string
+          is_active?: boolean
+          material_type?: string
           title: string
-          type?: string
           uploaded_by: string
         }
         Update: {
@@ -448,8 +510,9 @@ export type Database = {
           external_url?: string | null
           file_url?: string | null
           id?: string
+          is_active?: boolean
+          material_type?: string
           title?: string
-          type?: string
           uploaded_by?: string
         }
         Relationships: [
@@ -479,20 +542,28 @@ export type Database = {
       classes: {
         Row: {
           address: string | null
-          age_max: number | null
-          age_min: number | null
+          age_group_max: number | null
+          age_group_min: number | null
           category_id: string | null
+          class_type: string
+          cover_image_url: string | null
           created_at: string
           description: string | null
+          gallery_urls: string[]
+          home_radius_km: number
           id: string
           images: string[]
           is_home_based: boolean
           location: unknown
+          location_lat: number | null
+          location_lng: number | null
           moderation_notes: string | null
           moderation_status: string
+          promo_video_url: string | null
           provider_id: string
           rating_count: number
-          skill_level: string | null
+          short_description: string | null
+          skill_level: string[] | null
           status: string
           tags: string[]
           title: string
@@ -500,23 +571,33 @@ export type Database = {
           trial_available: boolean
           trial_fee: number | null
           updated_at: string
+          venue_details: string | null
+          what_to_bring: string | null
         }
         Insert: {
           address?: string | null
-          age_max?: number | null
-          age_min?: number | null
+          age_group_max?: number | null
+          age_group_min?: number | null
           category_id?: string | null
+          class_type?: string
+          cover_image_url?: string | null
           created_at?: string
           description?: string | null
+          gallery_urls?: string[]
+          home_radius_km?: number
           id?: string
           images?: string[]
           is_home_based?: boolean
           location?: unknown
+          location_lat?: number | null
+          location_lng?: number | null
           moderation_notes?: string | null
           moderation_status?: string
+          promo_video_url?: string | null
           provider_id: string
           rating_count?: number
-          skill_level?: string | null
+          short_description?: string | null
+          skill_level?: string[] | null
           status?: string
           tags?: string[]
           title: string
@@ -524,23 +605,33 @@ export type Database = {
           trial_available?: boolean
           trial_fee?: number | null
           updated_at?: string
+          venue_details?: string | null
+          what_to_bring?: string | null
         }
         Update: {
           address?: string | null
-          age_max?: number | null
-          age_min?: number | null
+          age_group_max?: number | null
+          age_group_min?: number | null
           category_id?: string | null
+          class_type?: string
+          cover_image_url?: string | null
           created_at?: string
           description?: string | null
+          gallery_urls?: string[]
+          home_radius_km?: number
           id?: string
           images?: string[]
           is_home_based?: boolean
           location?: unknown
+          location_lat?: number | null
+          location_lng?: number | null
           moderation_notes?: string | null
           moderation_status?: string
+          promo_video_url?: string | null
           provider_id?: string
           rating_count?: number
-          skill_level?: string | null
+          short_description?: string | null
+          skill_level?: string[] | null
           status?: string
           tags?: string[]
           title?: string
@@ -548,6 +639,8 @@ export type Database = {
           trial_available?: boolean
           trial_fee?: number | null
           updated_at?: string
+          venue_details?: string | null
+          what_to_bring?: string | null
         }
         Relationships: [
           {
@@ -622,38 +715,47 @@ export type Database = {
         Row: {
           class_id: string
           created_at: string
+          current_count: number
           end_time: string
+          fee: number
           id: string
           is_active: boolean
           location_text: string | null
-          max_capacity: number
+          max_participants: number
           notes: string | null
           session_date: string
           start_time: string
+          status: string
         }
         Insert: {
           class_id: string
           created_at?: string
+          current_count?: number
           end_time: string
+          fee?: number
           id?: string
           is_active?: boolean
           location_text?: string | null
-          max_capacity?: number
+          max_participants?: number
           notes?: string | null
           session_date: string
           start_time: string
+          status?: string
         }
         Update: {
           class_id?: string
           created_at?: string
+          current_count?: number
           end_time?: string
+          fee?: number
           id?: string
           is_active?: boolean
           location_text?: string | null
-          max_capacity?: number
+          max_participants?: number
           notes?: string | null
           session_date?: string
           start_time?: string
+          status?: string
         }
         Relationships: [
           {
@@ -667,8 +769,10 @@ export type Database = {
       }
       enrollments: {
         Row: {
+          approved_at: string | null
           batch_id: string
           created_at: string
+          drop_reason: string | null
           dropped_at: string | null
           enrolled_at: string
           enrolled_by: string
@@ -680,8 +784,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approved_at?: string | null
           batch_id: string
           created_at?: string
+          drop_reason?: string | null
           dropped_at?: string | null
           enrolled_at?: string
           enrolled_by: string
@@ -693,8 +799,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approved_at?: string | null
           batch_id?: string
           created_at?: string
+          drop_reason?: string | null
           dropped_at?: string | null
           enrolled_at?: string
           enrolled_by?: string
@@ -890,6 +998,7 @@ export type Database = {
       family_members: {
         Row: {
           age_group: string | null
+          avatar_url: string | null
           created_at: string
           date_of_birth: string | null
           deleted_at: string | null
@@ -904,6 +1013,7 @@ export type Database = {
         }
         Insert: {
           age_group?: string | null
+          avatar_url?: string | null
           created_at?: string
           date_of_birth?: string | null
           deleted_at?: string | null
@@ -918,6 +1028,7 @@ export type Database = {
         }
         Update: {
           age_group?: string | null
+          avatar_url?: string | null
           created_at?: string
           date_of_birth?: string | null
           deleted_at?: string | null
@@ -1137,53 +1248,80 @@ export type Database = {
         Row: {
           amount: number
           batch_id: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
           created_at: string
+          due_date: string | null
           enrollment_id: string | null
           id: string
           notes: string | null
+          paid_at: string | null
           payer_user_id: string
           payment_date: string | null
+          payment_method: string | null
           payment_mode: string | null
+          payment_period_end: string | null
+          payment_period_start: string | null
           payment_type: string
           provider_id: string
+          receipt_url: string | null
           reference_number: string | null
           screenshot_url: string | null
           status: string
           updated_at: string
+          upi_transaction_id: string | null
         }
         Insert: {
           amount: number
           batch_id?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
+          due_date?: string | null
           enrollment_id?: string | null
           id?: string
           notes?: string | null
+          paid_at?: string | null
           payer_user_id: string
           payment_date?: string | null
+          payment_method?: string | null
           payment_mode?: string | null
+          payment_period_end?: string | null
+          payment_period_start?: string | null
           payment_type?: string
           provider_id: string
+          receipt_url?: string | null
           reference_number?: string | null
           screenshot_url?: string | null
           status?: string
           updated_at?: string
+          upi_transaction_id?: string | null
         }
         Update: {
           amount?: number
           batch_id?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
+          due_date?: string | null
           enrollment_id?: string | null
           id?: string
           notes?: string | null
+          paid_at?: string | null
           payer_user_id?: string
           payment_date?: string | null
+          payment_method?: string | null
           payment_mode?: string | null
+          payment_period_end?: string | null
+          payment_period_start?: string | null
           payment_type?: string
           provider_id?: string
+          receipt_url?: string | null
           reference_number?: string | null
           screenshot_url?: string | null
           status?: string
           updated_at?: string
+          upi_transaction_id?: string | null
         }
         Relationships: [
           {
@@ -1191,6 +1329,13 @@ export type Database = {
             columns: ["batch_id"]
             isOneToOne: false
             referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_confirmed_by_fkey"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -1354,39 +1499,48 @@ export type Database = {
         Row: {
           batch_id: string | null
           class_id: string
-          comment: string | null
           created_at: string
+          enrollment_id: string | null
           family_member_id: string | null
           id: string
+          is_verified: boolean
+          is_visible: boolean
           provider_replied_at: string | null
           provider_reply: string | null
           rating: number
+          review_text: string | null
           reviewer_user_id: string
           updated_at: string
         }
         Insert: {
           batch_id?: string | null
           class_id: string
-          comment?: string | null
           created_at?: string
+          enrollment_id?: string | null
           family_member_id?: string | null
           id?: string
+          is_verified?: boolean
+          is_visible?: boolean
           provider_replied_at?: string | null
           provider_reply?: string | null
           rating: number
+          review_text?: string | null
           reviewer_user_id: string
           updated_at?: string
         }
         Update: {
           batch_id?: string | null
           class_id?: string
-          comment?: string | null
           created_at?: string
+          enrollment_id?: string | null
           family_member_id?: string | null
           id?: string
+          is_verified?: boolean
+          is_visible?: boolean
           provider_replied_at?: string | null
           provider_reply?: string | null
           rating?: number
+          review_text?: string | null
           reviewer_user_id?: string
           updated_at?: string
         }
@@ -1403,6 +1557,13 @@ export type Database = {
             columns: ["class_id"]
             isOneToOne: false
             referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
             referencedColumns: ["id"]
           },
           {
@@ -1430,10 +1591,11 @@ export type Database = {
           home_address: string | null
           home_location: unknown
           id: string
+          intro_video_url: string | null
           is_verified: boolean
           logo_url: string | null
           provider_type: string
-          qualifications: string[] | null
+          qualifications: string | null
           specialization_category_ids: string[] | null
           specializations: string[] | null
           subscription_tier: string
@@ -1441,6 +1603,8 @@ export type Database = {
           suspended_at: string | null
           suspension_reason: string | null
           updated_at: string
+          upi_id: string | null
+          upi_qr_image_url: string | null
           user_id: string
           whatsapp_number: string | null
         }
@@ -1452,10 +1616,11 @@ export type Database = {
           home_address?: string | null
           home_location?: unknown
           id?: string
+          intro_video_url?: string | null
           is_verified?: boolean
           logo_url?: string | null
           provider_type?: string
-          qualifications?: string[] | null
+          qualifications?: string | null
           specialization_category_ids?: string[] | null
           specializations?: string[] | null
           subscription_tier?: string
@@ -1463,6 +1628,8 @@ export type Database = {
           suspended_at?: string | null
           suspension_reason?: string | null
           updated_at?: string
+          upi_id?: string | null
+          upi_qr_image_url?: string | null
           user_id: string
           whatsapp_number?: string | null
         }
@@ -1474,10 +1641,11 @@ export type Database = {
           home_address?: string | null
           home_location?: unknown
           id?: string
+          intro_video_url?: string | null
           is_verified?: boolean
           logo_url?: string | null
           provider_type?: string
-          qualifications?: string[] | null
+          qualifications?: string | null
           specialization_category_ids?: string[] | null
           specializations?: string[] | null
           subscription_tier?: string
@@ -1485,6 +1653,8 @@ export type Database = {
           suspended_at?: string | null
           suspension_reason?: string | null
           updated_at?: string
+          upi_id?: string | null
+          upi_qr_image_url?: string | null
           user_id?: string
           whatsapp_number?: string | null
         }
@@ -1600,42 +1770,51 @@ export type Database = {
       }
       trainers: {
         Row: {
-          avatar_url: string | null
           bio: string | null
           created_at: string
           email: string | null
+          experience_years: number | null
           id: string
           is_active: boolean
           name: string
           phone: string | null
+          photo_url: string | null
           provider_id: string
+          qualifications: string | null
           specialization: string | null
+          specializations: string[] | null
           updated_at: string
         }
         Insert: {
-          avatar_url?: string | null
           bio?: string | null
           created_at?: string
           email?: string | null
+          experience_years?: number | null
           id?: string
           is_active?: boolean
           name: string
           phone?: string | null
+          photo_url?: string | null
           provider_id: string
+          qualifications?: string | null
           specialization?: string | null
+          specializations?: string[] | null
           updated_at?: string
         }
         Update: {
-          avatar_url?: string | null
           bio?: string | null
           created_at?: string
           email?: string | null
+          experience_years?: number | null
           id?: string
           is_active?: boolean
           name?: string
           phone?: string | null
+          photo_url?: string | null
           provider_id?: string
+          qualifications?: string | null
           specialization?: string | null
+          specializations?: string[] | null
           updated_at?: string
         }
         Relationships: [
@@ -1663,6 +1842,8 @@ export type Database = {
           last_active_persona: string
           mobile_number: string | null
           seeker_home_address: string | null
+          seeker_home_lat: number | null
+          seeker_home_lng: number | null
           seeker_home_location: unknown
           updated_at: string
         }
@@ -1680,6 +1861,8 @@ export type Database = {
           last_active_persona?: string
           mobile_number?: string | null
           seeker_home_address?: string | null
+          seeker_home_lat?: number | null
+          seeker_home_lng?: number | null
           seeker_home_location?: unknown
           updated_at?: string
         }
@@ -1697,6 +1880,8 @@ export type Database = {
           last_active_persona?: string
           mobile_number?: string | null
           seeker_home_address?: string | null
+          seeker_home_lat?: number | null
+          seeker_home_lng?: number | null
           seeker_home_location?: unknown
           updated_at?: string
         }
