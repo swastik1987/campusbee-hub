@@ -38,8 +38,7 @@ const CATEGORY_ICONS: Record<string, typeof Trophy> = {
 
 const SeekerHome = () => {
   const navigate = useNavigate();
-  const { profile, currentApartment } = useUser();
-  const aptId = currentApartment?.id;
+  const { profile } = useUser();
   const { data: incomingInvites } = useIncomingInvites(profile?.id, profile?.email ?? null, profile?.mobile_number ?? null);
   const pendingInviteCount = incomingInvites?.length ?? 0;
 
@@ -57,9 +56,9 @@ const SeekerHome = () => {
     },
   });
 
-  const { data: featuredListings } = useActiveFeaturedListings(aptId);
-  const { data: newClasses, isLoading: newLoading } = useNewClasses(aptId);
-  const { data: popular, isLoading: popularLoading } = usePopularClasses(aptId);
+  const { data: featuredListings } = useActiveFeaturedListings();
+  const { data: newClasses, isLoading: newLoading } = useNewClasses();
+  const { data: popular, isLoading: popularLoading } = usePopularClasses();
 
   // Featured carousel state
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -141,7 +140,7 @@ const SeekerHome = () => {
                     onClick={() => navigate(`/class/${listing.class_id}`)}
                   >
                     <div className="relative aspect-[3/1] overflow-hidden rounded-xl mx-1">
-                      <img src={listing.banner_image_url} alt="" className="h-full w-full object-cover" />
+                      <img src={(listing.classes as any)?.cover_image_url ?? ""} alt="" className="h-full w-full object-cover" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                       <div className="absolute bottom-2 left-3 right-3">
                         <p className="text-sm font-bold text-white truncate">
@@ -219,7 +218,7 @@ const SeekerHome = () => {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold">
-                Popular{currentApartment ? ` in ${currentApartment.name}` : ""}
+                Popular
               </h2>
               <button
                 onClick={() => navigate("/explore?sort=popular")}

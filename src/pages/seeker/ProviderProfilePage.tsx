@@ -1,6 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useProviderProfile, useProviderClasses as useProviderPublicClasses, useProviderTrainers } from "@/hooks/useSeeker";
-import { useUser } from "@/contexts/UserContext";
 import ClassCard from "@/components/shared/ClassCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -12,10 +11,8 @@ import { ArrowLeft, CheckCircle2, MessageCircle, Star } from "lucide-react";
 const ProviderProfilePage = () => {
   const { providerId } = useParams();
   const navigate = useNavigate();
-  const { currentApartment } = useUser();
-
   const { data: provider, isLoading } = useProviderProfile(providerId);
-  const { data: classes } = useProviderPublicClasses(providerId, currentApartment?.id);
+  const { data: classes } = useProviderPublicClasses(providerId);
   const { data: trainers } = useProviderTrainers(providerId);
 
   if (isLoading) {

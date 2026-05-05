@@ -374,7 +374,7 @@ const Explore = () => {
                     onClick={() => navigate(`/class/${listing.class_id}`)}
                   >
                     <div className="relative aspect-[3/1] overflow-hidden rounded-xl">
-                      <img src={listing.banner_image_url} alt="" className="h-full w-full object-cover" />
+                      <img src={(listing.classes as any)?.cover_image_url ?? ""} alt="" className="h-full w-full object-cover" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                       <div className="absolute bottom-2 left-3 right-3">
                         <p className="text-sm font-bold text-white truncate">
