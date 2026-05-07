@@ -1,88 +1,131 @@
+import * as React from "react";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useUser } from "@/contexts/UserContext";
-import { Mail, CheckCircle2, Loader2, Shield, AlertTriangle } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  GraduationCap,
+  Loader2,
+  Mail,
+  Search,
+  Shield,
+} from "lucide-react";
+
+// ── Design tokens (matches Landing.tsx) ───────────────────────────────────
+const A_FROM = "oklch(0.78 0.18 250)";
+const A_TO   = "oklch(0.62 0.20 250)";
+const A_DEEP = "oklch(0.45 0.18 250)";
+const A_SOFT = "oklch(0.97 0.03 250)";
+const INK    = "#0F172A";
+const MUTED  = "#64748B";
+const HAIR   = "#E2E8F0";
+const PAGE   = "#FAFAF9";
 
 const ROLE_STORAGE_KEY = "campusbee_intended_role";
 
-const Auth = () => {
-  const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
-  const [loading, setLoading] = useState(false);
+// ── Role metadata ─────────────────────────────────────────────────────────
+type RoleKey = "seeker" | "provider" | "platform_admin" | null;
+
+const ROLE_META: Record<NonNullable<RoleKey>, {
+  Icon: typeof Search;
+  label: string;
+  tagline: string;
+  badgeColor: string;
+  badgeBg: string;
+  gradFrom: string;
+  gradTo: string;
+  shadowHue: string;
+}> = {
+  seeker: {
+    Icon: Search,
+    label: "Learner",
+    tagline: "Find classes near you — for any age.",
+    badgeColor: A_DEEP,
+    badgeBg: A_SOFT,
+    gradFrom: A_FROM,
+    gradTo: A_TO,
+    shadowHue: "250",
+  },
+  provider: {
+    Icon: GraduationCap,
+    label: "Instructor",
+    tagline: "List classes and grow your business.",
+    badgeColor: A_DEEP,
+    badgeBg: A_SOFT,
+    gradFrom: A_FROM,
+    gradTo: A_TO,
+    shadowHue: "250",
+  },
+  platform_admin: {
+    Icon: Shield,
+    label: "Platform Admin",
+    tagline: "Sign in to access the admin panel.",
+    badgeColor: "#065f46",
+    badgeBg: "rgba(16,185,129,0.08)",
+    gradFrom: "#10b981",
+    gradTo: "#059669",
+    shadowHue: "160",
+  },
+};
+
+// ── Component ──────────────────────────────────────────────────────────────
+const Auth = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, ref) => {
+  const [email, setEmail]               = useState("");
+  const [sent, setSent]                 = useState(false);
+  const [loading, setLoading]           = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [debugInfo, setDebugInfo] = useState("");
+  const [error, setError]               = useState("");
+  const [debugInfo, setDebugInfo]       = useState("");
+
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { session, profile, profileError } = useUser();
   const googleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Read intended role from URL param or localStorage
   const urlRole = searchParams.get("role");
   const storedRole = localStorage.getItem(ROLE_STORAGE_KEY);
-  const intendedRole = urlRole || storedRole;
+  const intendedRole = (urlRole || storedRole) as RoleKey;
 
-  // Persist role to localStorage whenever URL has it
+  // Persist role from URL
   useEffect(() => {
-    if (urlRole) {
-      localStorage.setItem(ROLE_STORAGE_KEY, urlRole);
-    }
+    if (urlRole) localStorage.setItem(ROLE_STORAGE_KEY, urlRole);
   }, [urlRole]);
 
-  // Redirect once authenticated with profile loaded
+  // Redirect once authenticated
   useEffect(() => {
-    if (!session) return;
-
-    console.log("[CampusBee Auth] Session detected, profile:", profile ? "loaded" : "pending");
-
-    if (!profile) return; // Wait for profile to load
-
-    // Clear stored role after using it
+    if (!session || !profile) return;
     localStorage.removeItem(ROLE_STORAGE_KEY);
-
     if (intendedRole === "platform_admin" && profile.is_platform_admin) {
       navigate("/platform", { replace: true });
       return;
     }
-
     navigate("/", { replace: true });
   }, [session, profile, intendedRole, navigate]);
 
-  // Clean up timeout on unmount
+  // Cleanup timeout
   useEffect(() => {
-    return () => {
-      if (googleTimeoutRef.current) clearTimeout(googleTimeoutRef.current);
-    };
+    return () => { if (googleTimeoutRef.current) clearTimeout(googleTimeoutRef.current); };
   }, []);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
-
     setLoading(true);
     setError("");
     setDebugInfo("");
-
-    console.log("[CampusBee Auth] Sending magic link to:", email.trim());
-
     const { error: authError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: { emailRedirectTo: window.location.origin },
     });
-
     setLoading(false);
-
     if (authError) {
-      console.error("[CampusBee Auth] Magic link error:", authError);
       setError(authError.message);
       setDebugInfo(`Error code: ${(authError as any).status || "unknown"}`);
     } else {
-      console.log("[CampusBee Auth] Magic link sent successfully");
       setSent(true);
     }
   };
@@ -91,15 +134,8 @@ const Auth = () => {
     setGoogleLoading(true);
     setError("");
     setDebugInfo("");
+    if (intendedRole) localStorage.setItem(ROLE_STORAGE_KEY, intendedRole);
 
-    // Persist intended role so it survives the OAuth redirect
-    if (intendedRole) {
-      localStorage.setItem(ROLE_STORAGE_KEY, intendedRole);
-    }
-
-    console.log("[CampusBee Auth] Starting Google OAuth...");
-
-    // Safety timeout: reset button if OAuth takes too long
     googleTimeoutRef.current = setTimeout(() => {
       setGoogleLoading(false);
       setError("Google sign-in timed out. Please try again or use email login.");
@@ -110,136 +146,178 @@ const Auth = () => {
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin,
       });
-
-      console.log("[CampusBee Auth] OAuth result:", JSON.stringify(result, null, 2));
-
-      // If redirected, the full page navigates away — button state resets on reload
-      if (result?.redirected) {
-        console.log("[CampusBee Auth] OAuth redirect initiated");
-        return;
-      }
-
-      // If popup flow completed successfully
-      if (!result?.error) {
-        if (googleTimeoutRef.current) clearTimeout(googleTimeoutRef.current);
-        console.log("[CampusBee Auth] OAuth completed, waiting for session...");
-        setGoogleLoading(false);
-        // Session will be picked up by UserContext → useEffect will redirect
-        return;
-      }
-
-      // Error from Lovable auth
+      if (result?.redirected) return;
       if (googleTimeoutRef.current) clearTimeout(googleTimeoutRef.current);
-      const errMsg = result.error instanceof Error
-        ? result.error.message
-        : String(result.error);
-      console.error("[CampusBee Auth] OAuth error:", errMsg);
+      if (!result?.error) { setGoogleLoading(false); return; }
+      const errMsg = result.error instanceof Error ? result.error.message : String(result.error);
       setError("Google sign-in failed. Please try email login.");
       setDebugInfo(errMsg);
       setGoogleLoading(false);
     } catch (err: any) {
       if (googleTimeoutRef.current) clearTimeout(googleTimeoutRef.current);
-      console.error("[CampusBee Auth] OAuth exception:", err);
       setError("Google sign-in failed. Please try email login.");
       setDebugInfo(err?.message ?? String(err));
       setGoogleLoading(false);
     }
   };
 
-  // If already logged in but waiting for profile, show a loading state.
-  // If profile load errored, show the error so we can debug instead of hanging.
+  // Resolve role-specific theming
+  const roleKey = intendedRole && intendedRole in ROLE_META ? intendedRole : null;
+  const meta = roleKey ? ROLE_META[roleKey] : null;
+  const gradFrom   = meta?.gradFrom   ?? A_FROM;
+  const gradTo     = meta?.gradTo     ?? A_TO;
+  const shadowHue  = meta?.shadowHue  ?? "250";
+  const blobColor  = roleKey === "platform_admin" ? "#10b981" : A_FROM;
+  const blob2Color = roleKey === "platform_admin" ? "#059669" : "oklch(0.85 0.15 200)";
+
+  // ── Profile-loading overlay (after OAuth redirect) ─────────────────────
   if (session && !profile) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
-        <div className="flex flex-col items-center gap-3 max-w-md text-center">
-          <img src="/logo-icon.png" alt="CampusBee" className="h-12 w-12 object-contain animate-fade-in" />
+      <div
+        ref={ref}
+        style={{ background: PAGE, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px", fontFamily: '-apple-system,"Inter",system-ui,sans-serif' }}
+      >
+        <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: `linear-gradient(135deg, ${gradFrom}, ${gradTo})`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 26 }}>
+            C
+          </div>
           {profileError ? (
             <>
-              <div className="flex items-center gap-2 text-destructive">
-                <AlertTriangle size={16} />
-                <p className="text-sm font-medium">Couldn't set up your profile</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#e11d48" }}>
+                <AlertTriangle size={15} />
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Couldn't set up your profile</span>
               </div>
-              <p className="text-xs text-muted-foreground break-all px-4">{profileError}</p>
-              <div className="flex gap-2 mt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
+              <p style={{ fontSize: 12, color: MUTED, maxWidth: 280, lineHeight: 1.5 }}>{profileError}</p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
                   onClick={() => window.location.reload()}
+                  style={{ background: `linear-gradient(135deg, ${gradFrom}, ${gradTo})`, color: "#fff", border: "none", borderRadius: 10, padding: "9px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
                 >
                   Retry
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    await supabase.auth.signOut();
-                    window.location.href = "/auth";
-                  }}
+                </button>
+                <button
+                  onClick={async () => { await supabase.auth.signOut(); window.location.href = "/auth"; }}
+                  style={{ background: "transparent", color: MUTED, border: `1px solid ${HAIR}`, borderRadius: 10, padding: "9px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
                 >
                   Sign out
-                </Button>
+                </button>
               </div>
             </>
           ) : (
-            <p className="text-muted-foreground text-sm animate-fade-up">Setting up your profile...</p>
+            <p style={{ fontSize: 14, color: MUTED }}>Setting up your profile…</p>
           )}
         </div>
       </div>
     );
   }
 
+  // ── Main auth screen ───────────────────────────────────────────────────
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="mb-8 flex flex-col items-center gap-3 animate-fade-up">
-          <img src="/logo-full.png" alt="CampusBee" className="h-16 object-contain" />
-          {intendedRole === "platform_admin" ? (
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1">
-                <Shield size={14} className="text-emerald-600" />
-                <span className="text-xs font-semibold text-emerald-700">Platform Admin</span>
-              </div>
-              <p className="text-sm text-muted-foreground text-center">
-                Sign in to access the platform admin panel
-              </p>
+    <div
+      ref={ref}
+      style={{
+        background: PAGE,
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "40px 20px",
+        position: "relative",
+        overflow: "hidden",
+        fontFamily: '-apple-system,"Inter",system-ui,sans-serif',
+      }}
+    >
+      {/* Aurora blobs */}
+      <div aria-hidden style={{ position: "absolute", top: -140, right: -80, width: 320, height: 320, borderRadius: "50%", background: blobColor, filter: "blur(72px)", opacity: 0.22, pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", bottom: -140, left: -80, width: 280, height: 280, borderRadius: "50%", background: blob2Color, filter: "blur(72px)", opacity: 0.15, pointerEvents: "none" }} />
+
+      <div style={{ width: "100%", maxWidth: 360, position: "relative" }}>
+
+        {/* ── Logo + headline ──────────────────────────────────────── */}
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          {/* Gradient logo mark */}
+          <div style={{
+            display: "inline-flex",
+            width: 64,
+            height: 64,
+            borderRadius: 20,
+            background: `linear-gradient(135deg, ${gradFrom}, ${gradTo})`,
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#fff",
+            fontWeight: 800,
+            fontSize: 30,
+            marginBottom: 16,
+            boxShadow: `0 12px 28px -8px oklch(0.62 0.20 ${shadowHue} / 0.45)`,
+          }}>
+            C
+          </div>
+
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: INK, letterSpacing: -0.5, lineHeight: 1.1, margin: "0 0 8px" }}>
+            Welcome to{" "}
+            <span style={{ background: `linear-gradient(135deg, ${gradFrom}, ${gradTo})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              CampusBee
+            </span>
+          </h1>
+
+          {/* Role badge */}
+          {meta && (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: meta.badgeBg, color: meta.badgeColor, borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+              <meta.Icon size={12} />
+              {meta.label}
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center">
-              Discover classes near you
-            </p>
           )}
+
+          <p style={{ fontSize: 13, color: MUTED, marginTop: meta ? 6 : 4, lineHeight: 1.5 }}>
+            {meta ? meta.tagline : "Discover classes near you."}
+          </p>
         </div>
 
+        {/* ── Card ─────────────────────────────────────────────────── */}
         {sent ? (
-          <div className="flex flex-col items-center gap-4 text-center animate-fade-up">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
-              <CheckCircle2 size={32} className="text-success" />
+          /* Email-sent confirmation */
+          <div style={{ background: "#fff", border: `1px solid ${HAIR}`, borderRadius: 22, padding: "28px 22px", textAlign: "center", boxShadow: "0 8px 28px -12px rgba(15,23,42,0.10)" }}>
+            <div style={{ width: 60, height: 60, borderRadius: "50%", background: A_SOFT, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <CheckCircle2 size={30} style={{ color: A_TO }} />
             </div>
-            <h2 className="text-lg font-bold">Check your email!</h2>
-            <p className="text-sm text-muted-foreground">
-              We've sent a login link to{" "}
-              <span className="font-medium text-foreground">{email}</span>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: INK, margin: "0 0 8px" }}>Check your email!</h2>
+            <p style={{ fontSize: 13, color: MUTED, margin: "0 0 22px", lineHeight: 1.55 }}>
+              We've sent a magic link to{" "}
+              <span style={{ fontWeight: 700, color: INK }}>{email}</span>
             </p>
-            <Button
-              variant="ghost"
-              className="mt-4 text-sm"
-              onClick={() => {
-                setSent(false);
-                setEmail("");
-              }}
+            <button
+              onClick={() => { setSent(false); setEmail(""); }}
+              style={{ background: "transparent", color: MUTED, border: `1px solid ${HAIR}`, borderRadius: 11, padding: "10px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
             >
               Use a different email
-            </Button>
+            </button>
           </div>
         ) : (
-          <div className="space-y-4 animate-fade-up" style={{ animationDelay: "100ms" }}>
-            {/* Google sign-in */}
-            <Button
-              variant="outline"
+          /* Sign-in form */
+          <div style={{ background: "#fff", border: `1px solid ${HAIR}`, borderRadius: 22, padding: "22px 20px", boxShadow: "0 8px 28px -12px rgba(15,23,42,0.10)" }}>
+
+            {/* Google OAuth button */}
+            <button
               onClick={handleGoogleLogin}
               disabled={googleLoading}
-              className="w-full h-12 rounded-xl font-medium text-sm gap-3"
+              style={{
+                width: "100%",
+                height: 50,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+                background: "#fff",
+                border: `1.5px solid ${HAIR}`,
+                borderRadius: 13,
+                fontSize: 14,
+                fontWeight: 600,
+                color: INK,
+                cursor: googleLoading ? "default" : "pointer",
+                transition: "border-color 0.15s",
+                opacity: googleLoading ? 0.7 : 1,
+              }}
             >
               {googleLoading ? (
                 <Loader2 size={18} className="animate-spin" />
@@ -252,66 +330,103 @@ const Auth = () => {
                 </svg>
               )}
               Continue with Google
-            </Button>
+            </button>
 
             {/* Divider */}
-            <div className="flex items-center gap-3">
-              <Separator className="flex-1" />
-              <span className="text-xs text-muted-foreground">or</span>
-              <Separator className="flex-1" />
+            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0" }}>
+              <div style={{ flex: 1, height: 1, background: HAIR }} />
+              <span style={{ fontSize: 11, color: MUTED, fontWeight: 600, whiteSpace: "nowrap" }}>or continue with email</span>
+              <div style={{ flex: 1, height: 1, background: HAIR }} />
             </div>
 
-            {/* Email magic link */}
-            <form onSubmit={handleEmailSubmit} className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-muted-foreground">
-                  Continue with email
-                </label>
-                <div className="relative">
-                  <Mail
-                    size={18}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  />
-                  <Input
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="h-12 pl-10 rounded-xl"
-                    required
-                  />
-                </div>
+            {/* Email + submit */}
+            <form onSubmit={handleEmailSubmit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ position: "relative" }}>
+                <Mail
+                  size={16}
+                  style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: MUTED, pointerEvents: "none" }}
+                />
+                <input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  style={{
+                    width: "100%",
+                    height: 48,
+                    borderRadius: 13,
+                    border: `1.5px solid ${HAIR}`,
+                    paddingLeft: 40,
+                    paddingRight: 14,
+                    fontSize: 14,
+                    color: INK,
+                    background: "#fff",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    transition: "border-color 0.15s",
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = A_TO)}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = HAIR)}
+                />
               </div>
 
               {error && (
-                <div className="rounded-lg bg-destructive/10 p-3 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle size={14} className="text-destructive" />
-                    <p className="text-sm text-destructive font-medium">{error}</p>
+                <div style={{ borderRadius: 10, background: "rgba(225,29,72,0.06)", border: "1px solid rgba(225,29,72,0.2)", padding: "10px 12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <AlertTriangle size={13} style={{ color: "#e11d48", flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: "#e11d48", fontWeight: 600 }}>{error}</span>
                   </div>
                   {debugInfo && (
-                    <p className="text-xs text-muted-foreground pl-5">{debugInfo}</p>
+                    <p style={{ fontSize: 11, color: MUTED, marginTop: 4, marginLeft: 19, lineHeight: 1.4 }}>{debugInfo}</p>
                   )}
                 </div>
               )}
 
-              <Button
+              <button
                 type="submit"
                 disabled={loading}
-                className="w-full gradient-primary text-primary-foreground h-12 font-semibold rounded-xl active:scale-[0.97] transition-transform"
+                style={{
+                  width: "100%",
+                  height: 50,
+                  borderRadius: 13,
+                  background: `linear-gradient(135deg, ${gradFrom}, ${gradTo})`,
+                  color: "#fff",
+                  border: "none",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  cursor: loading ? "default" : "pointer",
+                  opacity: loading ? 0.8 : 1,
+                  boxShadow: `0 6px 16px -4px oklch(0.62 0.20 ${shadowHue} / 0.40)`,
+                  transition: "opacity 0.15s",
+                }}
               >
                 {loading ? (
-                  <Loader2 size={20} className="animate-spin" />
+                  <Loader2 size={18} className="animate-spin" />
                 ) : (
-                  "Send Magic Link"
+                  <>Send Magic Link <ArrowRight size={15} /></>
                 )}
-              </Button>
+              </button>
             </form>
+
+            {/* Privacy note */}
+            <p style={{ fontSize: 11, color: MUTED, textAlign: "center", marginTop: 14, lineHeight: 1.5 }}>
+              By continuing you agree to our{" "}
+              <span style={{ color: A_DEEP, fontWeight: 600, cursor: "pointer" }}>Terms</span>
+              {" & "}
+              <span style={{ color: A_DEEP, fontWeight: 600, cursor: "pointer" }}>Privacy Policy</span>
+            </p>
           </div>
         )}
       </div>
     </div>
   );
-};
+});
+
+Auth.displayName = "Auth";
 
 export default Auth;

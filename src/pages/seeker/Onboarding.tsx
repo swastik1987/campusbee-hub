@@ -13,6 +13,10 @@ import type { ProviderProfileData } from "@/components/onboarding/StepProviderPr
 import { LogOut, X } from "lucide-react";
 import { toast } from "sonner";
 
+// Design tokens
+const A_FROM = "oklch(0.78 0.18 250)";
+const A_TO   = "oklch(0.62 0.20 250)";
+
 type Role = "seeker" | "provider" | null;
 
 // v2 flows
@@ -185,30 +189,75 @@ const Onboarding = React.forwardRef<HTMLDivElement, Record<string, never>>((_pro
   const isSeeker = role === "seeker";
 
   return (
-    <div ref={ref} className={`${isSeeker ? "seeker-theme" : ""} flex min-h-screen flex-col bg-background`}>
-      <div className="flex items-center justify-between px-4 pt-4 pb-0">
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-        >
-          <LogOut size={14} />
-          Log out
-        </button>
-        <button
-          onClick={handleSkip}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          Skip for now
-          <X size={14} />
-        </button>
+    <div
+      ref={ref}
+      className={`${isSeeker ? "seeker-theme" : ""} flex min-h-screen flex-col bg-background`}
+      style={{ position: "relative", overflow: "hidden" }}
+    >
+      {/* Aurora background blobs — tinted to current role */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute", top: -120, right: -80,
+          width: 280, height: 280, borderRadius: "50%",
+          background: isSeeker ? A_FROM : "oklch(0.72 0.18 25)",
+          filter: "blur(70px)", opacity: 0.18, pointerEvents: "none",
+        }}
+      />
+      <div
+        aria-hidden
+        style={{
+          position: "absolute", bottom: -140, left: -80,
+          width: 260, height: 260, borderRadius: "50%",
+          background: isSeeker ? "oklch(0.85 0.15 200)" : "oklch(0.80 0.18 45)",
+          filter: "blur(70px)", opacity: 0.13, pointerEvents: "none",
+        }}
+      />
+
+      {/* ── Top bar ──────────────────────────────────────────────────── */}
+      <div className="relative flex items-center justify-between px-4 pt-4 pb-0">
+        {/* Logo mark */}
+        <div className="flex items-center gap-2.5">
+          <div
+            style={{
+              width: 30, height: 30, borderRadius: 9, flexShrink: 0,
+              background: `linear-gradient(135deg, ${A_FROM}, ${A_TO})`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#fff", fontWeight: 800, fontSize: 15,
+            }}
+          >
+            C
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: -0.3, color: "var(--foreground)" }}>
+            CampusBee
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          >
+            <LogOut size={13} />
+            Log out
+          </button>
+          <button
+            onClick={handleSkip}
+            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            Skip
+            <X size={13} />
+          </button>
+        </div>
       </div>
 
-      <div className="px-6 pt-2 pb-2">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-medium text-muted-foreground">
+      {/* ── Progress bar ─────────────────────────────────────────────── */}
+      <div className="relative px-5 pt-3 pb-2">
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-[11px] font-medium text-muted-foreground">
             Step {step + 1} of {totalSteps}
           </span>
-          <span className="text-xs font-semibold text-primary">
+          <span className="text-[11px] font-bold text-primary">
             {stepLabels[step] ?? ""}
           </span>
         </div>
@@ -216,18 +265,22 @@ const Onboarding = React.forwardRef<HTMLDivElement, Record<string, never>>((_pro
           {Array.from({ length: totalSteps }).map((_, i) => (
             <div
               key={i}
-              className={`h-1.5 flex-1 rounded-full transition-all ${
-                i <= step ? (isSeeker ? "" : "gradient-primary") : "bg-muted"
+              className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                i <= step
+                  ? isSeeker ? "" : "bg-primary"
+                  : "bg-muted"
               }`}
-              style={i <= step && isSeeker ? {
-                background: "linear-gradient(90deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))",
-              } : undefined}
+              style={
+                i <= step && isSeeker
+                  ? { background: `linear-gradient(90deg, ${A_FROM}, ${A_TO})` }
+                  : undefined
+              }
             />
           ))}
         </div>
       </div>
 
-      <div className="flex-1 px-6 py-6">{renderStep()}</div>
+      <div className="relative flex-1 px-6 py-6">{renderStep()}</div>
     </div>
   );
 });

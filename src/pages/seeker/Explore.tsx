@@ -627,25 +627,31 @@ const Explore = () => {
         )}
       </div>
 
-      {/* Location Picker Sheet */}
+      {/* Location Picker Sheet — full map + GPS, identical to onboarding */}
       <Sheet open={showLocationSheet} onOpenChange={(open) => {
         setShowLocationSheet(open);
         if (!open) setPendingLocation(null);
       }}>
-        <SheetContent side="bottom" className="rounded-t-2xl pb-8">
-          <SheetHeader className="mb-4">
-            <SheetTitle>
-              {profile?.seeker_home_address ? "Update Location" : "Set Your Location"}
+        <SheetContent side="bottom" className="rounded-t-2xl flex flex-col" style={{ maxHeight: "92dvh", paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
+          <SheetHeader className="shrink-0 pb-3 border-b border-border">
+            <SheetTitle className="flex items-center gap-2">
+              <MapPin size={16} className="text-primary" />
+              {profile?.seeker_home_address ? "Update Home Location" : "Set Home Location"}
             </SheetTitle>
+            <p className="text-xs text-muted-foreground text-left">
+              Search, use GPS, or drag the map pin to your home address.
+            </p>
           </SheetHeader>
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto py-4 space-y-4 min-h-0">
             <MapplsPicker
               value={pendingLocation}
               onChange={setPendingLocation}
-              showMap={false}
+              placeholder="Search for your home address"
             />
+          </div>
+          <div className="shrink-0 pt-3 border-t border-border">
             <Button
-              className="w-full"
+              className="w-full h-11 gradient-primary text-white rounded-xl font-semibold"
               disabled={!pendingLocation || updateLocation.isPending}
               onClick={handleSaveLocation}
             >
