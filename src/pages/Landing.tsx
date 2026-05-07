@@ -400,7 +400,17 @@ const LoggedInLanding = () => {
   ].filter(Boolean) as { label: string; desc: string; icon: typeof Search; path: string; from: string; to: string }[];
 
   // For single-role users being redirected, show brief blank state
-  if (!isMultiRole && !isNewUser) {
+  const singleRoleTarget = !isMultiRole && !isNewUser
+    ? (hasFamily ? "/explore" : isProvider ? "/provider/dashboard" : isAdmin ? "/platform" : null)
+    : null;
+
+  useEffect(() => {
+    if (singleRoleTarget) {
+      navigate(singleRoleTarget, { replace: true });
+    }
+  }, [singleRoleTarget, navigate]);
+
+  if (singleRoleTarget) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
