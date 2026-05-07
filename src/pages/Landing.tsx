@@ -375,31 +375,6 @@ const LoggedInLanding = () => {
   const isNewUser   = activeRoles.length === 0;
   const hasAnyRole  = activeRoles.length >= 1;
 
-  // ── Role chooser cards (multi-role) ────────────────────────────
-  const ROLE_CARDS = [
-    hasFamily && {
-      label: "Discover & Book",
-      desc: "Explore classes, manage enrollments",
-      icon: Search,
-      path: "/explore",
-      from: A_FROM, to: A_TO,
-    },
-    isProvider && {
-      label: "Manage Classes",
-      desc: "Dashboard, students, payments",
-      icon: GraduationCap,
-      path: "/provider/dashboard",
-      from: "oklch(0.72 0.18 265)", to: "oklch(0.58 0.20 265)",
-    },
-    isAdmin && {
-      label: "Platform Admin",
-      desc: "Analytics, moderation, providers",
-      icon: Shield,
-      path: "/platform",
-      from: "oklch(0.72 0.16 160)", to: "oklch(0.58 0.18 160)",
-    },
-  ].filter(Boolean) as { label: string; desc: string; icon: typeof Search; path: string; from: string; to: string }[];
-
   // Users always stay on "/" — no auto-redirect to /explore, /provider/dashboard or /platform.
 
   return (
@@ -436,7 +411,7 @@ const LoggedInLanding = () => {
           <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
               <p style={{ fontSize: 11, fontWeight: 700, opacity: 0.8, letterSpacing: 0.3, marginBottom: 2 }}>
-                {isMultiRole ? "CHOOSE YOUR VIEW" : "WELCOME BACK"}
+                WELCOME BACK
               </p>
               <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, letterSpacing: -0.3 }}>
                 Hi {firstName} 👋
@@ -465,158 +440,118 @@ const LoggedInLanding = () => {
             </Avatar>
           </div>
 
-          {/* Role pills */}
-          <div style={{ display: "flex", gap: 6, marginTop: 14, flexWrap: "wrap" }}>
-            {hasFamily && (
-              <div style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.28)", borderRadius: 999, padding: "4px 10px", fontSize: 10, fontWeight: 700 }}>
-                <Home size={10} /> Seeker
-              </div>
-            )}
-            {isProvider && (
-              <div style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.28)", borderRadius: 999, padding: "4px 10px", fontSize: 10, fontWeight: 700 }}>
-                <GraduationCap size={10} /> Provider
-              </div>
-            )}
-            {isAdmin && (
-              <div style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.28)", borderRadius: 999, padding: "4px 10px", fontSize: 10, fontWeight: 700 }}>
-                <Shield size={10} /> Admin
-              </div>
-            )}
-          </div>
+          {/* Role pills — only shown for users who have set up roles */}
+          {(hasFamily || isProvider || isAdmin) && (
+            <div style={{ display: "flex", gap: 6, marginTop: 14, flexWrap: "wrap" }}>
+              {hasFamily && (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.28)", borderRadius: 999, padding: "4px 10px", fontSize: 10, fontWeight: 700 }}>
+                  <Home size={10} /> Seeker
+                </div>
+              )}
+              {isProvider && (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.28)", borderRadius: 999, padding: "4px 10px", fontSize: 10, fontWeight: 700 }}>
+                  <GraduationCap size={10} /> Provider
+                </div>
+              )}
+              {isAdmin && (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.28)", borderRadius: 999, padding: "4px 10px", fontSize: 10, fontWeight: 700 }}>
+                  <Shield size={10} /> Admin
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* ── Role chooser (shown for any signed-in user with ≥1 role) ── */}
-        {hasAnyRole && (
-          <div className="space-y-3">
-            <p style={{ fontSize: 13, fontWeight: 700, color: MUTED }}>Where would you like to go?</p>
-            {ROLE_CARDS.map(card => (
-              <button
-                key={card.path}
-                onClick={() => navigate(card.path)}
-                style={{ width: "100%", background: "#fff", border: `1px solid ${HAIR}`, borderRadius: 16, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", transition: "box-shadow 0.15s", textAlign: "left", boxShadow: "0 4px 12px -6px rgba(15,23,42,0.08)" }}
-              >
-                <div style={{ width: 48, height: 48, borderRadius: 14, background: `linear-gradient(135deg, ${card.from}, ${card.to})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <card.icon size={22} color="#fff" />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: INK }}>{card.label}</div>
-                  <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{card.desc}</div>
-                </div>
-                <ChevronRight size={16} style={{ color: MUTED, flexShrink: 0 }} />
-              </button>
-            ))}
+        {/* ── Role cards — always visible ───────────────────────────── */}
+        <div className="space-y-4">
+          <div>
+            <h3 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 4px", letterSpacing: -0.3 }}>What brings you here?</h3>
+            <p style={{ fontSize: 13, color: MUTED, margin: 0 }}>Choose how you'd like to get started</p>
           </div>
-        )}
 
-        {/* ── New user bifurcation ───────────────────────────────── */}
-        {isNewUser && (
-          <div className="space-y-4">
-            <div>
-              <h3 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 4px", letterSpacing: -0.3 }}>What brings you here?</h3>
-              <p style={{ fontSize: 13, color: MUTED, margin: 0 }}>Choose how you'd like to get started</p>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {/* Find Classes */}
-              <button
-                onClick={() => navigate("/onboarding?role=seeker")}
-                style={{ background: A_SOFT, border: `2px solid ${A_RING}`, borderRadius: 18, padding: "18px 14px", textAlign: "left", cursor: "pointer", transition: "all 0.15s", display: "flex", flexDirection: "column", gap: 10 }}
-              >
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${A_FROM}, ${A_TO})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Search size={22} color="#fff" />
-                </div>
-                <div>
-                  <p style={{ fontSize: 14, fontWeight: 800, color: A_DEEP, margin: "0 0 3px", lineHeight: 1.2 }}>Find Classes</p>
-                  <p style={{ fontSize: 11, color: MUTED, margin: 0, lineHeight: 1.4 }}>Discover & enroll in sports, arts & more near you</p>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: A_DEEP }}>
-                  Get started <ArrowRight size={11} />
-                </div>
-              </button>
-
-              {/* Teach Classes */}
-              <button
-                onClick={() => navigate("/onboarding?role=provider")}
-                style={{ background: INK, borderRadius: 18, padding: "18px 14px", textAlign: "left", cursor: "pointer", transition: "all 0.15s", display: "flex", flexDirection: "column", gap: 10, position: "relative", overflow: "hidden" }}
-              >
-                <div aria-hidden style={{ position: "absolute", top: -30, right: -30, width: 100, height: 100, borderRadius: "50%", background: A_FROM, opacity: 0.35, filter: "blur(20px)", pointerEvents: "none" }} />
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${A_FROM}, ${A_TO})`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-                  <GraduationCap size={22} color="#fff" />
-                </div>
-                <div style={{ position: "relative" }}>
-                  <p style={{ fontSize: 14, fontWeight: 800, color: "#fff", margin: "0 0 3px", lineHeight: 1.2 }}>Teach Classes</p>
-                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", margin: 0, lineHeight: 1.4 }}>List classes, manage students & grow your business</p>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.85)", position: "relative" }}>
-                  Get started <ArrowRight size={11} />
-                </div>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Quick links (for multi-role & new user) ───────────── */}
-        {(isMultiRole || isNewUser) && (
-          <div style={{ background: "#fff", border: `1px solid ${HAIR}`, borderRadius: 16, overflow: "hidden" }}>
-            {isNewUser && !isProvider && (
-              <button
-                onClick={() => navigate("/explore")}
-                style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", textAlign: "left", cursor: "pointer", background: "transparent", border: "none", borderBottom: `1px solid ${HAIR}` }}
-              >
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: A_SOFT, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Search size={17} style={{ color: A_TO }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: INK }}>Browse classes without signing up</div>
-                </div>
-                <ChevronRight size={15} style={{ color: MUTED }} />
-              </button>
-            )}
-            {!isProvider && (
-              <button
-                onClick={() => navigate("/become-provider")}
-                style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", textAlign: "left", cursor: "pointer", background: "transparent", border: "none", borderBottom: `1px solid ${HAIR}` }}
-              >
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(99,102,241,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <GraduationCap size={17} style={{ color: "#6366f1" }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: INK }}>Start teaching on CampusBee</div>
-                  <div style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>Free to list · 0% listing fees</div>
-                </div>
-                <ChevronRight size={15} style={{ color: MUTED }} />
-              </button>
-            )}
-            {isMultiRole && (
-              <button
-                onClick={() => navigate("/profile")}
-                style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", textAlign: "left", cursor: "pointer", background: "transparent", border: "none", borderBottom: `1px solid ${HAIR}` }}
-              >
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(100,116,139,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Users size={17} style={{ color: MUTED }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: INK }}>Your profile & family</div>
-                </div>
-                <ChevronRight size={15} style={{ color: MUTED }} />
-              </button>
-            )}
-            {/* Logout */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {/* Find Classes — go to /explore if already a seeker, else start onboarding */}
             <button
-              onClick={handleLogout}
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", textAlign: "left", cursor: "pointer", background: "transparent", border: "none" }}
+              onClick={() => navigate(hasFamily ? "/explore" : "/onboarding?role=seeker")}
+              style={{ background: A_SOFT, border: `2px solid ${A_RING}`, borderRadius: 18, padding: "18px 14px", textAlign: "left", cursor: "pointer", transition: "all 0.15s", display: "flex", flexDirection: "column", gap: 10 }}
             >
-              <div style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(225,29,72,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <LogOut size={17} style={{ color: "#e11d48" }} />
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${A_FROM}, ${A_TO})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Search size={22} color="#fff" />
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#e11d48" }}>Log out</div>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 800, color: A_DEEP, margin: "0 0 3px", lineHeight: 1.2 }}>Find Classes</p>
+                <p style={{ fontSize: 11, color: MUTED, margin: 0, lineHeight: 1.4 }}>Discover & enroll in sports, arts & more near you</p>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: A_DEEP }}>
+                {hasFamily ? "Explore →" : "Get started"} <ArrowRight size={11} />
+              </div>
+            </button>
+
+            {/* Teach Classes — go to /provider/dashboard if already a provider, else start onboarding */}
+            <button
+              onClick={() => navigate(isProvider ? "/provider/dashboard" : "/onboarding?role=provider")}
+              style={{ background: INK, borderRadius: 18, padding: "18px 14px", textAlign: "left", cursor: "pointer", transition: "all 0.15s", display: "flex", flexDirection: "column", gap: 10, position: "relative", overflow: "hidden" }}
+            >
+              <div aria-hidden style={{ position: "absolute", top: -30, right: -30, width: 100, height: 100, borderRadius: "50%", background: A_FROM, opacity: 0.35, filter: "blur(20px)", pointerEvents: "none" }} />
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${A_FROM}, ${A_TO})`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                <GraduationCap size={22} color="#fff" />
+              </div>
+              <div style={{ position: "relative" }}>
+                <p style={{ fontSize: 14, fontWeight: 800, color: "#fff", margin: "0 0 3px", lineHeight: 1.2 }}>Teach Classes</p>
+                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", margin: 0, lineHeight: 1.4 }}>List classes, manage students & grow your business</p>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.85)", position: "relative" }}>
+                {isProvider ? "Dashboard →" : "Get started"} <ArrowRight size={11} />
               </div>
             </button>
           </div>
-        )}
 
-        {/* Logout for single-role (while redirect is happening) — already in brief loading state */}
+          {/* Platform Admin card — only for admins */}
+          {isAdmin && (
+            <button
+              onClick={() => navigate("/platform")}
+              style={{ width: "100%", background: "#fff", border: `1px solid ${HAIR}`, borderRadius: 16, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", textAlign: "left", boxShadow: "0 4px 12px -6px rgba(15,23,42,0.08)" }}
+            >
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: "linear-gradient(135deg, oklch(0.72 0.16 160), oklch(0.58 0.18 160))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Shield size={22} color="#fff" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: INK }}>Platform Admin</div>
+                <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>Analytics, moderation, providers</div>
+              </div>
+              <ChevronRight size={16} style={{ color: MUTED, flexShrink: 0 }} />
+            </button>
+          )}
+        </div>
+
+        {/* ── Quick links ───────────────────────────────────────────── */}
+        <div style={{ background: "#fff", border: `1px solid ${HAIR}`, borderRadius: 16, overflow: "hidden" }}>
+          <button
+            onClick={() => navigate("/profile")}
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", textAlign: "left", cursor: "pointer", background: "transparent", border: "none", borderBottom: `1px solid ${HAIR}` }}
+          >
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(100,116,139,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Users size={17} style={{ color: MUTED }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: INK }}>Your profile & family</div>
+            </div>
+            <ChevronRight size={15} style={{ color: MUTED }} />
+          </button>
+          <button
+            onClick={handleLogout}
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", textAlign: "left", cursor: "pointer", background: "transparent", border: "none" }}
+          >
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(225,29,72,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <LogOut size={17} style={{ color: "#e11d48" }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#e11d48" }}>Log out</div>
+            </div>
+          </button>
+        </div>
+
+        {/* spacer */}
       </div>
 
       {/* ── Location picker sheet ──────────────────────────────── */}
