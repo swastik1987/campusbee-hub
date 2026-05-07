@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useExploreClasses, useNewClasses, usePopularClasses } from "@/hooks/useSeeker";
+import { useExploreClasses, usePlatformSettings, useActiveSponsoredClassIds } from "@/hooks/useSeeker";
 import { useActiveFeaturedListings } from "@/hooks/useFeatured";
 import { useIncomingInvites } from "@/hooks/useFamilyLinking";
 import { useCategories } from "@/hooks/useClasses";
@@ -47,7 +47,6 @@ import {
   Code,
   Sparkles,
   BookOpen,
-  ChevronRight,
   Users,
   MapPin,
   Pencil,
@@ -218,20 +217,59 @@ const Explore = () => {
     return Array.from(map.values());
   })();
 
-  // Apply distance filter + attach distanceKm for display
+  // Apply distance filter + attach distanceKm + trust markers for display
   const displayClasses = useMemo(() => {
     if (!rawDisplayClasses) return rawDisplayClasses;
-    return (rawDisplayClasses as any[])
+    const withDist = (rawDisplayClasses as any[])
       .filter(withinRadius)
       .map((cls: any) => ({ ...cls, distanceKm: computeDistance(cls) }));
+    return applyTrustMarkers(withDist);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawDisplayClasses, seekerLat, seekerLng, searchRadius]);
+  }, [rawDisplayClasses, seekerLat, seekerLng, searchRadius, applyTrustMarkers]);
 
-  // Discovery data (only fetched when not actively searching)
-  const { data: featuredListings } = useActiveFeaturedListings(undefined);
-  const { data: newClasses } = useNewClasses();
-  const { data: popular } = usePopularClasses();
-  const { data: incomingInvites } = useIncomingInvites(profile?.id, profile?.email ?? null, profile?.mobile_number ?? null);
+  // Discovery data
+  const { data: featuredListings }   = useActiveFeaturedListings(undefined);
+  const { data: incomingInvites }    = useIncomingInvites(profile?.id, profile?.email ?? null, profile?.mobile_number ?? null);
+
+  // Trust marker data
+  const { data: platformSettings }   = usePlatformSettings();
+  const { data: sponsoredClassIds }  = useActiveSponsoredClassIds();
+
+  // Configurable thresholds (fall back to sensible defaults)
+  const newThresholdDays      = parseInt(platformSettings?.new_class_days_threshold   ?? "7");
+  const popularEnrollmentMin  = parseInt(platformSettings?.popular_enrollment_min     ?? "10");
+  const popularRatingMin      = parseFloat(platformSettings?.popular_rating_min       ?? "4.0");
+  const popularRatingCountMin = parseInt(platformSettings?.popular_rating_count_min   ?? "5");
+
+  /**
+   * Stamps each class with isNew / isPopular / isSponsored, then sorts
+   * sponsored classes to the top of the list.
+   */
+  const applyTrustMarkers = useCallback((list: any[] | null | undefined): any[] | null | undefined => {
+    if (!list) return list;
+    const now = Date.now();
+    const withMarkers = list.map((cls: any) => {
+      const created = cls.created_at ? new Date(cls.created_at).getTime() : 0;
+      const ageDays = (now - created) / 86_400_000;
+      const totalEnrolled: number = (cls.batches ?? []).reduce(
+        (s: number, b: any) => s + (b.current_enrollment_count ?? 0), 0,
+      );
+      return {
+        ...cls,
+        isSponsored: sponsoredClassIds?.has(cls.id) ?? false,
+        isNew:       ageDays <= newThresholdDays,
+        isPopular:
+          totalEnrolled >= popularEnrollmentMin ||
+          ((cls.total_rating ?? 0) >= popularRatingMin &&
+           (cls.rating_count ?? 0) >= popularRatingCountMin),
+      };
+    });
+    // Sponsored classes float to the top; rest keep existing order
+    return [
+      ...withMarkers.filter((c: any) => c.isSponsored),
+      ...withMarkers.filter((c: any) => !c.isSponsored),
+    ];
+  }, [sponsoredClassIds, newThresholdDays, popularEnrollmentMin, popularRatingMin, popularRatingCountMin]);
   const pendingInviteCount = incomingInvites?.length ?? 0;
 
   const { data: categories, isLoading: catLoading } = useQuery({
@@ -275,14 +313,15 @@ const Explore = () => {
     return () => el.removeEventListener("scrollend", handleScroll);
   }, []);
 
-  // Apply distance filter + attach distanceKm for the non-search "all classes" list
+  // Apply distance filter + attach distanceKm + trust markers for the non-search "all classes" list
   const filteredClasses = useMemo(() => {
     if (!classes) return classes;
-    return (classes as any[])
+    const withDist = (classes as any[])
       .filter(withinRadius)
       .map((cls: any) => ({ ...cls, distanceKm: computeDistance(cls) }));
+    return applyTrustMarkers(withDist);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classes, seekerLat, seekerLng, searchRadius]);
+  }, [classes, seekerLat, seekerLng, searchRadius, applyTrustMarkers]);
 
   const clearFilters = () => {
     setCategorySlug("");
@@ -584,45 +623,6 @@ const Explore = () => {
               )}
             </div>
 
-            {/* New This Month */}
-            {newClasses && newClasses.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-base font-bold">New This Month</h2>
-                  <button
-                    onClick={() => { setSort("newest"); setSearch(""); setCategorySlug(""); }}
-                    className="text-xs text-primary font-medium flex items-center gap-0.5"
-                  >
-                    See All <ChevronRight size={14} />
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  {newClasses.map((cls) => (
-                    <ClassCard key={cls.id} cls={cls as any} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Popular */}
-            {popular && popular.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-base font-bold">Popular</h2>
-                  <button
-                    onClick={() => { setSort("popular"); setSearch(""); setCategorySlug(""); }}
-                    className="text-xs text-primary font-medium flex items-center gap-0.5"
-                  >
-                    See All <ChevronRight size={14} />
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  {popular.map((cls) => (
-                    <ClassCard key={cls.id} cls={cls as any} />
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>

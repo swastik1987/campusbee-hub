@@ -420,7 +420,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
         {cls.status === "published" && (
           <button
             onClick={handleShare}
-            className="flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent transition-colors"
+            className="flex items-center gap-1 rounded-lg border border-provider/40 bg-provider/5 px-2.5 py-1.5 text-xs font-semibold text-provider hover:bg-provider/10 transition-colors"
             title="Share class link"
           >
             <Share2 size={13} />

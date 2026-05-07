@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,10 @@ type ClassCardProps = {
       current_enrollment_count: number | null;
       batch_schedules?: { day_of_week: number; start_time: string; end_time: string }[] | null;
     }[] | null;
+    /** Trust markers — computed by Explore.tsx before passing to ClassCard */
+    isSponsored?: boolean;
+    isNew?: boolean;
+    isPopular?: boolean;
   };
   variant?: "horizontal" | "vertical";
 };
@@ -44,7 +49,8 @@ const FEE_LABELS: Record<string, string> = {
   one_time: "",
 };
 
-const ClassCard = ({ cls, variant = "horizontal" }: ClassCardProps) => {
+const ClassCard = React.forwardRef<HTMLDivElement, ClassCardProps>(
+  ({ cls, variant = "horizontal" }, ref) => {
   const navigate = useNavigate();
 
   const provider = cls.service_providers;
@@ -145,6 +151,22 @@ const ClassCard = ({ cls, variant = "horizontal" }: ClassCardProps) => {
           )}
         </p>
         <div className="flex items-center gap-1.5 flex-wrap mt-1">
+          {/* Trust marker badges — Sponsored first, then New, then Popular */}
+          {cls.isSponsored && (
+            <Badge className="text-[10px] border-0 bg-amber-50 text-amber-700 border border-amber-200 gap-0.5 px-1.5">
+              ✦ Sponsored
+            </Badge>
+          )}
+          {cls.isNew && (
+            <Badge className="text-[10px] border-0 bg-blue-50 text-blue-700 border border-blue-200 px-1.5">
+              ✦ New
+            </Badge>
+          )}
+          {cls.isPopular && (
+            <Badge className="text-[10px] border-0 bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5">
+              ★ Popular
+            </Badge>
+          )}
           {cls.class_categories?.name && (
             <Badge variant="outline" className="text-[10px]">{cls.class_categories.name}</Badge>
           )}
@@ -177,6 +199,8 @@ const ClassCard = ({ cls, variant = "horizontal" }: ClassCardProps) => {
       </div>
     </Card>
   );
-};
+});
+
+ClassCard.displayName = "ClassCard";
 
 export default ClassCard;

@@ -1,6 +1,58 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+// ---- Platform Settings (read-only, public) ----
+
+/**
+ * Fetches all rows from platform_settings as a key→value map.
+ * Results are cached for 5 minutes; defaults are applied in consuming code.
+ * Keys used by trust markers:
+ *   new_class_days_threshold    (default "7")
+ *   popular_enrollment_min      (default "10")
+ *   popular_rating_min          (default "4.0")
+ *   popular_rating_count_min    (default "5")
+ */
+export function usePlatformSettings() {
+  return useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("platform_settings")
+        .select("key, value");
+      const settings: Record<string, string> = {};
+      (data ?? []).forEach((row: any) => {
+        if (row.key) settings[row.key] = row.value ?? "";
+      });
+      return settings;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// ---- Active Sponsored Class IDs (Seeker Explore) ----
+
+/**
+ * Returns a Set of class IDs that currently have an active sponsored listing.
+ * Used by the Explore page to mark classes with the "Sponsored" trust tag
+ * and sort them to the top of results.
+ */
+export function useActiveSponsoredClassIds() {
+  return useQuery({
+    queryKey: ["active-sponsored-class-ids"],
+    queryFn: async () => {
+      const today = new Date().toISOString();
+      const { data } = await supabase
+        .from("sponsored_listings")
+        .select("class_id")
+        .eq("status", "active")
+        .lte("valid_from", today)
+        .gte("valid_until", today);
+      return new Set<string>((data ?? []).map((d: any) => d.class_id as string));
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
 // ---- Featured / Sponsored Classes (Seeker) ----
 
 /** Returns active sponsored class listings. Falls back to top-rated published classes. */
