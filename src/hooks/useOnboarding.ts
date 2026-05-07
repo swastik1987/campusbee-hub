@@ -8,7 +8,7 @@ import { useUser } from "@/contexts/UserContext";
  * Providers self-onboard into the Basic tier with no apartment binding.
  */
 
-// ---- Profile (name, avatar) ----------------------------------------------
+// ---- Profile (name, avatar, mobile) -------------------------------------
 export function useUpdateProfile() {
   const { refreshProfile } = useUser();
   const qc = useQueryClient();
@@ -18,14 +18,20 @@ export function useUpdateProfile() {
       userId,
       fullName,
       avatarUrl,
+      mobileNumber,
     }: {
       userId: string;
       fullName: string;
       avatarUrl?: string | null;
+      mobileNumber?: string | null;
     }) => {
+      const updateObj: Record<string, unknown> = { full_name: fullName };
+      if (avatarUrl !== undefined) updateObj.avatar_url = avatarUrl;
+      if (mobileNumber !== undefined) updateObj.mobile_number = mobileNumber;
+
       const { error } = await supabase
         .from("users")
-        .update({ full_name: fullName, avatar_url: avatarUrl ?? null })
+        .update(updateObj as never)
         .eq("id", userId);
       if (error) throw error;
     },
@@ -131,6 +137,46 @@ export function useCreateProviderOnboarding() {
     },
     onSuccess: async () => {
       await refreshProfile();
+    },
+  });
+}
+
+// ---- Provider profile update ---------------------------------------------
+export function useUpdateProviderProfile() {
+  const { refreshProfile } = useUser();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: {
+      providerId: string;
+      businessName?: string;
+      providerType?: "individual" | "academy";
+      bio?: string;
+      experienceYears?: number | null;
+      qualifications?: string | null;
+      whatsappNumber?: string | null;
+      logoUrl?: string | null;
+    }) => {
+      const updateObj: Record<string, unknown> = {};
+      if (input.businessName !== undefined) updateObj.business_name = input.businessName;
+      if (input.providerType !== undefined) updateObj.provider_type = input.providerType;
+      if (input.bio !== undefined) updateObj.bio = input.bio;
+      if (input.experienceYears !== undefined) updateObj.experience_years = input.experienceYears;
+      if (input.qualifications !== undefined) updateObj.qualifications = input.qualifications;
+      if (input.whatsappNumber !== undefined) updateObj.whatsapp_number = input.whatsappNumber;
+      if (input.logoUrl !== undefined) updateObj.logo_url = input.logoUrl;
+
+      if (Object.keys(updateObj).length === 0) return;
+
+      const { error } = await supabase
+        .from("service_providers")
+        .update(updateObj as never)
+        .eq("id", input.providerId);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await refreshProfile();
+      qc.invalidateQueries({ queryKey: ["provider-profile"] });
     },
   });
 }
