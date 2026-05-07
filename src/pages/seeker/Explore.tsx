@@ -51,6 +51,7 @@ import {
   MapPin,
   Pencil,
   Navigation2,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -217,21 +218,7 @@ const Explore = () => {
     return Array.from(map.values());
   })();
 
-  // Apply distance filter + attach distanceKm + trust markers for display
-  const displayClasses = useMemo(() => {
-    if (!rawDisplayClasses) return rawDisplayClasses;
-    const withDist = (rawDisplayClasses as any[])
-      .filter(withinRadius)
-      .map((cls: any) => ({ ...cls, distanceKm: computeDistance(cls) }));
-    return applyTrustMarkers(withDist);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawDisplayClasses, seekerLat, seekerLng, searchRadius, applyTrustMarkers]);
-
-  // Discovery data
-  const { data: featuredListings }   = useActiveFeaturedListings(undefined);
-  const { data: incomingInvites }    = useIncomingInvites(profile?.id, profile?.email ?? null, profile?.mobile_number ?? null);
-
-  // Trust marker data
+  // Trust marker data — must be declared before the useMemos that reference applyTrustMarkers
   const { data: platformSettings }   = usePlatformSettings();
   const { data: sponsoredClassIds }  = useActiveSponsoredClassIds();
 
@@ -270,6 +257,20 @@ const Explore = () => {
       ...withMarkers.filter((c: any) => !c.isSponsored),
     ];
   }, [sponsoredClassIds, newThresholdDays, popularEnrollmentMin, popularRatingMin, popularRatingCountMin]);
+
+  // Apply distance filter + attach distanceKm + trust markers for display
+  const displayClasses = useMemo(() => {
+    if (!rawDisplayClasses) return rawDisplayClasses;
+    const withDist = (rawDisplayClasses as any[])
+      .filter(withinRadius)
+      .map((cls: any) => ({ ...cls, distanceKm: computeDistance(cls) }));
+    return applyTrustMarkers(withDist);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawDisplayClasses, seekerLat, seekerLng, searchRadius, applyTrustMarkers]);
+
+  // Discovery data
+  const { data: featuredListings }   = useActiveFeaturedListings(undefined);
+  const { data: incomingInvites }    = useIncomingInvites(profile?.id, profile?.email ?? null, profile?.mobile_number ?? null);
   const pendingInviteCount = incomingInvites?.length ?? 0;
 
   const { data: categories, isLoading: catLoading } = useQuery({
