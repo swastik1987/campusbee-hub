@@ -193,8 +193,15 @@ serve(async (req) => {
       );
     }
 
-    // Ensure the authenticated user owns this content
-    if (user.id !== owner_user_id) {
+    // Ensure the authenticated user owns this content.
+    // owner_user_id refers to public.users.id (not auth.users.id), so look it up.
+    const { data: ownerRow, error: ownerErr } = await userClient
+      .from("users")
+      .select("id")
+      .eq("auth_id", user.id)
+      .maybeSingle();
+
+    if (ownerErr || !ownerRow || ownerRow.id !== owner_user_id) {
       return new Response(
         JSON.stringify({ error: "Forbidden: owner_user_id must match authenticated user" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
