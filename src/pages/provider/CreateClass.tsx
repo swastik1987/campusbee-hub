@@ -15,7 +15,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
@@ -27,7 +26,6 @@ import {
 import {
   ArrowLeft,
   Camera,
-  CheckCircle2,
   Clock,
   ImagePlus,
   Loader2,
@@ -37,35 +35,53 @@ import { toast } from "sonner";
 
 const STEPS = ["Category", "Details", "Media", "Trial", "Batch", "Review"];
 const SKILL_LEVELS = ["beginner", "intermediate", "advanced", "all_levels"];
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAYS = [
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+  { value: 0, label: "Sun" },
+];
 const FEE_FREQUENCIES = [
-  { value: "monthly", label: "Monthly" },
-  { value: "per_session", label: "Per Session" },
-  { value: "quarterly", label: "Quarterly" },
+  { value: "monthly",      label: "Monthly"      },
+  { value: "per_session",  label: "Per Session"  },
+  { value: "quarterly",    label: "Quarterly"    },
   { value: "for_duration", label: "For Duration" },
-  { value: "one_time", label: "One Time" },
+  { value: "one_time",     label: "One Time"     },
 ];
 
-interface DaySchedule {
-  enabled: boolean;
-  startTime: string;
-  endTime: string;
-}
+/** 30-min time slots from 5:00 AM to 10:30 PM */
+const TIME_OPTIONS = Array.from({ length: 36 }, (_, i) => {
+  const totalMinutes = 5 * 60 + i * 30;
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  const period = hours < 12 ? "AM" : "PM";
+  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  const value = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+  const label = `${displayHours}:${String(mins).padStart(2, "0")} ${period}`;
+  return { value, label };
+});
+
+/** Red asterisk for required fields */
+const Req = () => <span className="text-red-500 ml-0.5">*</span>;
+/** Grey "(optional)" tag for non-required fields */
+const Opt = () => <span className="text-muted-foreground text-xs font-normal ml-1">(optional)</span>;
 
 const CreateClass = () => {
   const navigate = useNavigate();
   const { profile, providerProfile } = useUser();
   const [step, setStep] = useState(0);
 
-  // Step 1: Category
+  // ── Step 0: Category ─────────────────────────────────────────────────
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedParent, setSelectedParent] = useState("");
-  // Pending category request path
   const [showCatRequestSheet, setShowCatRequestSheet] = useState(false);
   const [pendingRequestId, setPendingRequestId] = useState<string | null>(null);
   const [pendingCategoryName, setPendingCategoryName] = useState("");
 
-  // Step 2: Details
+  // ── Step 1: Details ───────────────────────────────────────────────────
   const [title, setTitle] = useState("");
   const [shortDesc, setShortDesc] = useState("");
   const [description, setDescription] = useState("");
@@ -79,16 +95,16 @@ const CreateClass = () => {
   const [classLocation, setClassLocation] = useState<LocationValue | null>(null);
   const [homeRadiusKm, setHomeRadiusKm] = useState(5);
 
-  // Step 3: Media
+  // ── Step 2: Media ─────────────────────────────────────────────────────
   const [coverUrl, setCoverUrl] = useState("");
   const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
   const [promoUrl, setPromoUrl] = useState("");
 
-  // Step 4: Trial
+  // ── Step 3: Trial ─────────────────────────────────────────────────────
   const [trialAvailable, setTrialAvailable] = useState(false);
   const [trialFee, setTrialFee] = useState("0");
 
-  // Step 5: Batch
+  // ── Step 4: Batch ─────────────────────────────────────────────────────
   const [batchName, setBatchName] = useState("");
   const [batchType, setBatchType] = useState("custom");
   const [batchSkillLevel, setBatchSkillLevel] = useState("");
@@ -104,11 +120,12 @@ const CreateClass = () => {
   const [batchTotalSessions, setBatchTotalSessions] = useState("");
   const [registrationMode, setRegistrationMode] = useState("auto");
   const [autoWaitlist, setAutoWaitlist] = useState(true);
-  const [daySchedules, setDaySchedules] = useState<DaySchedule[]>(
-    DAY_NAMES.map(() => ({ enabled: false, startTime: "09:00", endTime: "10:00" }))
-  );
-  const [isPublishing, setIsPublishing] = useState(false);
+  // Schedule — chip-style day toggles + single shared time
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const [batchStartTime, setBatchStartTime] = useState("06:00");
+  const [batchEndTime, setBatchEndTime] = useState("07:00");
 
+  const [isPublishing, setIsPublishing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const isAcademy = providerProfile?.provider_type === "academy";
@@ -118,7 +135,6 @@ const CreateClass = () => {
   const createBatch = useCreateBatch();
   const uploadImage = useUploadClassImage();
 
-  // Filter categories based on provider's specialization_category_ids
   const specializationIds = providerProfile?.specialization_category_ids ?? [];
 
   const filteredSubCategories = useMemo(() => {
@@ -136,15 +152,13 @@ const CreateClass = () => {
     return parents.filter((p) => parentIdsWithChildren.has(p.id));
   }, [allCategories, filteredSubCategories, specializationIds]);
 
-  const toggleSkill = (s: string) => {
+  const toggleSkill = (s: string) =>
     setSkillLevels((p) => (p.includes(s) ? p.filter((x) => x !== s) : [...p, s]));
-  };
 
-  const updateDaySchedule = (index: number, updates: Partial<DaySchedule>) => {
-    setDaySchedules((prev) =>
-      prev.map((d, i) => (i === index ? { ...d, ...updates } : d))
+  const toggleDay = (day: number) =>
+    setSelectedDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
-  };
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -152,9 +166,7 @@ const CreateClass = () => {
     try {
       const url = await uploadImage.mutateAsync({ classId: "new-" + Date.now(), file, folder: "cover" });
       setCoverUrl(url);
-    } catch {
-      toast.error("Upload failed");
-    }
+    } catch { toast.error("Upload failed"); }
   };
 
   const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -163,23 +175,22 @@ const CreateClass = () => {
       try {
         const url = await uploadImage.mutateAsync({ classId: "new-" + Date.now(), file, folder: "gallery" });
         setGalleryUrls((p) => [...p, url]);
-      } catch {
-        toast.error("Upload failed");
-      }
+      } catch { toast.error("Upload failed"); }
     }
   };
 
-  const selectedSchedules = daySchedules
-    .map((d, i) => ({ ...d, dayOfWeek: i }))
-    .filter((d) => d.enabled);
+  const selectedSchedules = selectedDays.map((d) => ({
+    dayOfWeek: d,
+    startTime: batchStartTime,
+    endTime: batchEndTime,
+  }));
 
-  const batchValid = batchName.trim() && maxBatchSize && feeAmount && selectedSchedules.length > 0;
+  const batchValid = !!(batchName.trim() && maxBatchSize && feeAmount && selectedDays.length > 0);
 
   const handleSave = async (publish: boolean) => {
     const hasCategoryChoice = !!selectedCategoryId || !!pendingRequestId;
     if (!hasCategoryChoice || !title.trim() || !providerProfile || !profile) return;
 
-    // If using a pending category request, always save as draft (can't publish until approved)
     const effectivePublish = pendingRequestId ? false : publish;
 
     setIsPublishing(true);
@@ -211,33 +222,36 @@ const CreateClass = () => {
         homeRadiusKm: isHomeBased ? homeRadiusKm : 5,
       });
 
-      // 2. Create the batch + schedules
+      // 2. Create batch + schedules (separate try so batch errors don't swallow the class)
       if (batchValid && result?.id) {
-        await createBatch.mutateAsync({
-          classId: result.id,
-          trainerId: batchTrainerId || null,
-          batchName: batchName.trim(),
-          batchType,
-          skillLevel: batchSkillLevel || (skillLevels.length === 1 ? skillLevels[0] : null),
-          ageGroupMin: batchAgeMin ? parseInt(batchAgeMin) : (ageMin ? parseInt(ageMin) : null),
-          ageGroupMax: batchAgeMax ? parseInt(batchAgeMax) : (ageMax ? parseInt(ageMax) : null),
-          maxBatchSize: parseInt(maxBatchSize),
-          feeAmount: parseFloat(feeAmount),
-          feeFrequency,
-          registrationFee: registrationFee ? parseFloat(registrationFee) : 0,
-          startDate: batchStartDate || null,
-          endDate: batchEndDate || null,
-          totalSessions: batchTotalSessions ? parseInt(batchTotalSessions) : null,
-          registrationMode,
-          autoWaitlist,
-          notes: "",
-          status: "draft",
-          schedules: selectedSchedules.map((s) => ({
-            dayOfWeek: s.dayOfWeek,
-            startTime: s.startTime,
-            endTime: s.endTime,
-          })),
-        });
+        try {
+          await createBatch.mutateAsync({
+            classId: result.id,
+            trainerId: batchTrainerId || null,
+            batchName: batchName.trim(),
+            batchType,
+            skillLevel: batchSkillLevel || (skillLevels.length === 1 ? skillLevels[0] : null),
+            ageGroupMin: batchAgeMin ? parseInt(batchAgeMin) : (ageMin ? parseInt(ageMin) : null),
+            ageGroupMax: batchAgeMax ? parseInt(batchAgeMax) : (ageMax ? parseInt(ageMax) : null),
+            maxBatchSize: parseInt(maxBatchSize),
+            feeAmount: parseFloat(feeAmount),
+            feeFrequency,
+            registrationFee: registrationFee ? parseFloat(registrationFee) : 0,
+            startDate: batchStartDate || null,
+            endDate: batchEndDate || null,
+            totalSessions: batchTotalSessions ? parseInt(batchTotalSessions) : null,
+            registrationMode,
+            autoWaitlist,
+            notes: "",
+            status: "draft",
+            schedules: selectedSchedules,
+          });
+        } catch (batchErr) {
+          console.error("[CreateClass] Batch save failed:", batchErr);
+          toast.error("Class saved, but batch creation failed. You can add it from the class page.");
+          navigate(`/provider/classes/${result.id}`, { replace: true, state: { isNew: true } });
+          return;
+        }
       }
 
       if (!effectivePublish) {
@@ -246,48 +260,53 @@ const CreateClass = () => {
         } else {
           toast.success("Draft saved!");
         }
-        navigate("/provider/classes", { replace: true });
+        navigate(`/provider/classes/${result.id}`, { replace: true, state: { isNew: true } });
         return;
       }
 
-      // 3. Run content moderation before publishing
-      const { overallStatus } = await moderateClassPublish({
-        classId: result.id,
-        title: title.trim(),
-        description: description || undefined,
-        ownerUserId: profile.id,
-      });
+      // 3. Content moderation (gracefully handled — edge function may not be deployed)
+      try {
+        const { overallStatus } = await moderateClassPublish({
+          classId: result.id,
+          title: title.trim(),
+          description: description || undefined,
+          ownerUserId: profile.id,
+        });
 
-      if (overallStatus === "rejected") {
-        toast.error("Content was flagged by our moderation system. Please edit and resubmit.");
-        navigate("/provider/classes", { replace: true });
-        return;
-      }
-
-      if (overallStatus === "approved") {
-        // Update class + batch to published/active
-        await supabase.from("classes").update({ status: "published" }).eq("id", result.id);
-        if (batchValid && result.id) {
-          await supabase.from("batches").update({ status: "active" }).eq("class_id", result.id).eq("status", "draft");
+        if (overallStatus === "rejected") {
+          toast.error("Content was flagged by our moderation system. Please edit and resubmit.");
+          navigate(`/provider/classes/${result.id}`, { replace: true });
+          return;
         }
-        toast.success("Class published! Students can now find it nearby.");
-      } else {
-        // in_review — awaiting platform admin
-        toast.success("Class submitted for review. It will go live once approved by our team.");
+        if (overallStatus === "approved") {
+          await supabase.from("classes").update({ status: "published" }).eq("id", result.id);
+          if (batchValid && result.id) {
+            await supabase
+              .from("batches")
+              .update({ status: "active" })
+              .eq("class_id", result.id)
+              .eq("status", "draft");
+          }
+          toast.success("Class published! Students can now find it nearby.");
+        } else {
+          toast.success("Class submitted for review. It will go live once approved by our team.");
+        }
+      } catch (modErr) {
+        // Moderation service unavailable — class is safely saved as draft
+        console.error("[CreateClass] Moderation check failed:", modErr);
+        toast.success("Class saved! It will be reviewed before going live.");
       }
 
-      navigate("/provider/classes", { replace: true });
+      navigate(`/provider/classes/${result.id}`, { replace: true, state: { isNew: true } });
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to save class");
+      console.error("[CreateClass] Save failed:", err);
+      toast.error("Failed to save class. Please try again.");
     } finally {
       setIsPublishing(false);
     }
   };
 
   const isSaving = createClass.isPending || createBatch.isPending || isPublishing;
-
-  // Helper to get category name by id
   const getCategoryName = (id: string) => allCategories?.find((c) => c.id === id)?.name ?? "";
 
   return (
@@ -299,21 +318,41 @@ const CreateClass = () => {
         <h1 className="text-lg font-bold">Add New Class</h1>
       </header>
 
+      {/* Progress bar with step names below segments */}
       <div className="px-6 pt-4 pb-2">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[11px] text-muted-foreground">Step {step + 1} of {STEPS.length}</span>
+          <span className="text-[11px] font-bold text-provider">{STEPS[step]}</span>
+        </div>
         <div className="flex gap-1.5">
           {STEPS.map((_, i) => (
-            <div key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-provider" : "bg-muted"}`} />
+            <div
+              key={i}
+              className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i <= step ? "bg-provider" : "bg-muted"}`}
+            />
+          ))}
+        </div>
+        <div className="flex gap-1.5 mt-1">
+          {STEPS.map((name, i) => (
+            <div key={i} className="flex-1 text-center">
+              <span className={`text-[9px] ${i === step ? "text-provider font-semibold" : "text-muted-foreground"}`}>
+                {name}
+              </span>
+            </div>
           ))}
         </div>
       </div>
 
       <div className="flex-1 px-6 py-4">
-        {/* Step 1: Category */}
+
+        {/* ── Step 0: Category ──────────────────────────────────────── */}
         {step === 0 && (
           <div className="space-y-5 animate-fade-up">
-            <h2 className="text-xl font-bold">Category</h2>
+            <div>
+              <h2 className="text-xl font-bold">Category</h2>
+              <p className="text-sm text-muted-foreground mt-1">Choose the category that best describes your class.</p>
+            </div>
 
-            {/* Pending category request banner */}
             {pendingRequestId && (
               <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
                 <Clock size={15} className="text-amber-600 mt-0.5 flex-shrink-0" />
@@ -328,21 +367,21 @@ const CreateClass = () => {
                 <button
                   className="text-amber-500 hover:text-amber-700"
                   onClick={() => { setPendingRequestId(null); setPendingCategoryName(""); }}
-                >
-                  ✕
-                </button>
+                >✕</button>
               </div>
             )}
 
             {!pendingRequestId && (
               <>
                 <div className="space-y-2">
-                  <Label>Category</Label>
+                  <Label>Category<Req /></Label>
                   <div className="grid grid-cols-2 gap-2">
                     {filteredParentCategories.map((cat) => (
                       <Card
                         key={cat.id}
-                        className={`cursor-pointer p-3 text-center transition-all text-sm ${selectedParent === cat.id ? "border-provider bg-provider/5" : "hover:border-provider/50"}`}
+                        className={`cursor-pointer p-3 text-center transition-all text-sm ${
+                          selectedParent === cat.id ? "border-provider bg-provider/5" : "hover:border-provider/50"
+                        }`}
                         onClick={() => { setSelectedParent(cat.id); setSelectedCategoryId(""); }}
                       >
                         {cat.name}
@@ -353,7 +392,7 @@ const CreateClass = () => {
 
                 {selectedParent && (
                   <div className="space-y-2">
-                    <Label>Sub-category</Label>
+                    <Label>Sub-category<Req /></Label>
                     <div className="flex flex-wrap gap-2">
                       {filteredSubCategories
                         .filter((c) => c.parent_id === selectedParent)
@@ -371,7 +410,6 @@ const CreateClass = () => {
                   </div>
                 )}
 
-                {/* Request new category link */}
                 <button
                   type="button"
                   className="flex items-center gap-1.5 text-xs text-provider hover:underline"
@@ -392,35 +430,62 @@ const CreateClass = () => {
           </div>
         )}
 
-        {/* Step 2: Class Details */}
+        {/* ── Step 1: Class Details ─────────────────────────────────── */}
         {step === 1 && (
           <div className="space-y-4 animate-fade-up">
-            <h2 className="text-xl font-bold">Class Details</h2>
-            <div className="space-y-2">
-              <Label>Title</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Badminton for Beginners" className="h-11 rounded-xl" />
+            <div>
+              <h2 className="text-xl font-bold">Class Details</h2>
+              <p className="text-sm text-muted-foreground mt-1">Fields marked <span className="text-red-500">*</span> are required.</p>
             </div>
+
             <div className="space-y-2">
-              <Label>Short Description <span className="text-xs text-muted-foreground">({shortDesc.length}/300)</span></Label>
-              <Input value={shortDesc} onChange={(e) => setShortDesc(e.target.value.slice(0, 300))} placeholder="Brief one-liner" className="h-11 rounded-xl" />
+              <Label>Class Title<Req /></Label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Badminton for Beginners"
+                className="h-11 rounded-xl"
+              />
             </div>
+
             <div className="space-y-2">
-              <Label>Full Description</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Detailed description..." rows={4} className="rounded-xl" />
+              <Label>
+                Short Description<Opt />
+                <span className="text-xs text-muted-foreground ml-1">({shortDesc.length}/300)</span>
+              </Label>
+              <Input
+                value={shortDesc}
+                onChange={(e) => setShortDesc(e.target.value.slice(0, 300))}
+                placeholder="Brief one-liner students see in search results"
+                className="h-11 rounded-xl"
+              />
             </div>
+
             <div className="space-y-2">
-              <Label>Class Type</Label>
+              <Label>Full Description<Opt /></Label>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="What will students learn? Who is this for? What's special about your class?"
+                rows={4}
+                className="rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Class Type<Req /></Label>
               <Select value={classType} onValueChange={setClassType}>
                 <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="recurring">Recurring</SelectItem>
-                  <SelectItem value="fixed_duration">Fixed Duration</SelectItem>
-                  <SelectItem value="one_time">One-Time</SelectItem>
+                  <SelectItem value="recurring">Recurring (ongoing batches)</SelectItem>
+                  <SelectItem value="fixed_duration">Fixed Duration (e.g. 3-month course)</SelectItem>
+                  <SelectItem value="one_time">One-Time (single session)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
-              <Label>Skill Levels</Label>
+              <Label>Skill Levels<Opt /></Label>
               <div className="flex flex-wrap gap-2">
                 {SKILL_LEVELS.map((s) => (
                   <Badge
@@ -434,24 +499,25 @@ const CreateClass = () => {
                 ))}
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Min Age</Label>
+                <Label>Min Age<Opt /></Label>
                 <Input type="number" value={ageMin} onChange={(e) => setAgeMin(e.target.value)} placeholder="3" className="h-11 rounded-xl" />
               </div>
               <div className="space-y-2">
-                <Label>Max Age</Label>
+                <Label>Max Age<Opt /></Label>
                 <Input type="number" value={ageMax} onChange={(e) => setAgeMax(e.target.value)} placeholder="60" className="h-11 rounded-xl" />
               </div>
             </div>
+
             <div className="space-y-2">
-              <Label>Venue / Landmark</Label>
-              <Input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Community Hall, Block A" className="h-11 rounded-xl" />
+              <Label>Venue / Landmark<Opt /></Label>
+              <Input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Community Hall, Block A" className="h-11 rounded-xl" />
             </div>
 
-            {/* Location */}
             <div className="space-y-3">
-              <Label>Class Location</Label>
+              <Label>Class Location<Opt /></Label>
               <div className="flex items-center justify-between p-3 rounded-xl border">
                 <div>
                   <p className="text-sm font-medium">Home-based / I travel to students</p>
@@ -469,35 +535,46 @@ const CreateClass = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>What to Bring</Label>
-              <Input value={whatToBring} onChange={(e) => setWhatToBring(e.target.value)} placeholder="Racquet, sportswear" className="h-11 rounded-xl" />
+              <Label>What to Bring<Opt /></Label>
+              <Input value={whatToBring} onChange={(e) => setWhatToBring(e.target.value)} placeholder="e.g. Racquet, sportswear, water bottle" className="h-11 rounded-xl" />
             </div>
-            <Button onClick={() => setStep(2)} disabled={!title.trim()} className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl">
+
+            <Button
+              onClick={() => setStep(2)}
+              disabled={!title.trim()}
+              className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
+            >
               Continue
             </Button>
           </div>
         )}
 
-        {/* Step 3: Media */}
+        {/* ── Step 2: Media ─────────────────────────────────────────── */}
         {step === 2 && (
           <div className="space-y-5 animate-fade-up">
-            <h2 className="text-xl font-bold">Media</h2>
+            <div>
+              <h2 className="text-xl font-bold">Media</h2>
+              <p className="text-sm text-muted-foreground mt-1">Add photos to attract more students. All fields are optional.</p>
+            </div>
+
             <div className="space-y-2">
-              <Label>Cover Image</Label>
+              <Label>Cover Image<Opt /></Label>
               <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-6 transition-colors hover:border-provider">
                 {coverUrl ? (
                   <img src={coverUrl} alt="Cover" className="h-32 w-full rounded-lg object-cover" />
                 ) : (
                   <>
                     <Camera size={28} className="text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Upload cover image</span>
+                    <span className="text-sm text-muted-foreground">Upload cover image (recommended)</span>
+                    <span className="text-xs text-muted-foreground">Classes with photos get 3× more views</span>
                   </>
                 )}
                 <input type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
               </label>
             </div>
+
             <div className="space-y-2">
-              <Label>Gallery (up to 5)</Label>
+              <Label>Gallery<Opt /> <span className="text-xs text-muted-foreground font-normal">(up to 5 photos)</span></Label>
               <div className="flex flex-wrap gap-2">
                 {galleryUrls.map((url, i) => (
                   <img key={i} src={url} alt="" className="h-16 w-16 rounded-lg object-cover" />
@@ -510,66 +587,87 @@ const CreateClass = () => {
                 )}
               </div>
             </div>
+
             <div className="space-y-2">
-              <Label>Promo Video URL (optional)</Label>
+              <Label>Promo Video URL<Opt /></Label>
               <Input value={promoUrl} onChange={(e) => setPromoUrl(e.target.value)} placeholder="YouTube or Instagram link" className="h-11 rounded-xl" />
             </div>
-            <Button onClick={() => setStep(3)} className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl">
+
+            <Button
+              onClick={() => setStep(3)}
+              className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
+            >
               Continue
             </Button>
           </div>
         )}
 
-        {/* Step 4: Trial */}
+        {/* ── Step 3: Trial ─────────────────────────────────────────── */}
         {step === 3 && (
           <div className="space-y-5 animate-fade-up">
-            <h2 className="text-xl font-bold">Trial Classes</h2>
+            <div>
+              <h2 className="text-xl font-bold">Trial Classes<Opt /></h2>
+              <p className="text-sm text-muted-foreground mt-1">Let students try before committing to a full batch. Highly recommended.</p>
+            </div>
+
             <div className="flex items-center justify-between p-4 rounded-xl border">
               <div>
                 <p className="font-medium text-sm">Offer trial / demo classes?</p>
-                <p className="text-xs text-muted-foreground">Let students try before enrolling</p>
+                <p className="text-xs text-muted-foreground">Students can book a one-off trial session</p>
               </div>
               <Switch checked={trialAvailable} onCheckedChange={setTrialAvailable} />
             </div>
+
             {trialAvailable && (
               <div className="space-y-2">
-                <Label>Trial Fee (₹0 for free)</Label>
+                <Label>Trial Fee<Opt /> <span className="text-xs text-muted-foreground font-normal">(₹0 for free)</span></Label>
                 <Input type="number" value={trialFee} onChange={(e) => setTrialFee(e.target.value)} placeholder="0" className="h-11 rounded-xl" />
               </div>
             )}
+
             <Button onClick={() => setStep(4)} className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl">
               Continue
             </Button>
           </div>
         )}
 
-        {/* Step 5: Batch Setup */}
+        {/* ── Step 4: Batch Setup ───────────────────────────────────── */}
         {step === 4 && (
           <div className="space-y-5 animate-fade-up">
-            <h2 className="text-xl font-bold">Batch Setup</h2>
-            <p className="text-sm text-muted-foreground">Set up the first batch for your class.</p>
+            <div>
+              <h2 className="text-xl font-bold">First Batch</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                A <strong>batch</strong> is a specific time slot for your class — e.g. "Morning Beginners" or "Weekend Advanced". Fields marked <span className="text-red-500">*</span> are required.
+              </p>
+            </div>
 
             <div className="space-y-2">
-              <Label>Batch Name</Label>
-              <Input value={batchName} onChange={(e) => setBatchName(e.target.value)} placeholder="e.g. Morning Beginners" className="h-11 rounded-xl" />
+              <Label>Batch Name<Req /></Label>
+              <Input
+                value={batchName}
+                onChange={(e) => setBatchName(e.target.value)}
+                placeholder="e.g. Morning Beginners, Weekend Batch"
+                className="h-11 rounded-xl"
+              />
+              <p className="text-xs text-muted-foreground">Give this batch a name students will recognise</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Batch Type</Label>
+                <Label>Batch Type<Req /></Label>
                 <Select value={batchType} onValueChange={setBatchType}>
                   <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="level">Level</SelectItem>
-                    <SelectItem value="age_group">Age Group</SelectItem>
-                    <SelectItem value="time_slot">Time Slot</SelectItem>
+                    <SelectItem value="level">By Level</SelectItem>
+                    <SelectItem value="age_group">By Age Group</SelectItem>
+                    <SelectItem value="time_slot">By Time Slot</SelectItem>
                     <SelectItem value="custom">Custom</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               {batchType === "level" && (
                 <div className="space-y-2">
-                  <Label>Skill Level</Label>
+                  <Label>Skill Level<Opt /></Label>
                   <Select value={batchSkillLevel} onValueChange={setBatchSkillLevel}>
                     <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
@@ -586,11 +684,11 @@ const CreateClass = () => {
             {batchType === "age_group" && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Min Age</Label>
+                  <Label>Min Age<Opt /></Label>
                   <Input type="number" value={batchAgeMin} onChange={(e) => setBatchAgeMin(e.target.value)} className="h-11 rounded-xl" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Max Age</Label>
+                  <Label>Max Age<Opt /></Label>
                   <Input type="number" value={batchAgeMax} onChange={(e) => setBatchAgeMax(e.target.value)} className="h-11 rounded-xl" />
                 </div>
               </div>
@@ -598,7 +696,7 @@ const CreateClass = () => {
 
             {isAcademy && trainers && trainers.length > 0 && (
               <div className="space-y-2">
-                <Label>Assign Trainer</Label>
+                <Label>Assign Trainer<Opt /></Label>
                 <Select value={batchTrainerId} onValueChange={setBatchTrainerId}>
                   <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select trainer" /></SelectTrigger>
                   <SelectContent>
@@ -610,46 +708,80 @@ const CreateClass = () => {
               </div>
             )}
 
-            {/* Schedule Builder */}
+            {/* ── Schedule — chip days + shared time ─────────────── */}
             <div className="space-y-3">
-              <Label>Schedule</Label>
-              <div className="space-y-2">
-                {DAY_NAMES.map((day, i) => (
-                  <div key={day} className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <Checkbox
-                        id={`day-${i}`}
-                        checked={daySchedules[i].enabled}
-                        onCheckedChange={(checked) => updateDaySchedule(i, { enabled: !!checked })}
-                      />
-                      <label htmlFor={`day-${i}`} className="text-sm font-medium w-10 cursor-pointer">
-                        {day}
-                      </label>
-                      {daySchedules[i].enabled && (
-                        <div className="flex items-center gap-2 flex-1">
-                          <Input type="time" value={daySchedules[i].startTime} onChange={(e) => updateDaySchedule(i, { startTime: e.target.value })} className="h-9 rounded-xl text-sm" />
-                          <span className="text-xs text-muted-foreground">to</span>
-                          <Input type="time" value={daySchedules[i].endTime} onChange={(e) => updateDaySchedule(i, { endTime: e.target.value })} className="h-9 rounded-xl text-sm" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
+              <Label>Schedule<Req /></Label>
+              <p className="text-xs text-muted-foreground -mt-2">Select the days this batch runs</p>
+
+              {/* Day chips */}
+              <div className="flex flex-wrap gap-2">
+                {DAYS.map((d) => (
+                  <button
+                    key={d.value}
+                    type="button"
+                    onClick={() => toggleDay(d.value)}
+                    className={`h-10 w-12 rounded-xl text-sm font-semibold transition-all active:scale-95 ${
+                      selectedDays.includes(d.value)
+                        ? "bg-provider text-white shadow-sm"
+                        : "bg-muted text-muted-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {d.label}
+                  </button>
                 ))}
               </div>
+
+              {/* Time pickers — shown once at least one day is selected */}
+              {selectedDays.length > 0 && (
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Start Time<Req /></Label>
+                    <Select value={batchStartTime} onValueChange={setBatchStartTime}>
+                      <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent className="max-h-52">
+                        {TIME_OPTIONS.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">End Time<Req /></Label>
+                    <Select value={batchEndTime} onValueChange={setBatchEndTime}>
+                      <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent className="max-h-52">
+                        {TIME_OPTIONS.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {selectedDays.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {selectedDays.map(d => DAYS.find(x => x.value === d)?.label).join(", ")} · {TIME_OPTIONS.find(t => t.value === batchStartTime)?.label} – {TIME_OPTIONS.find(t => t.value === batchEndTime)?.label}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label>Max Batch Size</Label>
+              <Label>Max Batch Size<Req /></Label>
               <Input type="number" value={maxBatchSize} onChange={(e) => setMaxBatchSize(e.target.value)} placeholder="e.g. 15" className="h-11 rounded-xl" />
+              <p className="text-xs text-muted-foreground">Maximum number of students in this batch</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Fee Amount (₹)</Label>
-                <Input type="number" value={feeAmount} onChange={(e) => setFeeAmount(e.target.value)} placeholder="e.g. 2000" className="h-11 rounded-xl" />
+                <Label>Fee Amount<Req /></Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₹</span>
+                  <Input type="number" value={feeAmount} onChange={(e) => setFeeAmount(e.target.value)} placeholder="2000" className="h-11 rounded-xl pl-7" />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label>Fee Frequency</Label>
+                <Label>Fee Frequency<Req /></Label>
                 <Select value={feeFrequency} onValueChange={setFeeFrequency}>
                   <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -662,28 +794,31 @@ const CreateClass = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>Registration Fee (₹, one-time)</Label>
-              <Input type="number" value={registrationFee} onChange={(e) => setRegistrationFee(e.target.value)} placeholder="e.g. 500" className="h-11 rounded-xl" />
+              <Label>Registration Fee<Opt /> <span className="text-xs text-muted-foreground font-normal">(one-time at enrollment)</span></Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₹</span>
+                <Input type="number" value={registrationFee} onChange={(e) => setRegistrationFee(e.target.value)} placeholder="0" className="h-11 rounded-xl pl-7" />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Start Date</Label>
+                <Label>Start Date<Opt /></Label>
                 <Input type="date" value={batchStartDate} onChange={(e) => setBatchStartDate(e.target.value)} className="h-11 rounded-xl" />
               </div>
               <div className="space-y-2">
-                <Label>End Date</Label>
+                <Label>End Date<Opt /></Label>
                 <Input type="date" value={batchEndDate} onChange={(e) => setBatchEndDate(e.target.value)} className="h-11 rounded-xl" />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Total Sessions</Label>
-              <Input type="number" value={batchTotalSessions} onChange={(e) => setBatchTotalSessions(e.target.value)} placeholder="Optional" className="h-11 rounded-xl" />
+              <Label>Total Sessions<Opt /></Label>
+              <Input type="number" value={batchTotalSessions} onChange={(e) => setBatchTotalSessions(e.target.value)} placeholder="e.g. 24" className="h-11 rounded-xl" />
             </div>
 
             <div className="space-y-2">
-              <Label>Registration Mode</Label>
+              <Label>Registration Mode<Req /></Label>
               <RadioGroup value={registrationMode} onValueChange={setRegistrationMode} className="flex gap-4">
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="auto" id="reg-auto" />
@@ -698,24 +833,39 @@ const CreateClass = () => {
 
             <div className="flex items-center justify-between p-3 rounded-xl border">
               <div>
-                <p className="text-sm font-medium">Auto-Waitlist</p>
-                <p className="text-xs text-muted-foreground">Add to waitlist when batch is full</p>
+                <p className="text-sm font-medium">Auto-Waitlist<Opt /></p>
+                <p className="text-xs text-muted-foreground">Automatically add students to a waitlist when this batch is full</p>
               </div>
               <Switch checked={autoWaitlist} onCheckedChange={setAutoWaitlist} />
             </div>
 
-            <Button onClick={() => setStep(5)} disabled={!batchValid} className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl">
+            {/* Inline validation hint */}
+            {!batchValid && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                To proceed, please fill in: {[
+                  !batchName.trim() && "Batch Name",
+                  !selectedDays.length && "Schedule (select at least one day)",
+                  !maxBatchSize && "Max Batch Size",
+                  !feeAmount && "Fee Amount",
+                ].filter(Boolean).join(" · ")}
+              </div>
+            )}
+
+            <Button
+              onClick={() => setStep(5)}
+              disabled={!batchValid}
+              className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
+            >
               Review
             </Button>
           </div>
         )}
 
-        {/* Step 6: Review */}
+        {/* ── Step 5: Review ────────────────────────────────────────── */}
         {step === 5 && (
           <div className="space-y-5 animate-fade-up">
             <h2 className="text-xl font-bold">Review & Save</h2>
 
-            {/* Class Summary */}
             <Card className="p-4 space-y-3">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Class Details</h3>
               {coverUrl && <img src={coverUrl} alt="Cover" className="w-full h-32 rounded-lg object-cover" />}
@@ -746,17 +896,14 @@ const CreateClass = () => {
               {trialAvailable && <p className="text-xs text-muted-foreground">Trial: ₹{trialFee}</p>}
             </Card>
 
-            {/* Batch Summary */}
             <Card className="p-4 space-y-3">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Batch Details</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">First Batch</h3>
               <h4 className="font-bold">{batchName}</h4>
-              <div className="space-y-1">
-                {selectedSchedules.map((s) => (
-                  <p key={s.dayOfWeek} className="text-sm text-muted-foreground">
-                    {DAY_NAMES[s.dayOfWeek]}: {s.startTime} – {s.endTime}
-                  </p>
-                ))}
-              </div>
+              <p className="text-sm text-muted-foreground">
+                {selectedDays.map(d => DAYS.find(x => x.value === d)?.label).join(", ")}
+                {" · "}
+                {TIME_OPTIONS.find(t => t.value === batchStartTime)?.label} – {TIME_OPTIONS.find(t => t.value === batchEndTime)?.label}
+              </p>
               <div className="flex flex-wrap gap-1">
                 <Badge variant="outline">Max {maxBatchSize} students</Badge>
                 <Badge variant="outline">
@@ -777,7 +924,7 @@ const CreateClass = () => {
 
             {pendingRequestId && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                <span className="font-semibold">Pending category:</span> This class will be saved as a draft and published automatically once "{pendingCategoryName}" is approved by our team.
+                <span className="font-semibold">Pending category:</span> This class will be saved as a draft and published automatically once "{pendingCategoryName}" is approved.
               </div>
             )}
 
@@ -813,7 +960,6 @@ const CreateClass = () => {
         )}
       </div>
 
-      {/* Category Request Sheet */}
       {providerProfile && (
         <CategoryRequestSheet
           open={showCatRequestSheet}

@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import {
   useClassDetail,
@@ -21,6 +21,14 @@ import type { LocationValue } from "@/hooks/useLocation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -49,6 +57,7 @@ import {
   Clock,
   Edit3,
   Image,
+  Layers,
   Loader2,
   Package,
   Pause,
@@ -81,9 +90,21 @@ const FEATURED_STATUS_LABELS: Record<string, { label: string; color: string }> =
   rejected: { label: "Rejected", color: "bg-red-100 text-red-600" },
 };
 
+const TIME_OPTIONS = Array.from({ length: 36 }, (_, i) => {
+  const totalMinutes = 5 * 60 + i * 30;
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  const period = hours < 12 ? "AM" : "PM";
+  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  const value = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+  const label = `${displayHours}:${String(mins).padStart(2, "0")} ${period}`;
+  return { value, label };
+});
+
 const ProviderClassDetail = () => {
   const { classId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile, providerProfile } = useUser();
 
   const { data: cls, isLoading } = useClassDetail(classId);
@@ -123,6 +144,9 @@ const ProviderClassDetail = () => {
   const [editClassLocation, setEditClassLocation] = useState<LocationValue | null>(null);
   const [editHomeRadiusKm, setEditHomeRadiusKm] = useState(5);
 
+  // New class dialog
+  const [showBatchDialog, setShowBatchDialog] = useState(false);
+
   // Featured listing state
   const [featuredSheetOpen, setFeaturedSheetOpen] = useState(false);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
@@ -150,6 +174,15 @@ const ProviderClassDetail = () => {
   const [editBatchDays, setEditBatchDays] = useState<number[]>([]);
   const [editBatchStartTime, setEditBatchStartTime] = useState("06:00");
   const [editBatchEndTime, setEditBatchEndTime] = useState("07:00");
+
+  // Show batch creation dialog when navigated from class creation
+  useEffect(() => {
+    if ((location.state as any)?.isNew) {
+      setShowBatchDialog(true);
+      // Clear the state so it won't re-trigger on refresh
+      window.history.replaceState({}, "");
+    }
+  }, [location.state]);
 
   if (isLoading) {
     return (
@@ -464,16 +497,28 @@ const ProviderClassDetail = () => {
                 </Card>
               ))
             ) : (
-              <div className="flex flex-col items-center gap-2 py-8 text-center">
-                <Calendar size={24} className="text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">No batches yet</p>
+              <div className="flex flex-col items-center gap-4 py-10 text-center px-4">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-provider/10">
+                  <Layers size={28} className="text-provider" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-base font-semibold">No batches yet</p>
+                  <p className="text-sm text-muted-foreground">
+                    Batches are the scheduled groups under this class — each with its own timing, capacity, and fee. Students enroll into a batch, not the class itself.
+                  </p>
+                </div>
                 <Button
-                  size="sm"
                   onClick={() => navigate(`/provider/classes/${cls.id}/batch/new`)}
-                  className="bg-provider text-white"
+                  className="bg-provider hover:bg-provider/90 text-white gap-1.5 px-6"
                 >
-                  <Plus size={14} className="mr-1" /> Add Batch
+                  <Plus size={15} /> Create Your First Batch
                 </Button>
+                <button
+                  className="text-xs text-muted-foreground underline underline-offset-2"
+                  onClick={() => setShowBatchDialog(true)}
+                >
+                  What's the difference between a class and a batch?
+                </button>
               </div>
             )}
           </TabsContent>
@@ -722,6 +767,55 @@ const ProviderClassDetail = () => {
         </SheetContent>
       </Sheet>
 
+      {/* Classes vs Batches explainer dialog */}
+      <Dialog open={showBatchDialog} onOpenChange={setShowBatchDialog}>
+        <DialogContent className="max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Layers size={18} className="text-provider" />
+              Classes &amp; Batches — how it works
+            </DialogTitle>
+          </DialogHeader>
+          <DialogDescription asChild>
+            <div className="space-y-3 text-sm text-foreground">
+              <div className="rounded-xl bg-provider/8 border border-provider/20 p-3 space-y-1">
+                <p className="font-semibold text-provider flex items-center gap-1.5">
+                  <BookOpen size={14} /> Class = the "What"
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  Describes what you teach — name, category, description, photos, location, and pricing structure. Seekers browse and discover classes.
+                </p>
+              </div>
+              <div className="rounded-xl bg-provider/8 border border-provider/20 p-3 space-y-1">
+                <p className="font-semibold text-provider flex items-center gap-1.5">
+                  <Calendar size={14} /> Batch = the "When &amp; Who"
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  A scheduled group under the class — with its own days, timings, capacity, and fee. Students enroll into a <strong>batch</strong>, not the class itself.
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                You can run <strong>multiple batches</strong> under one class — e.g. a "Morning Beginners" batch and an "Evening Advanced" batch, each with different seats and fees.
+              </p>
+            </div>
+          </DialogDescription>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              className="w-full bg-provider hover:bg-provider/90 text-white gap-1.5"
+              onClick={() => {
+                setShowBatchDialog(false);
+                navigate(`/provider/classes/${cls.id}/batch/new`);
+              }}
+            >
+              <Plus size={15} /> Create First Batch
+            </Button>
+            <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => setShowBatchDialog(false)}>
+              I'll do it later
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Batch Sheet */}
       <Sheet open={editBatchOpen} onOpenChange={setEditBatchOpen}>
         <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
@@ -819,11 +913,25 @@ const ProviderClassDetail = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Start Time</Label>
-                  <Input type="time" value={editBatchStartTime} onChange={(e) => setEditBatchStartTime(e.target.value)} className="h-10 rounded-lg" />
+                  <Select value={editBatchStartTime} onValueChange={setEditBatchStartTime}>
+                    <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      {TIME_OPTIONS.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">End Time</Label>
-                  <Input type="time" value={editBatchEndTime} onChange={(e) => setEditBatchEndTime(e.target.value)} className="h-10 rounded-lg" />
+                  <Select value={editBatchEndTime} onValueChange={setEditBatchEndTime}>
+                    <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      {TIME_OPTIONS.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>

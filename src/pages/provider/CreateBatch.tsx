@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -29,6 +28,20 @@ const DAYS = [
   { value: 6, label: "Sat" },
   { value: 0, label: "Sun" },
 ];
+
+const TIME_OPTIONS = Array.from({ length: 36 }, (_, i) => {
+  const totalMinutes = 5 * 60 + i * 30;
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  const period = hours < 12 ? "AM" : "PM";
+  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  const value = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+  const label = `${displayHours}:${String(mins).padStart(2, "0")} ${period}`;
+  return { value, label };
+});
+
+const Req = () => <span className="text-red-500 ml-0.5">*</span>;
+const Opt = () => <span className="text-muted-foreground text-xs font-normal ml-1">(optional)</span>;
 
 const CreateBatch = () => {
   const { classId } = useParams();
@@ -112,13 +125,13 @@ const CreateBatch = () => {
 
       <div className="mx-auto w-full max-w-lg px-6 py-4 space-y-5">
         <div className="space-y-2">
-          <Label>Batch Name</Label>
+          <Label>Batch Name<Req /></Label>
           <Input value={batchName} onChange={(e) => setBatchName(e.target.value)} placeholder="e.g. Morning Beginners" className="h-11 rounded-xl" />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
-            <Label>Batch Type</Label>
+            <Label>Batch Type<Req /></Label>
             <Select value={batchType} onValueChange={setBatchType}>
               <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -131,7 +144,7 @@ const CreateBatch = () => {
           </div>
           {batchType === "level" && (
             <div className="space-y-2">
-              <Label>Skill Level</Label>
+              <Label>Skill Level<Opt /></Label>
               <Select value={skillLevel} onValueChange={setSkillLevel}>
                 <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
@@ -148,11 +161,11 @@ const CreateBatch = () => {
         {batchType === "age_group" && (
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Min Age</Label>
+              <Label>Min Age<Opt /></Label>
               <Input type="number" value={ageMin} onChange={(e) => setAgeMin(e.target.value)} className="h-11 rounded-xl" />
             </div>
             <div className="space-y-2">
-              <Label>Max Age</Label>
+              <Label>Max Age<Opt /></Label>
               <Input type="number" value={ageMax} onChange={(e) => setAgeMax(e.target.value)} className="h-11 rounded-xl" />
             </div>
           </div>
@@ -160,7 +173,7 @@ const CreateBatch = () => {
 
         {isAcademy && trainers && trainers.length > 0 && (
           <div className="space-y-2">
-            <Label>Assign Trainer</Label>
+            <Label>Assign Trainer<Opt /></Label>
             <Select value={trainerId} onValueChange={setTrainerId}>
               <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select trainer" /></SelectTrigger>
               <SelectContent>
@@ -174,7 +187,7 @@ const CreateBatch = () => {
 
         {/* Schedule */}
         <div className="space-y-3">
-          <Label>Schedule</Label>
+          <Label>Schedule<Req /></Label>
           <div className="flex flex-wrap gap-2">
             {DAYS.map((d) => (
               <button
@@ -193,28 +206,42 @@ const CreateBatch = () => {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Start Time</Label>
-              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="h-10 rounded-lg" />
+              <Label className="text-xs">Start Time<Req /></Label>
+              <Select value={startTime} onValueChange={setStartTime}>
+                <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {TIME_OPTIONS.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">End Time</Label>
-              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="h-10 rounded-lg" />
+              <Label className="text-xs">End Time<Req /></Label>
+              <Select value={endTime} onValueChange={setEndTime}>
+                <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {TIME_OPTIONS.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label>Max Batch Size</Label>
+          <Label>Max Batch Size<Req /></Label>
           <Input type="number" value={maxSize} onChange={(e) => setMaxSize(e.target.value)} placeholder="15" className="h-11 rounded-xl" />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
-            <Label>Fee Amount (₹)</Label>
+            <Label>Fee Amount (₹)<Req /></Label>
             <Input type="number" value={feeAmount} onChange={(e) => setFeeAmount(e.target.value)} placeholder="2000" className="h-11 rounded-xl" />
           </div>
           <div className="space-y-2">
-            <Label>Fee Frequency</Label>
+            <Label>Fee Frequency<Req /></Label>
             <Select value={feeFrequency} onValueChange={setFeeFrequency}>
               <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -229,18 +256,18 @@ const CreateBatch = () => {
         </div>
 
         <div className="space-y-2">
-          <Label>Registration Fee (₹)</Label>
+          <Label>Registration Fee (₹)<Opt /></Label>
           <Input type="number" value={registrationFee} onChange={(e) => setRegistrationFee(e.target.value)} placeholder="0 (one-time fee at enrollment)" className="h-11 rounded-xl" />
           <p className="text-xs text-muted-foreground">One-time fee charged when a student enrolls. Leave empty or 0 for no registration fee.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
-            <Label>Start Date</Label>
+            <Label>Start Date<Opt /></Label>
             <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-11 rounded-xl" />
           </div>
           <div className="space-y-2">
-            <Label>End Date</Label>
+            <Label>End Date<Opt /></Label>
             <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-11 rounded-xl" />
           </div>
         </div>
@@ -270,7 +297,7 @@ const CreateBatch = () => {
         </div>
 
         <div className="space-y-2">
-          <Label>Notes (optional)</Label>
+          <Label>Notes<Opt /></Label>
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any additional info..." rows={2} className="rounded-xl" />
         </div>
 
