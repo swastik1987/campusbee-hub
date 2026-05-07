@@ -374,15 +374,6 @@ const LoggedInLanding = () => {
   const isMultiRole = activeRoles.length > 1;
   const isNewUser   = activeRoles.length === 0;
 
-  // ── Auto-redirect single-role users ────────────────────────────
-  useEffect(() => {
-    if (!profile) return;
-    if (isMultiRole || isNewUser) return; // handled inline
-    if (isAdmin)    { navigate("/platform",             { replace: true }); return; }
-    if (isProvider) { navigate("/provider/dashboard",   { replace: true }); return; }
-    if (hasFamily)  { navigate("/explore",               { replace: true }); return; }
-  }, [profile, isAdmin, isProvider, hasFamily, isMultiRole, isNewUser, navigate]);
-
   // ── Role chooser cards (multi-role) ────────────────────────────
   const ROLE_CARDS = [
     hasFamily && {
