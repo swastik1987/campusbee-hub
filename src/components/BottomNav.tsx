@@ -1,9 +1,8 @@
 import * as React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  Home,
   Search,
-  LayoutGrid,
+  BookOpen,
   MessageCircle,
   User,
   LayoutDashboard,
@@ -17,21 +16,21 @@ import {
 type Persona = "seeker" | "provider" | "platform_admin";
 
 const seekerTabs = [
-  { path: "/home", icon: Home, label: "Home" },
   { path: "/explore", icon: Search, label: "Explore" },
-  { path: "/my-classes", icon: LayoutGrid, label: "My Classes" },
+  { path: "/my-classes", icon: BookOpen, label: "Classes" },
   { path: "/chat", icon: MessageCircle, label: "Chat" },
   { path: "/profile", icon: User, label: "Profile" },
 ];
 
 const providerTabs = [
   { path: "/provider/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { path: "/provider/classes", icon: LayoutGrid, label: "Classes" },
+  { path: "/provider/classes", icon: BookOpen, label: "Classes" },
   { path: "/provider/students", icon: Users, label: "Students" },
   { path: "/chat", icon: MessageCircle, label: "Chat" },
   { path: "/provider/payments", icon: Wallet, label: "Payments" },
 ];
 
+// v2 Platform Admin: apartments tab removed, moderation tab added
 const platformAdminTabs = [
   { path: "/platform", icon: LayoutDashboard, label: "Dashboard" },
   { path: "/platform/moderation", icon: ShieldCheck, label: "Review" },
@@ -54,9 +53,9 @@ const BottomNav = React.forwardRef<HTMLElement, { persona?: Persona }>(
 
     const accentColor =
       persona === "platform_admin"
-        ? "hsl(215, 20%, 35%)"
+        ? "hsl(215, 20%, 35%)" // slate
         : persona === "provider"
-        ? "hsl(239, 84%, 67%)"
+        ? "hsl(239, 84%, 67%)" // indigo
         : "hsl(var(--primary))";
 
     return (
@@ -66,28 +65,28 @@ const BottomNav = React.forwardRef<HTMLElement, { persona?: Persona }>(
       >
         <div className="mx-auto flex max-w-lg items-center justify-around">
           {tabs.map((tab) => {
-            const active = location.pathname === tab.path ||
-              (tab.path !== "/home" && location.pathname.startsWith(tab.path) && tab.path !== "/profile");
+            const active = location.pathname === tab.path;
             return (
               <button
                 key={tab.path}
                 onClick={() => navigate(tab.path)}
-                className="flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 transition-colors active:scale-95"
+                className="flex min-h-[56px] min-w-[56px] flex-1 flex-col items-center justify-center gap-0.5 transition-colors active:scale-95"
               >
                 <tab.icon
                   size={22}
                   className={active ? "" : "text-muted-foreground"}
                   style={active ? { color: accentColor } : undefined}
+                  fill={active ? accentColor : "none"}
                   strokeWidth={active ? 2.2 : 1.8}
                 />
-                <span
-                  className={`text-[10px] font-medium leading-none ${
-                    active ? "font-semibold" : "text-muted-foreground"
-                  }`}
-                  style={active ? { color: accentColor } : undefined}
-                >
-                  {tab.label}
-                </span>
+                {active && (
+                  <span
+                    className="text-[10px] font-semibold leading-none"
+                    style={{ color: accentColor }}
+                  >
+                    {tab.label}
+                  </span>
+                )}
               </button>
             );
           })}

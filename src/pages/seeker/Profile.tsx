@@ -2,30 +2,27 @@ import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { useIncomingInvites } from "@/hooks/useFamilyLinking";
-import { useMyEnrollments } from "@/hooks/useSeeker";
 import {
-  Bell,
-  ChevronRight,
-  GraduationCap,
-  Link2,
-  LogOut,
-  MapPin,
-  Shield,
+  User,
   Users,
+  GraduationCap,
+  LogOut,
+  ChevronRight,
+  Link2,
+  Shield,
 } from "lucide-react";
 import { toast } from "sonner";
 
 const Profile = () => {
   const { profile, family, familyMembers, activePersona, familyRole } = useUser();
   const navigate = useNavigate();
-  const { data: incomingInvites } = useIncomingInvites(
-    profile?.id,
-    profile?.email ?? null,
-    profile?.mobile_number ?? null
-  );
-  const { data: activeEnrollments } = useMyEnrollments(profile?.id, "active");
+  const { data: incomingInvites } = useIncomingInvites(profile?.id, profile?.email ?? null, profile?.mobile_number ?? null);
   const pendingInviteCount = incomingInvites?.length ?? 0;
 
   const handleLogout = async () => {
@@ -39,200 +36,139 @@ const Profile = () => {
     .map((n) => n[0])
     .join("")
     .toUpperCase()
-    .slice(0, 2) ?? "?";
-
-  const locationLabel = profile?.seeker_home_address
-    ? profile.seeker_home_address.split(",").slice(0, 2).join(", ").trim()
-    : null;
-
-  const children = familyMembers.filter(
-    (m) => m.relationship === "child" || m.relationship === "grandchild"
-  );
-
-  const activeCount = activeEnrollments?.filter(
-    (e) => e.status === "active" || e.status === "pending"
-  ).length ?? 0;
-
-  const accountItems = [
-    ...(family ? [{
-      icon: <Link2 size={18} className="text-primary" />,
-      bg: "bg-primary/10",
-      label: "Manage Family",
-      sub: familyRole ? `${familyRole} account` : undefined,
-      badge: pendingInviteCount > 0 ? pendingInviteCount : undefined,
-      action: () => navigate("/family"),
-    }] : []),
-    {
-      icon: <Bell size={18} className="text-primary" />,
-      bg: "bg-primary/10",
-      label: "Notifications",
-      sub: undefined,
-      badge: undefined,
-      action: () => navigate("/notifications"),
-    },
-    {
-      icon: <MapPin size={18} className="text-primary" />,
-      bg: "bg-primary/10",
-      label: "Update Home Location",
-      sub: locationLabel ?? "Not set",
-      badge: undefined,
-      action: () => navigate("/explore"),
-    },
-    ...(!profile?.is_provider ? [{
-      icon: <GraduationCap size={18} className="text-indigo-600" />,
-      bg: "bg-indigo-100",
-      label: "Become a Provider",
-      sub: "List your classes",
-      badge: undefined,
-      action: () => navigate("/become-provider"),
-    }] : [{
-      icon: <GraduationCap size={18} className="text-indigo-600" />,
-      bg: "bg-indigo-100",
-      label: "Provider Dashboard",
-      sub: "Manage your classes",
-      badge: undefined,
-      action: () => navigate("/provider/dashboard"),
-    }]),
-    ...(profile?.is_platform_admin ? [{
-      icon: <Shield size={18} className="text-slate-600" />,
-      bg: "bg-slate-100",
-      label: "Platform Admin",
-      sub: "Manage categories & analytics",
-      badge: undefined,
-      action: () => navigate("/platform"),
-    }] : []),
-  ];
+    .slice(0, 2) ?? "";
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-20">
-      {/* Hero card */}
-      <div className="gradient-primary px-4 pt-14 pb-8">
-        <div className="mx-auto max-w-lg flex items-center gap-4">
-          <Avatar className="h-16 w-16 border-4 border-white/30 shadow-md flex-shrink-0">
+      <Header />
+
+      <div className="mx-auto w-full max-w-lg px-4 py-6 space-y-6">
+        {/* Profile card */}
+        <div className="flex flex-col items-center gap-3">
+          <Avatar className="h-20 w-20 border-2 border-border">
             <AvatarImage src={profile?.avatar_url ?? undefined} />
-            <AvatarFallback className="text-xl font-bold bg-white/20 text-white">
-              {initials}
+            <AvatarFallback className="text-lg bg-muted">
+              {initials || <User size={28} />}
             </AvatarFallback>
           </Avatar>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-white text-lg font-bold leading-snug truncate">
-              {profile?.full_name ?? "My Profile"}
-            </h1>
-            <p className="text-white/70 text-xs truncate">{profile?.email}</p>
-            {locationLabel && (
-              <div className="flex items-center gap-1 mt-1">
-                <MapPin size={11} className="text-white/60" />
-                <p className="text-white/70 text-xs truncate">{locationLabel}</p>
-              </div>
-            )}
+          <div className="text-center">
+            <h2 className="text-lg font-bold">{profile?.full_name}</h2>
+            <p className="text-sm text-muted-foreground">{profile?.email}</p>
           </div>
         </div>
 
-        {/* Stats row */}
-        <div className="mx-auto max-w-lg mt-5 grid grid-cols-3 gap-3">
-          <div className="rounded-xl bg-white/15 px-3 py-2.5 text-center">
-            <p className="text-white text-lg font-bold">{activeCount}</p>
-            <p className="text-white/60 text-[10px] font-semibold">Active Classes</p>
-          </div>
-          <div className="rounded-xl bg-white/15 px-3 py-2.5 text-center">
-            <p className="text-white text-lg font-bold">{familyMembers.length}</p>
-            <p className="text-white/60 text-[10px] font-semibold">Family</p>
-          </div>
-          <div className="rounded-xl bg-white/15 px-3 py-2.5 text-center">
-            <p className="text-white text-lg font-bold">{children.length}</p>
-            <p className="text-white/60 text-[10px] font-semibold">Children</p>
-          </div>
-        </div>
-      </div>
 
-      <div className="mx-auto w-full max-w-lg px-4 py-5 space-y-5">
-        {/* Children avatar row */}
-        {children.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-bold">Children</p>
-              <button
-                onClick={() => navigate("/family")}
-                className="text-xs text-primary font-medium"
-              >
-                Manage →
-              </button>
+        {/* Family members */}
+        {familyMembers.length > 0 && (
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Users size={16} className="text-primary" />
+                Family Members
+              </h3>
+              <span className="text-xs text-muted-foreground">
+                {familyMembers.length} member{familyMembers.length > 1 ? "s" : ""}
+              </span>
             </div>
-            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
-              {children.map((child) => {
-                const initials = child.full_name
-                  ?.split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()
-                  .slice(0, 2) ?? "?";
-                return (
-                  <div key={child.id} className="flex flex-col items-center gap-1.5 flex-shrink-0">
-                    <Avatar className="h-12 w-12 border-2 border-primary/20">
-                      <AvatarFallback className="bg-primary/10 text-primary font-bold text-sm">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <p className="text-[11px] font-medium text-center">
-                      {child.full_name?.split(" ")[0]}
+            <div className="space-y-2">
+              {familyMembers.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center gap-3 rounded-lg bg-muted/50 p-2.5"
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                      {(member.full_name ?? "")[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{member.full_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {member.relationship}
+                      {member.age_group && ` · ${member.age_group}`}
                     </p>
                   </div>
-                );
-              })}
-              <button
-                onClick={() => navigate("/family")}
-                className="flex flex-col items-center gap-1.5 flex-shrink-0"
-              >
-                <div className="h-12 w-12 rounded-full border-2 border-dashed border-primary/30 flex items-center justify-center">
-                  <Users size={18} className="text-primary/40" />
                 </div>
-                <p className="text-[11px] font-medium text-muted-foreground text-center">Add</p>
-              </button>
+              ))}
             </div>
-          </div>
+          </Card>
         )}
 
-        {/* Account settings list */}
-        <div className="space-y-1">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Account</p>
-          {accountItems.map((item, i) => (
-            <button
-              key={i}
-              onClick={item.action}
-              className="flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left transition-colors hover:bg-accent active:bg-accent/80"
-            >
-              <div className={`flex h-9 w-9 items-center justify-center rounded-xl flex-shrink-0 ${item.bg}`}>
-                {item.icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">{item.label}</p>
-                {item.sub && (
-                  <p className="text-[11px] text-muted-foreground capitalize truncate">{item.sub}</p>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5">
-                {item.badge && (
-                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-white">
-                    {item.badge}
-                  </span>
-                )}
-                <ChevronRight size={16} className="text-muted-foreground" />
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {/* Sign out */}
-        <div className="pt-2">
+        {/* Family management link */}
+        {family && (
           <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left text-destructive transition-colors hover:bg-destructive/10"
+            onClick={() => navigate("/family")}
+            className="flex w-full items-center gap-3 rounded-xl p-4 text-left transition-colors hover:bg-accent"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-destructive/10 flex-shrink-0">
-              <LogOut size={18} className="text-destructive" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+              <Link2 size={18} className="text-primary" />
             </div>
-            <span className="text-sm font-medium">Sign Out</span>
+            <div className="flex-1">
+              <span className="text-sm font-medium">Manage Family</span>
+              {familyRole && (
+                <p className="text-[10px] text-muted-foreground capitalize">{familyRole} account</p>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              {pendingInviteCount > 0 && (
+                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-white">
+                  {pendingInviteCount}
+                </span>
+              )}
+              <ChevronRight size={16} className="text-muted-foreground" />
+            </div>
           </button>
+        )}
+
+        {/* Admin links */}
+        {profile?.is_platform_admin && (
+          <Card className="p-2 space-y-1">
+            <p className="px-2 pt-1 pb-1 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+              Admin Access
+            </p>
+            <button
+              onClick={() => navigate("/platform")}
+              className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-accent"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+                <Shield size={18} className="text-emerald-600" />
+              </div>
+              <div className="flex-1">
+                <span className="text-sm font-medium">Platform Admin</span>
+                <p className="text-[10px] text-muted-foreground">Manage categories, providers & analytics</p>
+              </div>
+              <ChevronRight size={16} className="text-muted-foreground" />
+            </button>
+          </Card>
+        )}
+
+        {/* Actions */}
+        <div className="space-y-1">
+          {!profile?.is_provider && (
+            <button
+              onClick={() => navigate("/become-provider")}
+              className="flex w-full items-center gap-3 rounded-xl p-4 text-left transition-colors hover:bg-accent"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-provider/10">
+                <GraduationCap size={18} className="text-provider" />
+              </div>
+              <span className="flex-1 text-sm font-medium">
+                Become a Service Provider
+              </span>
+              <ChevronRight size={16} className="text-muted-foreground" />
+            </button>
+          )}
+
+          <Separator />
+
+          <Button
+            variant="ghost"
+            onClick={handleLogout}
+            className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <LogOut size={18} />
+            Log Out
+          </Button>
         </div>
       </div>
 

@@ -8,10 +8,11 @@ import { useCategories } from "@/hooks/useClasses";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUpdateSeekerLocation, haversineKm, formatDistance, type LocationValue } from "@/hooks/useLocation";
-import { useUnreadNotificationCount } from "@/hooks/useNotifications";
 import MapplsPicker from "@/components/location/MapplsPicker";
+import Header from "@/components/layout/Header";
 import ClassCard from "@/components/shared/ClassCard";
 import BottomNav from "@/components/BottomNav";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,9 +52,7 @@ import {
   Users,
   MapPin,
   Pencil,
-  Bell,
   Navigation2,
-  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -74,8 +73,8 @@ const Explore = () => {
   const { profile, refreshProfile } = useUser();
   const queryClient = useQueryClient();
   const updateLocation = useUpdateSeekerLocation();
-  const { data: unreadCount } = useUnreadNotificationCount(profile?.id);
 
+  // Location picker sheet
   const [showLocationSheet, setShowLocationSheet] = useState(false);
   const [pendingLocation, setPendingLocation] = useState<LocationValue | null>(null);
 
@@ -98,23 +97,27 @@ const Explore = () => {
   const [categorySlug, setCategorySlug] = useState(params.get("category") ?? "");
   const [sort, setSort] = useState(params.get("sort") ?? "newest");
   const [filterSheet, setFilterSheet] = useState(false);
-  const [searchRadius, setSearchRadius] = useState(10);
+  const [searchRadius, setSearchRadius] = useState(10); // km — seeker's explore radius
   const [radiusSheet, setRadiusSheet] = useState(false);
 
   const { data: allCategories } = useCategories();
   const parentCategories = allCategories?.filter((c) => !c.parent_id) ?? [];
 
+  // Resolve selected parent category to include all its subcategory IDs
   const selectedCategoryIds = (() => {
     if (!categorySlug || !allCategories) return undefined;
     const parent = allCategories.find((c) => c.slug === categorySlug && !c.parent_id);
     if (parent) {
-      const childIds = allCategories.filter((c) => c.parent_id === parent.id).map((c) => c.id);
+      const childIds = allCategories
+        .filter((c) => c.parent_id === parent.id)
+        .map((c) => c.id);
       return [parent.id, ...childIds];
     }
     const sub = allCategories.find((c) => c.slug === categorySlug);
     return sub ? [sub.id] : undefined;
   })();
 
+  // Resolve search term to matching category IDs (for provider name / category name search)
   const searchCategoryIds = (() => {
     if (!debouncedSearch || !allCategories) return undefined;
     const term = debouncedSearch.toLowerCase();
@@ -122,20 +125,25 @@ const Explore = () => {
     return matching.length > 0 ? matching.map((c) => c.id) : undefined;
   })();
 
+  // Merge category filter IDs with search category IDs when both are active
   const combinedCategoryIds = (() => {
     if (selectedCategoryIds && searchCategoryIds) {
+      // When both filter and search are active, intersect: show only filtered categories that also match search
       return selectedCategoryIds.filter((id) => searchCategoryIds.includes(id));
     }
     return selectedCategoryIds;
   })();
 
+  // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Only hide discovery sections when there's a text search active
   const isSearching = !!debouncedSearch;
 
+  // Main query: fetch by title/description search + category filter
   const { data: classes, isLoading } = useExploreClasses({
     apartmentId: undefined,
     search: debouncedSearch || undefined,
@@ -144,6 +152,7 @@ const Explore = () => {
     limit: 50,
   });
 
+  // Secondary query when searching: also fetch by matching category names (without text search filter)
   const { data: catMatchClasses } = useExploreClasses({
     apartmentId: undefined,
     categoryIds: searchCategoryIds,
@@ -151,6 +160,7 @@ const Explore = () => {
     limit: 50,
   });
 
+  // When searching, also fetch all classes (no text filter) so we can client-side match provider names
   const { data: allAptClasses } = useExploreClasses({
     apartmentId: undefined,
     categoryIds: selectedCategoryIds,
@@ -158,38 +168,58 @@ const Explore = () => {
     limit: 100,
   });
 
+  // Seeker location for distance filtering
   const seekerLat = profile?.seeker_home_lat ?? null;
   const seekerLng = profile?.seeker_home_lng ?? null;
   const hasLocation = seekerLat != null && seekerLng != null;
 
+  // Helper: compute distanceKm for a single class record
   const computeDistance = (cls: any): number | null => {
     if (!hasLocation || !cls.location_lat || !cls.location_lng) return null;
-    return haversineKm({ lat: seekerLat!, lng: seekerLng! }, { lat: cls.location_lat, lng: cls.location_lng });
+    return haversineKm(
+      { lat: seekerLat!, lng: seekerLng! },
+      { lat: cls.location_lat, lng: cls.location_lng }
+    );
   };
 
+  // Helper: decide if a class should appear given the seeker's radius and the class type
   const withinRadius = (cls: any): boolean => {
-    if (!hasLocation || !cls.location_lat || !cls.location_lng) return true;
-    const dist = haversineKm({ lat: seekerLat!, lng: seekerLng! }, { lat: cls.location_lat, lng: cls.location_lng });
-    if (cls.is_home_based) return dist <= (cls.home_radius_km ?? 5);
+    if (!hasLocation || !cls.location_lat || !cls.location_lng) return true; // no coords → show
+    const dist = haversineKm(
+      { lat: seekerLat!, lng: seekerLng! },
+      { lat: cls.location_lat, lng: cls.location_lng }
+    );
+    if (cls.is_home_based) {
+      // Home-based: provider travels to the student — show if seeker is within provider's service radius
+      return dist <= (cls.home_radius_km ?? 5);
+    }
+    // Venue-based: show if class venue is within seeker's chosen radius
     return dist <= searchRadius;
   };
 
+  // Merge and deduplicate search results
   const rawDisplayClasses = (() => {
     if (!isSearching) return classes;
     const map = new Map<string, any>();
+    // 1. Title/description matches from server
     (classes ?? []).forEach((c) => map.set(c.id, c));
+    // 2. Category name matches
     (catMatchClasses ?? []).forEach((c) => map.set(c.id, c));
+    // 3. Provider name matches (client-side) — v2: service_providers direct join
     if (allAptClasses && debouncedSearch) {
       const term = debouncedSearch.toLowerCase();
       allAptClasses.forEach((c: any) => {
         const sp = c.service_providers;
         const providerName = sp?.business_name || sp?.users?.full_name || "";
-        if (providerName.toLowerCase().includes(term)) map.set(c.id, c);
+        if (providerName.toLowerCase().includes(term)) {
+          map.set(c.id, c);
+        }
       });
     }
     return Array.from(map.values());
   })();
 
+  // Apply distance filter + attach distanceKm for display
   const displayClasses = useMemo(() => {
     if (!rawDisplayClasses) return rawDisplayClasses;
     return (rawDisplayClasses as any[])
@@ -198,12 +228,55 @@ const Explore = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawDisplayClasses, seekerLat, seekerLng, searchRadius]);
 
+  // Discovery data (only fetched when not actively searching)
   const { data: featuredListings } = useActiveFeaturedListings(undefined);
   const { data: newClasses } = useNewClasses();
   const { data: popular } = usePopularClasses();
   const { data: incomingInvites } = useIncomingInvites(profile?.id, profile?.email ?? null, profile?.mobile_number ?? null);
   const pendingInviteCount = incomingInvites?.length ?? 0;
 
+  const { data: categories, isLoading: catLoading } = useQuery({
+    queryKey: ["categories-parent"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("class_categories")
+        .select("id, name, slug, icon, sort_order")
+        .is("parent_id", null)
+        .eq("is_active", true)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Featured carousel state
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  useEffect(() => {
+    if (!featuredListings || featuredListings.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => {
+        const next = (prev + 1) % featuredListings.length;
+        carouselRef.current?.scrollTo({ left: next * carouselRef.current.offsetWidth, behavior: "smooth" });
+        return next;
+      });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [featuredListings]);
+
+  useEffect(() => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const index = Math.round(el.scrollLeft / el.offsetWidth);
+      setCurrentSlide(index);
+    };
+    el.addEventListener("scrollend", handleScroll);
+    return () => el.removeEventListener("scrollend", handleScroll);
+  }, []);
+
+  // Apply distance filter + attach distanceKm for the non-search "all classes" list
   const filteredClasses = useMemo(() => {
     if (!classes) return classes;
     return (classes as any[])
@@ -220,37 +293,16 @@ const Explore = () => {
 
   const hasFilters = !!categorySlug || !!debouncedSearch;
 
-  // Short location label
-  const locationChipLabel = profile?.seeker_home_address
-    ? (profile.seeker_home_address.split(",")[0]?.trim() ?? profile.seeker_home_address).slice(0, 22)
-    : "Set location";
-
   return (
     <div className="flex min-h-screen flex-col bg-background pb-20">
-      {/* Inline header */}
-      <header className="sticky top-0 z-40 border-b border-border bg-card">
-        <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4">
-          <h1 className="text-xl font-bold">Explore</h1>
-          <button
-            onClick={() => navigate("/notifications")}
-            className="relative flex h-9 w-9 items-center justify-center rounded-full hover:bg-accent"
-          >
-            <Bell size={20} className="text-muted-foreground" />
-            {unreadCount && unreadCount > 0 ? (
-              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            ) : null}
-          </button>
-        </div>
-      </header>
+      <Header />
 
-      <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-4">
+      <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-6">
         {/* Incoming invite banner */}
         {pendingInviteCount > 0 && (
           <button
             onClick={() => navigate("/family")}
-            className="flex w-full items-center gap-3 rounded-xl bg-primary/10 p-3.5 text-left hover:bg-primary/15"
+            className="flex w-full items-center gap-3 rounded-xl bg-primary/10 p-3.5 text-left transition-colors hover:bg-primary/15"
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20">
               <Users size={18} className="text-primary" />
@@ -265,151 +317,141 @@ const Explore = () => {
           </button>
         )}
 
-        {/* Location chip bar */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 flex items-center gap-1.5 min-w-0">
-            <MapPin size={13} className="text-primary shrink-0" />
-            <div className="min-w-0">
-              <p className="text-[10px] text-muted-foreground leading-none">NEAR</p>
-              <p className="text-xs font-semibold truncate">{locationChipLabel}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={() => setRadiusSheet(true)}
-              className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
-            >
-              <Navigation2 size={11} />
-              {searchRadius} km
-            </button>
-            <button
-              onClick={() => setShowLocationSheet(true)}
-              className="flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs font-semibold text-foreground"
-            >
-              <Pencil size={11} />
-              Edit
-            </button>
-          </div>
-        </div>
-
-        {/* Search bar */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Dance, swimming, math..."
-              className="h-11 pl-9 pr-8 rounded-xl"
-            />
-            {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-1">
-                <X size={14} className="text-muted-foreground" />
-              </button>
-            )}
-          </div>
-          <button
-            onClick={() => setFilterSheet(true)}
-            className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-border"
-          >
-            <SlidersHorizontal size={18} />
-            {hasFilters && (
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
-            )}
-          </button>
-        </div>
-
-        {/* Category pills */}
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          <button
-            onClick={() => setCategorySlug("")}
-            className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-colors shrink-0 ${
-              !categorySlug
-                ? "bg-foreground text-background"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-            }`}
-          >
-            All
-          </button>
-          {parentCategories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setCategorySlug(categorySlug === cat.slug ? "" : cat.slug)}
-              className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-colors shrink-0 ${
-                categorySlug === cat.slug
-                  ? "bg-foreground text-background"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-            >
-              {cat.name}
-            </button>
-          ))}
-        </div>
-
-        {/* Featured card (if not searching and featured exists) */}
-        {!isSearching && featuredListings && featuredListings.length > 0 && (
-          <button
-            onClick={() => navigate(`/class/${featuredListings[0].class_id}`)}
-            className="w-full rounded-2xl overflow-hidden relative active:scale-[0.98] transition-transform text-left"
-          >
-            <div className="relative h-36">
-              {(featuredListings[0].classes as any)?.cover_image_url ? (
-                <img
-                  src={(featuredListings[0].classes as any).cover_image_url}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="h-full w-full bg-gradient-to-br from-primary/60 to-primary" />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-              <div className="absolute top-3 left-3">
-                <span className="rounded-full bg-amber-400 px-2.5 py-0.5 text-[10px] font-bold text-black uppercase tracking-wide">
-                  ★ Featured
-                </span>
-              </div>
-              <div className="absolute bottom-3 left-3 right-3">
-                <p className="text-base font-bold text-white leading-tight truncate">
-                  {(featuredListings[0].classes as any)?.title}
+        {/* Location bar + radius control */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between rounded-xl bg-primary/5 border border-primary/10 px-3 py-2.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <MapPin size={15} className="text-primary shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] text-muted-foreground leading-none mb-0.5">Classes near</p>
+                <p className="text-xs font-semibold truncate max-w-[160px]">
+                  {profile?.seeker_home_address
+                    ? (profile.seeker_home_address.split(",")[0]?.trim() ?? profile.seeker_home_address)
+                    : "Set your location"}
                 </p>
-                {(featuredListings[0].classes as any)?.service_providers?.business_name && (
-                  <p className="text-xs text-white/80 mt-0.5">
-                    {(featuredListings[0].classes as any).service_providers.business_name}
-                  </p>
-                )}
               </div>
             </div>
-          </button>
-        )}
-
-        {/* Results count + sort */}
-        {!isSearching && (
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground font-medium">
-              {isLoading ? "Loading..." : `${filteredClasses?.length ?? 0} classes within ${searchRadius} km`}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Radius pill */}
+              <button
+                onClick={() => setRadiusSheet(true)}
+                className="flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors"
+              >
+                <Navigation2 size={11} />
+                {searchRadius} km
+              </button>
+              <button
+                onClick={() => setShowLocationSheet(true)}
+                className="flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors"
+              >
+                <Pencil size={11} />
+                {profile?.seeker_home_address ? "Edit" : "Set"}
+              </button>
+            </div>
+          </div>
+          {hasLocation && (
+            <p className="text-[10px] text-muted-foreground text-center">
+              Showing classes within {searchRadius} km · tap radius to change
             </p>
-            <Select value={sort} onValueChange={setSort}>
-              <SelectTrigger className="w-28 h-8 text-xs rounded-lg">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SORT_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+          )}
+        </div>
+
+        {/* Featured Classes Banner Carousel */}
+        {!isSearching && featuredListings && featuredListings.length > 0 && (
+          <div className="space-y-2">
+            <h2 className="text-base font-bold">Featured Classes</h2>
+            <div className="relative">
+              <div
+                ref={carouselRef}
+                className="flex overflow-x-auto scrollbar-hide"
+                style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}
+              >
+                {featuredListings.map((listing) => (
+                  <div
+                    key={listing.id}
+                    className="w-full flex-shrink-0 cursor-pointer"
+                    style={{ scrollSnapAlign: "start", minWidth: "100%" }}
+                    onClick={() => navigate(`/class/${listing.class_id}`)}
+                  >
+                    <div className="relative aspect-[3/1] overflow-hidden rounded-xl">
+                      <img src={(listing.classes as any)?.cover_image_url ?? ""} alt="" className="h-full w-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      <div className="absolute bottom-2 left-3 right-3">
+                        <p className="text-sm font-bold text-white truncate">
+                          {(listing.classes as any)?.title}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </SelectContent>
-            </Select>
+              </div>
+              {featuredListings.length > 1 && (
+                <div className="flex justify-center gap-1.5 mt-2">
+                  {featuredListings.map((_, i) => (
+                    <div key={i} className={`h-1.5 rounded-full transition-all ${i === currentSlide ? "w-4 bg-primary" : "w-1.5 bg-muted-foreground/30"}`} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Search results */}
+        {/* Search bar + filter chips */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search classes, sports, activities..."
+                className="h-10 pl-9 pr-8 rounded-lg"
+              />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-1">
+                  <X size={14} className="text-muted-foreground" />
+                </button>
+              )}
+            </div>
+            <button onClick={() => setFilterSheet(true)} className="relative p-2">
+              <SlidersHorizontal size={18} />
+              {hasFilters && (
+                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
+              )}
+            </button>
+          </div>
+
+          {/* Category chips */}
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <Badge
+              variant={!categorySlug ? "default" : "outline"}
+              className={`cursor-pointer whitespace-nowrap ${!categorySlug ? "bg-primary" : ""}`}
+              onClick={() => setCategorySlug("")}
+            >
+              All
+            </Badge>
+            {parentCategories.map((cat) => (
+              <Badge
+                key={cat.id}
+                variant={categorySlug === cat.slug ? "default" : "outline"}
+                className={`cursor-pointer whitespace-nowrap ${categorySlug === cat.slug ? "bg-primary" : ""}`}
+                onClick={() => setCategorySlug(categorySlug === cat.slug ? "" : cat.slug)}
+              >
+                {cat.name}
+              </Badge>
+            ))}
+          </div>
+        </div>
+
+        {/* Search results (when text searching) */}
         {isSearching && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {isLoading ? "Searching..." : `${displayClasses?.length ?? 0} results`}
+              <p className="text-xs text-muted-foreground">
+                {isLoading ? "Searching..." : `${displayClasses?.length ?? 0} classes found`}
               </p>
               <Select value={sort} onValueChange={setSort}>
-                <SelectTrigger className="w-28 h-8 text-xs rounded-lg">
+                <SelectTrigger className="w-32 h-8 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -446,34 +488,87 @@ const Explore = () => {
           </div>
         )}
 
-        {/* Discovery (when not searching) */}
+        {/* Discovery sections (when not searching) */}
         {!isSearching && (
           <>
-            {isLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-24 rounded-xl" />
-                ))}
-              </div>
-            ) : filteredClasses && filteredClasses.length > 0 ? (
-              <div className="space-y-3">
-                {filteredClasses.map((cls) => (
-                  <ClassCard key={cls.id} cls={cls as any} />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <Search size={28} className="text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">
-                  {hasLocation ? `No classes found within ${searchRadius} km` : "No classes available yet"}
+            {/* All classes list */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {isLoading ? "Loading..." : `${filteredClasses?.length ?? 0} classes available${hasLocation ? ` within ${searchRadius} km` : ""}`}
                 </p>
-                {hasLocation && (
-                  <button onClick={() => setRadiusSheet(true)} className="text-xs text-primary font-medium">
-                    Increase radius
-                  </button>
-                )}
+                <Select value={sort} onValueChange={setSort}>
+                  <SelectTrigger className="w-32 h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SORT_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+
+              {isLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-24 rounded-xl" />
+                  ))}
+                </div>
+              ) : filteredClasses && filteredClasses.length > 0 ? (
+                <div className="space-y-3">
+                  {filteredClasses.map((cls) => (
+                    <ClassCard key={cls.id} cls={cls as any} />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-3 py-8 text-center">
+                  <Search size={28} className="text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">
+                    {hasLocation ? `No classes found within ${searchRadius} km` : "No classes available yet"}
+                  </p>
+                  {hasLocation && (
+                    <button
+                      onClick={() => setRadiusSheet(true)}
+                      className="text-xs text-primary font-medium"
+                    >
+                      Increase radius
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Category grid */}
+            <div>
+              <h2 className="mb-3 text-base font-bold">Browse Categories</h2>
+              {catLoading ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <Skeleton key={i} className="h-20 rounded-xl" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {categories?.map((cat) => {
+                    const IconComponent = CATEGORY_ICONS[cat.icon ?? ""] ?? BookOpen;
+                    const isActive = categorySlug === cat.slug;
+                    return (
+                      <Card
+                        key={cat.id}
+                        className={`flex cursor-pointer flex-col items-center justify-center gap-2 p-4 transition-all hover:shadow-md active:scale-[0.97] ${isActive ? "ring-2 ring-primary bg-primary/5" : ""}`}
+                        onClick={() => setCategorySlug(isActive ? "" : cat.slug)}
+                      >
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isActive ? "bg-primary/20" : "bg-primary/10"}`}>
+                          <IconComponent size={22} className="text-primary" />
+                        </div>
+                        <span className="text-xs font-semibold text-center">{cat.name}</span>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* New This Month */}
             {newClasses && newClasses.length > 0 && (
@@ -488,7 +583,9 @@ const Explore = () => {
                   </button>
                 </div>
                 <div className="space-y-3">
-                  {newClasses.map((cls) => <ClassCard key={cls.id} cls={cls as any} />)}
+                  {newClasses.map((cls) => (
+                    <ClassCard key={cls.id} cls={cls as any} />
+                  ))}
                 </div>
               </div>
             )}
@@ -506,7 +603,9 @@ const Explore = () => {
                   </button>
                 </div>
                 <div className="space-y-3">
-                  {popular.map((cls) => <ClassCard key={cls.id} cls={cls as any} />)}
+                  {popular.map((cls) => (
+                    <ClassCard key={cls.id} cls={cls as any} />
+                  ))}
                 </div>
               </div>
             )}
@@ -521,10 +620,16 @@ const Explore = () => {
       }}>
         <SheetContent side="bottom" className="rounded-t-2xl pb-8">
           <SheetHeader className="mb-4">
-            <SheetTitle>{profile?.seeker_home_address ? "Update Location" : "Set Your Location"}</SheetTitle>
+            <SheetTitle>
+              {profile?.seeker_home_address ? "Update Location" : "Set Your Location"}
+            </SheetTitle>
           </SheetHeader>
           <div className="space-y-4">
-            <MapplsPicker value={pendingLocation} onChange={setPendingLocation} showMap={false} />
+            <MapplsPicker
+              value={pendingLocation}
+              onChange={setPendingLocation}
+              showMap={false}
+            />
             <Button
               className="w-full"
               disabled={!pendingLocation || updateLocation.isPending}
@@ -548,14 +653,24 @@ const Explore = () => {
               <span className="text-2xl font-bold text-primary">{searchRadius} km</span>
             </div>
             <Slider
-              min={2} max={50} step={1}
+              min={2}
+              max={50}
+              step={1}
               value={[searchRadius]}
               onValueChange={([v]) => setSearchRadius(v)}
               className="w-full"
             />
             <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>2 km</span><span>10 km</span><span>25 km</span><span>50 km</span>
+              <span>2 km</span>
+              <span>10 km</span>
+              <span>25 km</span>
+              <span>50 km</span>
             </div>
+            {!hasLocation && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-700">
+                Set your home location above to enable distance filtering.
+              </div>
+            )}
             <div className="flex gap-3">
               {[5, 10, 15, 25].map((r) => (
                 <button
@@ -571,7 +686,9 @@ const Explore = () => {
                 </button>
               ))}
             </div>
-            <Button className="w-full" onClick={() => setRadiusSheet(false)}>Apply</Button>
+            <Button className="w-full" onClick={() => setRadiusSheet(false)}>
+              Apply
+            </Button>
           </div>
         </SheetContent>
       </Sheet>
@@ -585,17 +702,14 @@ const Explore = () => {
               <p className="text-sm font-medium">Category</p>
               <div className="flex flex-wrap gap-2">
                 {parentCategories.map((cat) => (
-                  <button
+                  <Badge
                     key={cat.id}
+                    variant={categorySlug === cat.slug ? "default" : "outline"}
+                    className={`cursor-pointer ${categorySlug === cat.slug ? "bg-primary" : ""}`}
                     onClick={() => setCategorySlug(categorySlug === cat.slug ? "" : cat.slug)}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium border transition-colors ${
-                      categorySlug === cat.slug
-                        ? "bg-primary text-white border-primary"
-                        : "border-border text-muted-foreground"
-                    }`}
                   >
                     {cat.name}
-                  </button>
+                  </Badge>
                 ))}
               </div>
             </div>
@@ -603,17 +717,14 @@ const Explore = () => {
               <p className="text-sm font-medium">Sort By</p>
               <div className="flex flex-wrap gap-2">
                 {SORT_OPTIONS.map((o) => (
-                  <button
+                  <Badge
                     key={o.value}
+                    variant={sort === o.value ? "default" : "outline"}
+                    className={`cursor-pointer ${sort === o.value ? "bg-primary" : ""}`}
                     onClick={() => setSort(o.value)}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium border transition-colors ${
-                      sort === o.value
-                        ? "bg-primary text-white border-primary"
-                        : "border-border text-muted-foreground"
-                    }`}
                   >
                     {o.label}
-                  </button>
+                  </Badge>
                 ))}
               </div>
             </div>
