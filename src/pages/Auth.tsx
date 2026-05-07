@@ -78,6 +78,7 @@ const Auth = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, re
   const [sent, setSent]                 = useState(false);
   const [loading, setLoading]           = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading]   = useState(false);
   const [error, setError]               = useState("");
   const [debugInfo, setDebugInfo]       = useState("");
 
@@ -85,6 +86,7 @@ const Auth = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, re
   const [searchParams] = useSearchParams();
   const { session, profile, profileError } = useUser();
   const googleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const appleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const urlRole = searchParams.get("role");
   const storedRole = localStorage.getItem(ROLE_STORAGE_KEY);
@@ -108,7 +110,10 @@ const Auth = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, re
 
   // Cleanup timeout
   useEffect(() => {
-    return () => { if (googleTimeoutRef.current) clearTimeout(googleTimeoutRef.current); };
+    return () => {
+      if (googleTimeoutRef.current) clearTimeout(googleTimeoutRef.current);
+      if (appleTimeoutRef.current) clearTimeout(appleTimeoutRef.current);
+    };
   }, []);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -158,6 +163,37 @@ const Auth = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, re
       setError("Google sign-in failed. Please try email login.");
       setDebugInfo(err?.message ?? String(err));
       setGoogleLoading(false);
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    setAppleLoading(true);
+    setError("");
+    setDebugInfo("");
+    if (intendedRole) localStorage.setItem(ROLE_STORAGE_KEY, intendedRole);
+
+    appleTimeoutRef.current = setTimeout(() => {
+      setAppleLoading(false);
+      setError("Apple sign-in timed out. Please try again or use email login.");
+      setDebugInfo("The OAuth flow did not complete within 15 seconds.");
+    }, 15000);
+
+    try {
+      const result = await lovable.auth.signInWithOAuth("apple", {
+        redirect_uri: window.location.origin,
+      });
+      if (result?.redirected) return;
+      if (appleTimeoutRef.current) clearTimeout(appleTimeoutRef.current);
+      if (!result?.error) { setAppleLoading(false); return; }
+      const errMsg = result.error instanceof Error ? result.error.message : String(result.error);
+      setError("Apple sign-in failed. Please try email login.");
+      setDebugInfo(errMsg);
+      setAppleLoading(false);
+    } catch (err: any) {
+      if (appleTimeoutRef.current) clearTimeout(appleTimeoutRef.current);
+      setError("Apple sign-in failed. Please try email login.");
+      setDebugInfo(err?.message ?? String(err));
+      setAppleLoading(false);
     }
   };
 
@@ -330,6 +366,38 @@ const Auth = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, re
                 </svg>
               )}
               Continue with Google
+            </button>
+
+            {/* Apple OAuth button */}
+            <button
+              onClick={handleAppleLogin}
+              disabled={appleLoading}
+              style={{
+                width: "100%",
+                height: 50,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+                background: "#000",
+                border: "1.5px solid #000",
+                borderRadius: 13,
+                fontSize: 14,
+                fontWeight: 600,
+                color: "#fff",
+                cursor: appleLoading ? "default" : "pointer",
+                marginTop: 10,
+                opacity: appleLoading ? 0.7 : 1,
+              }}
+            >
+              {appleLoading ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff">
+                  <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                </svg>
+              )}
+              Continue with Apple
             </button>
 
             {/* Divider */}
