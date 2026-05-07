@@ -90,46 +90,74 @@ const EnrollmentDetail = () => {
   const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : 0;
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card px-4 py-3">
-        <button onClick={() => navigate(-1)} className="p-1"><ArrowLeft size={20} /></button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-base font-bold truncate">{cls?.title}</h1>
-          <p className="text-xs text-muted-foreground truncate">{batch.batch_name}</p>
-        </div>
-        <Badge className={`text-[10px] border-0 ${enrollment.status === "active" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-          {enrollment.status}
-        </Badge>
-      </header>
-
-      <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-4">
-        {/* Quick info card */}
-        <Card className="p-4 space-y-2">
+    <div className="seeker-theme flex min-h-screen flex-col bg-background">
+      {/* Gradient header */}
+      <div
+        className="relative px-4 pt-12 pb-5"
+        style={{ background: "linear-gradient(160deg, oklch(0.78 0.18 250) 0%, oklch(0.62 0.20 250) 100%)" }}
+      >
+        <button
+          onClick={() => navigate(-1)}
+          className="absolute top-3 left-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm"
+        >
+          <ArrowLeft size={18} className="text-white" />
+        </button>
+        <div className="mt-2">
+          <div className="flex items-start justify-between gap-2">
+            <h1 className="text-lg font-bold text-white leading-tight">{cls?.title}</h1>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border-0 shrink-0 ${enrollment.status === "active" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+              {enrollment.status}
+            </span>
+          </div>
+          <p className="text-white/80 text-sm mt-0.5">{batch.batch_name}</p>
           {member && (
-            <p className="text-xs text-muted-foreground">
-              {member.name} · {member.relationship}
+            <p className="text-white/70 text-xs mt-1">
+              {member.full_name ?? member.name} · {member.relationship}
             </p>
           )}
-          {schedules.length > 0 && (
-            <div className="flex items-center gap-1.5 text-xs">
-              <Calendar size={12} className="text-muted-foreground" />
-              <span>{schedules.map((s: any) => DAY_NAMES[s.day_of_week]).join(", ")}</span>
-              <span>·</span>
-              <Clock size={12} className="text-muted-foreground" />
-              <span>{schedules[0]?.start_time?.slice(0, 5)}–{schedules[0]?.end_time?.slice(0, 5)}</span>
-            </div>
-          )}
-          {cls?.venue_details && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <MapPin size={12} />
-              <span>{cls.venue_details}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-1.5 text-xs">
-            <CreditCard size={12} className="text-muted-foreground" />
-            <span className="font-semibold">₹{batch.fee_amount}{FEE_LABELS[batch.fee_frequency] ?? ""}</span>
+        </div>
+
+        {/* Quick stats strip */}
+        <div className="flex gap-3 mt-4">
+          <div className="flex-1 rounded-xl bg-white/20 backdrop-blur-sm p-2.5 text-center">
+            <p className="text-lg font-bold text-white">{attendanceRate}%</p>
+            <p className="text-[10px] text-white/70">Attendance</p>
           </div>
-        </Card>
+          <div className="flex-1 rounded-xl bg-white/20 backdrop-blur-sm p-2.5 text-center">
+            <p className="text-lg font-bold text-white">{presentCount}</p>
+            <p className="text-[10px] text-white/70">Present</p>
+          </div>
+          <div className="flex-1 rounded-xl bg-white/20 backdrop-blur-sm p-2.5 text-center">
+            <p className="text-lg font-bold text-white">{absentCount}</p>
+            <p className="text-[10px] text-white/70">Absent</p>
+          </div>
+          <div className="flex-1 rounded-xl bg-white/20 backdrop-blur-sm p-2.5 text-center">
+            <p className="text-lg font-bold text-white">₹{batch.fee_amount}</p>
+            <p className="text-[10px] text-white/70">Fee</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-4">
+        {/* Quick actions grid */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => navigate(`/chat?with=${cls?.service_providers?.user_id ?? cls?.provider_apartment_registrations?.service_providers?.user_id}`)}
+            className="flex items-center gap-2 rounded-xl p-3 text-left transition-all active:scale-95"
+            style={{ backgroundColor: "oklch(0.96 0.04 250)" }}
+          >
+            <MessageCircle size={16} style={{ color: "oklch(0.55 0.20 250)" }} />
+            <span className="text-xs font-semibold" style={{ color: "oklch(0.38 0.16 250)" }}>Message Provider</span>
+          </button>
+          <button
+            onClick={() => navigate(`/enroll/${batch.id}`)}
+            className="flex items-center gap-2 rounded-xl p-3 text-left transition-all active:scale-95"
+            style={{ backgroundColor: "oklch(0.96 0.04 250)" }}
+          >
+            <CreditCard size={16} style={{ color: "oklch(0.55 0.20 250)" }} />
+            <span className="text-xs font-semibold" style={{ color: "oklch(0.38 0.16 250)" }}>Record Payment</span>
+          </button>
+        </div>
 
         <Tabs defaultValue="schedule">
           <TabsList className="w-full">
@@ -145,9 +173,12 @@ const EnrollmentDetail = () => {
             {schedules.length > 0 ? (
               <div className="space-y-2">
                 {schedules.map((s: any, i: number) => (
-                  <Card key={i} className="flex items-center gap-3 p-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                      <span className="text-xs font-bold text-primary">{DAY_NAMES[s.day_of_week]}</span>
+                  <Card key={i} className="flex items-center gap-3 p-3" style={{ borderColor: "oklch(0.62 0.20 250 / 0.2)" }}>
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-xl"
+                      style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
+                    >
+                      <span className="text-xs font-bold text-white">{DAY_NAMES[s.day_of_week]}</span>
                     </div>
                     <div>
                       <p className="text-sm font-medium">{DAY_NAMES[s.day_of_week]}</p>
@@ -171,22 +202,6 @@ const EnrollmentDetail = () => {
 
           {/* Attendance Tab */}
           <TabsContent value="attendance" className="mt-4 space-y-4">
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-2">
-              <Card className="p-3 text-center">
-                <p className="text-2xl font-bold text-green-600">{attendanceRate}%</p>
-                <p className="text-[10px] text-muted-foreground">Rate</p>
-              </Card>
-              <Card className="p-3 text-center">
-                <p className="text-2xl font-bold">{presentCount}</p>
-                <p className="text-[10px] text-muted-foreground">Present</p>
-              </Card>
-              <Card className="p-3 text-center">
-                <p className="text-2xl font-bold text-red-500">{absentCount}</p>
-                <p className="text-[10px] text-muted-foreground">Absent</p>
-              </Card>
-            </div>
-
             {/* Attendance list */}
             {attendance && attendance.length > 0 ? (
               <div className="space-y-1.5">

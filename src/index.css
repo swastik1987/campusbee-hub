@@ -78,7 +78,41 @@
     background-clip: text;
   }
 
+  /* Seeker blue/indigo gradient utilities */
+  .cb-gradient {
+    background: linear-gradient(135deg, oklch(0.78 0.18 250) 0%, oklch(0.62 0.20 250) 100%);
+  }
+
+  .cb-gradient-text {
+    background: linear-gradient(135deg, oklch(0.78 0.18 250) 0%, oklch(0.62 0.20 250) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .cb-soft {
+    background-color: oklch(0.96 0.04 250);
+  }
+
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
+}
+
+/* Seeker persona theme — overrides amber primary with blue/indigo */
+.seeker-theme {
+  --primary: 245 65% 55%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 245 65% 55%;
+}
+
+.seeker-theme .gradient-primary {
+  background: linear-gradient(135deg, oklch(0.78 0.18 250) 0%, oklch(0.62 0.20 250) 100%);
+}
+
+.seeker-theme .gradient-primary-text {
+  background: linear-gradient(135deg, oklch(0.78 0.18 250) 0%, oklch(0.62 0.20 250) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

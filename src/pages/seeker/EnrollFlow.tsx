@@ -219,7 +219,7 @@ const EnrollFlow = () => {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="seeker-theme flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card px-4 py-3">
         <button onClick={() => step > 0 && step < 3 ? setStep(step - 1) : navigate(-1)} className="p-1">
           <ArrowLeft size={20} />
@@ -229,13 +229,20 @@ const EnrollFlow = () => {
         </h1>
       </header>
 
-      {/* Progress */}
+      {/* Gradient progress bar */}
       <div className="px-6 pt-4 pb-2">
         <div className="flex gap-1.5">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-primary" : "bg-muted"}`} />
+            <div
+              key={i}
+              className="h-1.5 flex-1 rounded-full overflow-hidden"
+              style={{ background: i <= step ? "linear-gradient(90deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" : "hsl(var(--muted))" }}
+            />
           ))}
         </div>
+        <p className="text-[10px] text-muted-foreground text-right mt-1">
+          Step {step + 1} of 4
+        </p>
       </div>
 
       <div className="mx-auto w-full max-w-lg px-6 py-4 space-y-5">
@@ -256,8 +263,9 @@ const EnrollFlow = () => {
                   <Card
                     key={member.id}
                     className={`flex items-center gap-3 p-4 cursor-pointer transition-all ${
-                      selectedMemberId === member.id ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                      selectedMemberId === member.id ? "border-2" : "hover:border-primary/50"
                     }`}
+                    style={selectedMemberId === member.id ? { borderColor: "oklch(0.62 0.20 250)", backgroundColor: "oklch(0.96 0.04 250)" } : undefined}
                     onClick={() => setSelectedMemberId(member.id)}
                   >
                     <Avatar className="h-10 w-10">
@@ -279,13 +287,14 @@ const EnrollFlow = () => {
                 ))}
               </div>
             )}
-            <Button
+            <button
               disabled={!selectedMemberId}
               onClick={() => setStep(1)}
-              className="w-full h-12 bg-primary text-white font-semibold rounded-xl"
+              className="w-full h-12 rounded-xl text-white font-semibold transition-all active:scale-[0.98] disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
             >
               Continue
-            </Button>
+            </button>
           </div>
         )}
 
@@ -374,10 +383,11 @@ const EnrollFlow = () => {
               </Card>
             )}
 
-            <Button
+            <button
               onClick={handleEnroll}
               disabled={createEnrollment.isPending || createWaitlist.isPending}
-              className="w-full h-12 bg-primary text-white font-semibold rounded-xl"
+              className="w-full h-12 rounded-xl text-white font-semibold transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
             >
               {createEnrollment.isPending || createWaitlist.isPending ? (
                 <Loader2 size={20} className="animate-spin" />
@@ -386,7 +396,7 @@ const EnrollFlow = () => {
               ) : (
                 "Confirm & Pay"
               )}
-            </Button>
+            </button>
           </div>
         )}
 
@@ -432,17 +442,18 @@ const EnrollFlow = () => {
               />
             </div>
 
-            <Button
+            <button
               onClick={handleRecordPayment}
               disabled={!upiRef.trim() || recordPayment.isPending}
-              className="w-full h-12 bg-primary text-white font-semibold rounded-xl"
+              className="w-full h-12 rounded-xl text-white font-semibold transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
             >
               {recordPayment.isPending ? (
                 <Loader2 size={20} className="animate-spin" />
               ) : (
                 "I've Made the Payment"
               )}
-            </Button>
+            </button>
 
             <button
               onClick={() => { setStep(3); toast.info("You can pay later from My Classes"); }}
@@ -480,9 +491,13 @@ const EnrollFlow = () => {
               <Button variant="outline" onClick={() => navigate("/my-classes")}>
                 My Classes
               </Button>
-              <Button onClick={() => navigate("/home")} className="bg-primary text-white">
+              <button
+                onClick={() => navigate("/home")}
+                className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all active:scale-95"
+                style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
+              >
                 Go Home
-              </Button>
+              </button>
             </div>
           </div>
         )}

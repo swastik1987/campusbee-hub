@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
+  Home,
   Search,
   BookOpen,
   MessageCircle,
@@ -16,6 +17,7 @@ import {
 type Persona = "seeker" | "provider" | "platform_admin";
 
 const seekerTabs = [
+  { path: "/home", icon: Home, label: "Home" },
   { path: "/explore", icon: Search, label: "Explore" },
   { path: "/my-classes", icon: BookOpen, label: "Classes" },
   { path: "/chat", icon: MessageCircle, label: "Chat" },
@@ -56,7 +58,7 @@ const BottomNav = React.forwardRef<HTMLElement, { persona?: Persona }>(
         ? "hsl(215, 20%, 35%)" // slate
         : persona === "provider"
         ? "hsl(239, 84%, 67%)" // indigo
-        : "hsl(var(--primary))";
+        : "hsl(245, 65%, 55%)";
 
     return (
       <nav

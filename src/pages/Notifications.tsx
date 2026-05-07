@@ -99,8 +99,10 @@ const Notifications = () => {
   const groups = notifications ? groupByDate(notifications) : [];
   const hasUnread = notifications?.some((n) => !n.is_read);
 
+  const isSeekerView = activePersona !== "provider" && activePersona !== "platform_admin";
+
   return (
-    <div className="flex min-h-screen flex-col bg-background pb-20">
+    <div className={`${isSeekerView ? "seeker-theme" : ""} flex min-h-screen flex-col bg-background pb-20`}>
       <Header showPersonaSwitcher={false} />
 
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-4">
@@ -129,18 +131,22 @@ const Notifications = () => {
           </div>
         ) : notifications && notifications.length > 0 ? (
           groups.map((group) => (
-            <div key={group.label} className="space-y-1.5">
-              <p className="text-xs font-semibold text-muted-foreground pt-1">{group.label}</p>
+            <div key={group.label} className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground pt-1 uppercase tracking-wide">{group.label}</p>
               {group.items.map((notification: any) => (
                 <Card
                   key={notification.id}
                   className={`p-3 cursor-pointer transition-colors ${
-                    notification.is_read ? "bg-card" : "bg-primary/5 border-primary/20"
+                    notification.is_read ? "bg-card" : "border-primary/20"
                   }`}
+                  style={!notification.is_read && isSeekerView ? { backgroundColor: "oklch(0.96 0.04 250)" } : undefined}
                   onClick={() => handleTap(notification)}
                 >
                   <div className="flex gap-3">
-                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+                    <div
+                      className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                      style={{ backgroundColor: notification.is_read ? "hsl(var(--muted))" : (isSeekerView ? "oklch(0.88 0.10 250)" : "hsl(var(--primary)/0.1)") }}
+                    >
                       {ICON_MAP[notification.notification_type] ?? <Bell size={16} className="text-muted-foreground" />}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -168,8 +174,11 @@ const Notifications = () => {
           ))
         ) : (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
-            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-              <Bell size={24} className="text-muted-foreground" />
+            <div
+              className="h-14 w-14 rounded-2xl flex items-center justify-center"
+              style={isSeekerView ? { backgroundColor: "oklch(0.94 0.04 250)" } : { backgroundColor: "hsl(var(--muted))" }}
+            >
+              <Bell size={26} className="text-muted-foreground" style={isSeekerView ? { color: "oklch(0.62 0.20 250)" } : undefined} />
             </div>
             <p className="text-sm text-muted-foreground">No notifications yet</p>
             <p className="text-xs text-muted-foreground">You'll see updates about your classes, payments, and more here</p>

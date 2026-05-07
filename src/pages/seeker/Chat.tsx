@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, GraduationCap, MessageCircle, Send, Users } from "lucide-react";
+import { ArrowLeft, GraduationCap, MessageCircle, Pencil, Send, Users } from "lucide-react";
 
 const Chat = () => {
   const navigate = useNavigate();
@@ -92,7 +92,7 @@ const Chat = () => {
     const other = activeConv ? getOtherUser(activeConv) : null;
 
     return (
-      <div className="flex min-h-screen flex-col bg-background">
+      <div className="seeker-theme flex min-h-screen flex-col bg-background">
         <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card px-4 py-3">
           <button onClick={() => setActiveConversationId(null)} className="p-1">
             <ArrowLeft size={20} />
@@ -119,10 +119,9 @@ const Chat = () => {
               <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
                 <div
                   className={`max-w-[75%] rounded-2xl px-3 py-2 ${
-                    isMine
-                      ? "bg-primary text-primary-foreground rounded-br-sm"
-                      : "bg-muted rounded-bl-sm"
+                    isMine ? "text-white rounded-br-sm" : "bg-muted rounded-bl-sm"
                   }`}
+                  style={isMine ? { background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" } : undefined}
                 >
                   <p className="text-sm whitespace-pre-wrap break-words">{msg.body}</p>
                   <p className={`text-[9px] mt-0.5 ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
@@ -162,11 +161,21 @@ const Chat = () => {
 
   // Conversation list view
   return (
-    <div className="flex min-h-screen flex-col bg-background pb-20">
+    <div className="seeker-theme flex min-h-screen flex-col bg-background pb-20">
       <Header />
 
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-4">
-        <h2 className="text-lg font-bold">Messages</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold">Messages</h2>
+          <button
+            className="flex h-9 w-9 items-center justify-center rounded-full transition-all active:scale-95"
+            style={{ backgroundColor: "oklch(0.94 0.04 250)" }}
+            onClick={() => navigate("/explore")}
+            title="Find providers to message"
+          >
+            <Pencil size={15} style={{ color: "oklch(0.55 0.20 250)" }} />
+          </button>
+        </div>
 
         {convsLoading ? (
           <div className="space-y-3">

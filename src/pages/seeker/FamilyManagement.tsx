@@ -215,13 +215,21 @@ const FamilyManagement = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background pb-20">
+    <div className="seeker-theme flex min-h-screen flex-col bg-background pb-20">
       <Header />
 
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-6">
-        <h2 className="text-lg font-bold flex items-center gap-2">
-          <Users size={20} /> Manage Family
-        </h2>
+        <div>
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <Users size={20} /> Manage Family
+          </h2>
+          {/* Privacy hint */}
+          <div className="mt-2 flex items-start gap-2 rounded-xl px-3 py-2" style={{ backgroundColor: "oklch(0.96 0.04 250)" }}>
+            <span className="text-[11px] leading-relaxed" style={{ color: "oklch(0.45 0.16 250)" }}>
+              🔒 Family member data is private and only visible to linked family members.
+            </span>
+          </div>
+        </div>
 
         {/* Section 1: Family Members */}
         <div className="space-y-2">

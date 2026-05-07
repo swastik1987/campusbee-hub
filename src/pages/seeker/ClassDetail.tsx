@@ -96,35 +96,46 @@ const ClassDetail = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background pb-20">
-      {/* Header */}
-      <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card px-4 py-3">
-        <button onClick={() => navigate(-1)} className="p-1"><ArrowLeft size={20} /></button>
-        <h1 className="text-lg font-bold truncate flex-1">{cls.title}</h1>
-        <button onClick={handleShare} className="p-1"><Share2 size={18} /></button>
-      </header>
-
-      {/* Cover / Gallery */}
-      {gallery.length > 0 ? (
-        <div className="relative">
-          <img src={gallery[galleryIdx]} alt="" className="w-full h-48 object-cover" />
-          {gallery.length > 1 && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-              {gallery.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setGalleryIdx(i)}
-                  className={`h-1.5 rounded-full transition-all ${i === galleryIdx ? "w-4 bg-white" : "w-1.5 bg-white/50"}`}
-                />
-              ))}
-            </div>
-          )}
+    <div className="seeker-theme flex min-h-screen flex-col bg-background pb-20">
+      {/* Hero / Gallery — taller, with frosted-glass overlay buttons */}
+      <div className="relative">
+        {gallery.length > 0 ? (
+          <>
+            <img src={gallery[galleryIdx]} alt="" className="w-full h-56 object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
+            {gallery.length > 1 && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {gallery.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setGalleryIdx(i)}
+                    className={`h-1.5 rounded-full transition-all ${i === galleryIdx ? "w-5 bg-white" : "w-1.5 bg-white/50"}`}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="flex h-44 items-center justify-center" style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250) 0%, oklch(0.62 0.20 250) 100%)" }}>
+            <BookOpen size={40} className="text-white/60" />
+          </div>
+        )}
+        {/* Frosted overlay action buttons */}
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm"
+          >
+            <ArrowLeft size={18} className="text-white" />
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm"
+          >
+            <Share2 size={16} className="text-white" />
+          </button>
         </div>
-      ) : (
-        <div className="flex h-32 items-center justify-center bg-muted">
-          <BookOpen size={32} className="text-muted-foreground" />
-        </div>
-      )}
+      </div>
 
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-5">
         {/* Title + meta */}
@@ -149,6 +160,41 @@ const ClassDetail = () => {
             <p className="text-sm text-muted-foreground mt-2">{cls.short_description}</p>
           )}
         </div>
+
+        {/* 2×2 info grid */}
+        {(cls.age_min || cls.age_max || cls.skill_level || cls.address) && (
+          <div className="grid grid-cols-2 gap-2">
+            {(cls.age_min || cls.age_max) && (
+              <div className="flex items-center gap-2 rounded-xl p-3" style={{ backgroundColor: "oklch(0.96 0.04 250)" }}>
+                <Users size={15} style={{ color: "oklch(0.55 0.20 250)" }} />
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Age Group</p>
+                  <p className="text-xs font-semibold">
+                    {cls.age_min && cls.age_max ? `${cls.age_min}–${cls.age_max} yrs` : cls.age_min ? `${cls.age_min}+ yrs` : `Up to ${cls.age_max} yrs`}
+                  </p>
+                </div>
+              </div>
+            )}
+            {cls.skill_level && (
+              <div className="flex items-center gap-2 rounded-xl p-3" style={{ backgroundColor: "oklch(0.96 0.04 250)" }}>
+                <Star size={15} style={{ color: "oklch(0.55 0.20 250)" }} />
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Level</p>
+                  <p className="text-xs font-semibold capitalize">{cls.skill_level.replace("_", " ")}</p>
+                </div>
+              </div>
+            )}
+            {cls.address && (
+              <div className="col-span-2 flex items-start gap-2 rounded-xl p-3" style={{ backgroundColor: "oklch(0.96 0.04 250)" }}>
+                <MapPin size={15} className="mt-0.5 flex-shrink-0" style={{ color: "oklch(0.55 0.20 250)" }} />
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Location</p>
+                  <p className="text-xs font-semibold line-clamp-2">{cls.address}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Provider card */}
         <Card className="p-4">
@@ -280,7 +326,7 @@ const ClassDetail = () => {
                 const isFull = batch.status === "full" || slotsLeft <= 0;
 
                 return (
-                  <Card key={batch.id} className="p-4 space-y-2">
+                  <Card key={batch.id} className="p-4 space-y-2 border-2 transition-all" style={{ borderColor: isFull ? undefined : "oklch(0.62 0.20 250 / 0.25)" }}>
                     <div className="flex items-start justify-between">
                       <div>
                         <h4 className="font-semibold text-sm">{batch.batch_name}</h4>
@@ -351,16 +397,17 @@ const ClassDetail = () => {
                           <span className="text-muted-foreground">{slotsLeft} spots left</span>
                         )}
                       </div>
-                      <Button
-                        size="sm"
+                      <button
                         onClick={() => navigate(`/enroll/${batch.id}`)}
-                        className={isFull
-                          ? "bg-amber-500 hover:bg-amber-600 text-white text-xs"
-                          : "bg-primary hover:bg-primary/90 text-white text-xs"
-                        }
+                        className="rounded-xl px-4 py-2 text-xs font-bold text-white transition-all active:scale-95"
+                        style={{
+                          background: isFull
+                            ? "#F59E0B"
+                            : "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))",
+                        }}
                       >
                         {isFull ? "Join Waitlist" : "Enroll Now"}
-                      </Button>
+                      </button>
                     </div>
                   </Card>
                 );
@@ -471,26 +518,34 @@ const ClassDetail = () => {
 
       {/* Sticky bottom CTA */}
       {activeBatches.length > 0 && lowestFee !== null && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card p-3">
-          <div className="mx-auto max-w-lg flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground">Starting from</p>
-              <p className="font-bold">
+        <div className="seeker-theme fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card/95 backdrop-blur-sm p-3 safe-bottom">
+          <div className="mx-auto max-w-lg flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-muted-foreground">Starting from</p>
+              <p className="font-bold text-sm">
                 ₹{lowestFee}
                 <span className="text-xs font-normal text-muted-foreground">
                   {FEE_LABELS[lowestBatch?.fee_frequency ?? ""] ?? ""}
                 </span>
               </p>
             </div>
-            <Button
+            {cls.trial_available && (
+              <button
+                className="rounded-xl border-2 border-primary px-4 py-2.5 text-xs font-bold text-primary transition-all active:scale-95"
+              >
+                Book Trial
+              </button>
+            )}
+            <button
               onClick={() => {
                 const first = activeBatches[0] as any;
                 navigate(`/enroll/${first.id}`);
               }}
-              className="bg-primary hover:bg-primary/90 text-white px-6"
+              className="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-all active:scale-95"
+              style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
             >
               Enroll Now
-            </Button>
+            </button>
           </div>
         </div>
       )}

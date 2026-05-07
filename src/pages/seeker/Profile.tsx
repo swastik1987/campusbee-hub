@@ -3,8 +3,6 @@ import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { useIncomingInvites } from "@/hooks/useFamilyLinking";
@@ -38,28 +36,89 @@ const Profile = () => {
     .toUpperCase()
     .slice(0, 2) ?? "";
 
-  return (
-    <div className="flex min-h-screen flex-col bg-background pb-20">
-      <Header />
+  const isSeekerView = activePersona === "seeker";
 
-      <div className="mx-auto w-full max-w-lg px-4 py-6 space-y-6">
-        {/* Profile card */}
-        <div className="flex flex-col items-center gap-3">
-          <Avatar className="h-20 w-20 border-2 border-border">
-            <AvatarImage src={profile?.avatar_url ?? undefined} />
-            <AvatarFallback className="text-lg bg-muted">
-              {initials || <User size={28} />}
-            </AvatarFallback>
-          </Avatar>
-          <div className="text-center">
-            <h2 className="text-lg font-bold">{profile?.full_name}</h2>
-            <p className="text-sm text-muted-foreground">{profile?.email}</p>
+  return (
+    <div className={`${isSeekerView ? "seeker-theme" : ""} flex min-h-screen flex-col bg-background pb-20`}>
+      {/* Gradient identity card header */}
+      {isSeekerView ? (
+        <div
+          className="px-4 pt-14 pb-6"
+          style={{ background: "linear-gradient(160deg, oklch(0.78 0.18 250) 0%, oklch(0.62 0.20 250) 100%)" }}
+        >
+          <div className="flex items-center gap-4">
+            <Avatar className="h-18 w-18 border-4 border-white/30 shadow-xl" style={{ height: 72, width: 72 }}>
+              <AvatarImage src={profile?.avatar_url ?? undefined} />
+              <AvatarFallback className="text-xl" style={{ background: "rgba(255,255,255,0.25)", color: "white" }}>
+                {initials || <User size={28} />}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold text-white truncate">{profile?.full_name}</h2>
+              <p className="text-white/70 text-sm truncate">{profile?.email ?? profile?.mobile_number}</p>
+              {familyMembers.length > 0 && (
+                <p className="text-white/60 text-xs mt-0.5">{familyMembers.length} family member{familyMembers.length > 1 ? "s" : ""}</p>
+              )}
+            </div>
           </div>
         </div>
+      ) : (
+        <>
+          <Header />
+          <div className="mx-auto w-full max-w-lg px-4 pt-4 flex flex-col items-center gap-3">
+            <Avatar className="h-20 w-20 border-2 border-border">
+              <AvatarImage src={profile?.avatar_url ?? undefined} />
+              <AvatarFallback className="text-lg bg-muted">
+                {initials || <User size={28} />}
+              </AvatarFallback>
+            </Avatar>
+            <div className="text-center">
+              <h2 className="text-lg font-bold">{profile?.full_name}</h2>
+              <p className="text-sm text-muted-foreground">{profile?.email}</p>
+            </div>
+          </div>
+        </>
+      )}
 
+      <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-4">
 
-        {/* Family members */}
-        {familyMembers.length > 0 && (
+        {/* Children quick-view chips */}
+        {isSeekerView && familyMembers.length > 0 && (
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Users size={15} className="text-primary" />
+                Family
+              </h3>
+              <button
+                onClick={() => navigate("/family")}
+                className="text-xs text-primary font-medium"
+              >
+                Manage
+              </button>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+              {familyMembers.map((member) => (
+                <div key={member.id} className="flex flex-col items-center gap-1 flex-shrink-0 w-14">
+                  <Avatar className="h-10 w-10 border-2 border-primary/20">
+                    <AvatarFallback className="text-xs" style={{ backgroundColor: "oklch(0.88 0.10 250)", color: "oklch(0.38 0.16 250)" }}>
+                      {(member.full_name ?? "")[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <p className="text-[10px] font-medium text-center leading-tight truncate w-full">
+                    {member.full_name?.split(" ")[0]}
+                  </p>
+                  {member.relationship && (
+                    <p className="text-[9px] text-muted-foreground text-center capitalize">{member.relationship}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {/* Family management row (for non-seeker view) */}
+        {!isSeekerView && familyMembers.length > 0 && (
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold flex items-center gap-2">
@@ -72,10 +131,7 @@ const Profile = () => {
             </div>
             <div className="space-y-2">
               {familyMembers.map((member) => (
-                <div
-                  key={member.id}
-                  className="flex items-center gap-3 rounded-lg bg-muted/50 p-2.5"
-                >
+                <div key={member.id} className="flex items-center gap-3 rounded-lg bg-muted/50 p-2.5">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="text-xs bg-primary/10 text-primary">
                       {(member.full_name ?? "")[0]?.toUpperCase()}
@@ -94,44 +150,57 @@ const Profile = () => {
           </Card>
         )}
 
-        {/* Family management link */}
-        {family && (
-          <button
-            onClick={() => navigate("/family")}
-            className="flex w-full items-center gap-3 rounded-xl p-4 text-left transition-colors hover:bg-accent"
-          >
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-              <Link2 size={18} className="text-primary" />
-            </div>
-            <div className="flex-1">
-              <span className="text-sm font-medium">Manage Family</span>
-              {familyRole && (
-                <p className="text-[10px] text-muted-foreground capitalize">{familyRole} account</p>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              {pendingInviteCount > 0 && (
-                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-white">
-                  {pendingInviteCount}
-                </span>
-              )}
+        {/* Account section */}
+        <Card className="p-0 overflow-hidden">
+          <p className="px-4 pt-3 pb-1 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+            Account
+          </p>
+          {family && (
+            <button
+              onClick={() => navigate("/family")}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent border-t border-border/50"
+            >
+              <div
+                className="flex h-9 w-9 items-center justify-center rounded-xl"
+                style={isSeekerView ? { backgroundColor: "oklch(0.94 0.04 250)" } : { backgroundColor: "hsl(var(--primary)/0.1)" }}
+              >
+                <Link2 size={17} className="text-primary" />
+              </div>
+              <div className="flex-1">
+                <span className="text-sm font-medium">Manage Family</span>
+                {familyRole && (
+                  <p className="text-[10px] text-muted-foreground capitalize">{familyRole} account</p>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                {pendingInviteCount > 0 && (
+                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-white">
+                    {pendingInviteCount}
+                  </span>
+                )}
+                <ChevronRight size={16} className="text-muted-foreground" />
+              </div>
+            </button>
+          )}
+          {!profile?.is_provider && (
+            <button
+              onClick={() => navigate("/become-provider")}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent border-t border-border/50"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-provider/10">
+                <GraduationCap size={17} className="text-provider" />
+              </div>
+              <span className="flex-1 text-sm font-medium">Become a Provider</span>
               <ChevronRight size={16} className="text-muted-foreground" />
-            </div>
-          </button>
-        )}
-
-        {/* Admin links */}
-        {profile?.is_platform_admin && (
-          <Card className="p-2 space-y-1">
-            <p className="px-2 pt-1 pb-1 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
-              Admin Access
-            </p>
+            </button>
+          )}
+          {profile?.is_platform_admin && (
             <button
               onClick={() => navigate("/platform")}
-              className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-accent"
+              className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent border-t border-border/50"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
-                <Shield size={18} className="text-emerald-600" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10">
+                <Shield size={17} className="text-emerald-600" />
               </div>
               <div className="flex-1">
                 <span className="text-sm font-medium">Platform Admin</span>
@@ -139,37 +208,17 @@ const Profile = () => {
               </div>
               <ChevronRight size={16} className="text-muted-foreground" />
             </button>
-          </Card>
-        )}
-
-        {/* Actions */}
-        <div className="space-y-1">
-          {!profile?.is_provider && (
-            <button
-              onClick={() => navigate("/become-provider")}
-              className="flex w-full items-center gap-3 rounded-xl p-4 text-left transition-colors hover:bg-accent"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-provider/10">
-                <GraduationCap size={18} className="text-provider" />
-              </div>
-              <span className="flex-1 text-sm font-medium">
-                Become a Service Provider
-              </span>
-              <ChevronRight size={16} className="text-muted-foreground" />
-            </button>
           )}
-
-          <Separator />
-
-          <Button
-            variant="ghost"
+          <button
             onClick={handleLogout}
-            className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-destructive/10 border-t border-border/50"
           >
-            <LogOut size={18} />
-            Log Out
-          </Button>
-        </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-destructive/10">
+              <LogOut size={17} className="text-destructive" />
+            </div>
+            <span className="flex-1 text-sm font-medium text-destructive">Log Out</span>
+          </button>
+        </Card>
       </div>
 
       <BottomNav persona={
