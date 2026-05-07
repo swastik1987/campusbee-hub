@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
@@ -19,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Archive, BookOpen, Loader2, Pause, Play, Plus, Star, Trash2 } from "lucide-react";
+import { Archive, BookOpen, Link2, Loader2, Pause, Play, Plus, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_FILTERS = ["all", "draft", "published", "paused", "archived"];
@@ -37,7 +38,7 @@ const STATUS_LABELS: Record<string, string> = {
   archived: "Archived",
 };
 
-const ProviderClasses = () => {
+const ProviderClasses = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, ref) => {
   const navigate = useNavigate();
   const { providerProfile } = useUser();
   const [statusFilter, setStatusFilter] = useState("all");
@@ -46,6 +47,14 @@ const ProviderClasses = () => {
   const { data: classes, isLoading } = useProviderClasses(providerProfile?.id, statusFilter);
   const updateStatus = useUpdateClassStatus();
   const deleteClass = useDeleteClass();
+
+  const handleCopyLink = (e: React.MouseEvent, classId: string) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/class/${classId}`;
+    navigator.clipboard.writeText(url)
+      .then(() => toast.success("Class link copied!"))
+      .catch(() => toast.error("Failed to copy link"));
+  };
 
   const handleStatusChange = async (
     e: React.MouseEvent,
@@ -77,7 +86,7 @@ const ProviderClasses = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background pb-20">
+    <div ref={ref} className="flex min-h-screen flex-col bg-background pb-20">
       <Header />
 
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-4">
@@ -171,7 +180,7 @@ const ProviderClasses = () => {
                   {/* Quick status actions for published / paused */}
                   {(cls.status === "published" || cls.status === "paused") && (
                     <div
-                      className="mt-2 flex gap-1.5"
+                      className="mt-2 flex gap-1.5 flex-wrap"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {cls.status === "published" && (
@@ -198,6 +207,14 @@ const ProviderClasses = () => {
                         className="flex items-center gap-1 rounded-md bg-gray-100 border border-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-200 transition-colors disabled:opacity-50"
                       >
                         <Archive size={10} /> Archive
+                      </button>
+                      {/* Copy shareable link */}
+                      <button
+                        onClick={(e) => handleCopyLink(e, cls.id)}
+                        className="flex items-center gap-1 rounded-md bg-blue-50 border border-blue-200 px-2 py-0.5 text-[11px] font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+                        title="Copy shareable link"
+                      >
+                        <Link2 size={10} /> Copy Link
                       </button>
                     </div>
                   )}
@@ -259,6 +276,8 @@ const ProviderClasses = () => {
       <BottomNav persona="provider" />
     </div>
   );
-};
+});
+
+ProviderClasses.displayName = "ProviderClasses";
 
 export default ProviderClasses;

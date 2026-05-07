@@ -1,10 +1,12 @@
+import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { UserProvider } from "@/contexts/UserContext";
+import { UserProvider, useUser } from "@/contexts/UserContext";
 import AuthGuard from "@/components/AuthGuard";
+import { OAUTH_RETURN_KEY } from "@/components/AuthDrawer";
 
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
@@ -41,6 +43,33 @@ import PlatformCategories from "./pages/platform/PlatformCategories";
 import PlatformAnalytics from "./pages/platform/PlatformAnalytics";
 import NotFound from "./pages/NotFound";
 
+/**
+ * After an OAuth full-redirect the browser lands on window.location.origin (/).
+ * This handler watches for session + profile to become available and navigates
+ * back to wherever the user started the OAuth flow (saved to localStorage in
+ * AuthDrawer before triggering the redirect).
+ *
+ * If OAuth used a popup (no page redirect) and the user is already on the
+ * correct page, the paths match so no navigation fires — just cleanup.
+ */
+const OAuthReturnHandler = () => {
+  const { session, profile } = useUser();
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (!session || !profile) return;
+    const returnTo = localStorage.getItem(OAUTH_RETURN_KEY);
+    if (returnTo && returnTo.startsWith("/")) {
+      localStorage.removeItem(OAUTH_RETURN_KEY);
+      if (window.location.pathname + window.location.search !== returnTo) {
+        navigate(returnTo, { replace: true });
+      }
+    }
+  }, [session, profile, navigate]);
+
+  return null;
+};
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -50,16 +79,19 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <UserProvider>
+          {/* Handles post-OAuth redirect back to the originating page */}
+          <OAuthReturnHandler />
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
 
+            {/* Public class detail — no AuthGuard; anonymous visitors allowed */}
+            <Route path="/class/:classId" element={<ClassDetail />} />
+
             {/* Protected seeker routes */}
             <Route path="/onboarding" element={<AuthGuard><Onboarding /></AuthGuard>} />
-            {/* /home removed — Home nav goes to / (contextual Landing) */}
             <Route path="/explore" element={<AuthGuard><Explore /></AuthGuard>} />
             <Route path="/my-classes" element={<AuthGuard><MyClasses /></AuthGuard>} />
-            <Route path="/class/:classId" element={<AuthGuard><ClassDetail /></AuthGuard>} />
             <Route path="/provider-profile/:providerId" element={<AuthGuard><ProviderProfilePage /></AuthGuard>} />
             <Route path="/enroll/:batchId" element={<AuthGuard><EnrollFlow /></AuthGuard>} />
             <Route path="/enrollment/:enrollmentId" element={<AuthGuard><EnrollmentDetail /></AuthGuard>} />
@@ -89,10 +121,9 @@ const App = () => (
             <Route path="/notifications" element={<AuthGuard><Notifications /></AuthGuard>} />
 
             {/* v2: /admin/* routes removed entirely (Apartment Admin role gone). */}
-            {/* Legacy redirects so any bookmarks land somewhere sane. */}
             <Route path="/admin/*" element={<Navigate to="/" replace />} />
 
-            {/* Platform admin routes (nested layout) — apartments routes removed */}
+            {/* Platform admin routes (nested layout) */}
             <Route path="/platform" element={<AuthGuard><PlatformLayout /></AuthGuard>}>
               <Route index element={<PlatformDashboard />} />
               <Route path="categories" element={<PlatformCategories />} />

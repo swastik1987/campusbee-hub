@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
@@ -66,6 +67,7 @@ import {
   Pencil,
   Play,
   Plus,
+  Share2,
   Sparkles,
   Star,
   Trash2,
@@ -105,7 +107,7 @@ const TIME_OPTIONS = Array.from({ length: 36 }, (_, i) => {
   return { value, label };
 });
 
-const ProviderClassDetail = () => {
+const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, ref) => {
   const { classId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -395,14 +397,36 @@ const ProviderClassDetail = () => {
     }
   };
 
+  const handleShare = () => {
+    const url = `${window.location.origin}/class/${cls.id}`;
+    const text = `Check out ${cls.title} on CampusBee!`;
+    if (navigator.share) {
+      navigator.share({ title: cls.title, text, url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url)
+        .then(() => toast.success("Class link copied!"))
+        .catch(() => toast.error("Failed to copy link"));
+    }
+  };
+
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div ref={ref} className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card px-4 py-3">
         <button onClick={() => navigate(-1)} className="p-1"><ArrowLeft size={20} /></button>
         <h1 className="text-lg font-bold truncate flex-1">{cls.title}</h1>
         <Badge className={`text-xs ${cls.status === "published" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"} border-0`}>
           {cls.status}
         </Badge>
+        {cls.status === "published" && (
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent transition-colors"
+            title="Share class link"
+          >
+            <Share2 size={13} />
+            <span>Share</span>
+          </button>
+        )}
       </header>
 
       {/* Cover */}
@@ -1067,6 +1091,8 @@ const ProviderClassDetail = () => {
       </Sheet>
     </div>
   );
-};
+});
+
+ProviderClassDetail.displayName = "ProviderClassDetail";
 
 export default ProviderClassDetail;

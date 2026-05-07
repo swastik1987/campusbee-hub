@@ -1,6 +1,8 @@
+import * as React from "react";
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
+import AuthDrawer from "@/components/AuthDrawer";
 import { useSeekerClassDetail, useClassReviews } from "@/hooks/useSeeker";
 import { useSeekerProviderCertifications, useSeekerTrainerCertifications } from "@/hooks/useCertifications";
 import CertificationGallery from "@/components/shared/CertificationGallery";
@@ -37,11 +39,11 @@ const FEE_LABELS: Record<string, string> = {
   one_time: " one-time",
 };
 
-const ClassDetail = () => {
+const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, ref) => {
   const { classId } = useParams();
   const navigate = useNavigate();
-  const { profile } = useUser();
-  const { data: cls, isLoading } = useSeekerClassDetail(classId);
+  const { session, profile } = useUser();
+  const { data: cls, isLoading, isError } = useSeekerClassDetail(classId);
   const { data: reviews } = useClassReviews(classId);
   // Certifications — loaded after class data resolves
   const providerId = cls ? (cls as any).service_providers?.id : undefined;
@@ -49,6 +51,18 @@ const ClassDetail = () => {
 
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [galleryIdx, setGalleryIdx] = useState(0);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginMessage, setLoginMessage] = useState<string | undefined>(undefined);
+
+  /** Gate an action behind authentication. Opens AuthDrawer if not logged in. */
+  const requireAuth = (fn: () => void, message?: string) => {
+    if (!session) {
+      setLoginMessage(message);
+      setLoginOpen(true);
+    } else {
+      fn();
+    }
+  };
 
   if (isLoading) {
     return (
@@ -64,6 +78,27 @@ const ClassDetail = () => {
           <Skeleton className="h-4 w-3/4" />
           <Skeleton className="h-32 w-full rounded-xl" />
         </div>
+      </div>
+    );
+  }
+
+  if (isError || (!isLoading && !cls)) {
+    return (
+      <div ref={ref} className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6 text-center">
+        <BookOpen size={40} className="text-muted-foreground" />
+        <div>
+          <p className="font-semibold">Class not available</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            This class may have been removed or is no longer publicly available.
+          </p>
+        </div>
+        <button
+          onClick={() => navigate("/")}
+          className="rounded-xl px-5 py-2.5 text-sm font-bold text-white"
+          style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
+        >
+          Go Home
+        </button>
       </div>
     );
   }
@@ -96,7 +131,7 @@ const ClassDetail = () => {
   };
 
   return (
-    <div className="seeker-theme flex min-h-screen flex-col bg-background pb-20">
+    <div ref={ref} className="seeker-theme flex min-h-screen flex-col bg-background pb-20">
       {/* Hero / Gallery — taller, with frosted-glass overlay buttons */}
       <div className="relative">
         {gallery.length > 0 ? (
@@ -228,7 +263,10 @@ const ClassDetail = () => {
               size="sm"
               variant="outline"
               className="flex-1 text-xs"
-              onClick={() => navigate(`/chat?with=${provider?.user_id}`)}
+              onClick={() => requireAuth(
+                () => navigate(`/chat?with=${provider?.user_id}`),
+                "Log in to chat with the provider"
+              )}
             >
               <MessageCircle size={14} className="mr-1" /> Chat
             </Button>
@@ -398,7 +436,10 @@ const ClassDetail = () => {
                         )}
                       </div>
                       <button
-                        onClick={() => navigate(`/enroll/${batch.id}`)}
+                        onClick={() => requireAuth(
+                          () => navigate(`/enroll/${batch.id}`),
+                          isFull ? "Log in to join the waitlist" : "Log in to enroll in this class"
+                        )}
                         className="rounded-xl px-4 py-2 text-xs font-bold text-white transition-all active:scale-95"
                         style={{
                           background: isFull
@@ -454,7 +495,15 @@ const ClassDetail = () => {
                   {cls.trial_fee && cls.trial_fee > 0 ? `₹${cls.trial_fee}` : "Free"} — Try before you enroll
                 </p>
               </div>
-              <Button size="sm" variant="outline" className="border-primary text-primary">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-primary text-primary"
+                onClick={() => requireAuth(
+                  () => navigate(`/provider-profile/${provider?.id}`),
+                  "Log in to book a trial class"
+                )}
+              >
                 Book Trial
               </Button>
             </div>
@@ -516,6 +565,13 @@ const ClassDetail = () => {
         </div>
       </div>
 
+      {/* Auth drawer — shown when anonymous visitor taps a gated action */}
+      <AuthDrawer
+        open={loginOpen}
+        onOpenChange={setLoginOpen}
+        message={loginMessage}
+      />
+
       {/* Sticky bottom CTA */}
       {activeBatches.length > 0 && lowestFee !== null && (
         <div className="seeker-theme fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card/95 backdrop-blur-sm p-3 safe-bottom">
@@ -531,16 +587,20 @@ const ClassDetail = () => {
             </div>
             {cls.trial_available && (
               <button
+                onClick={() => requireAuth(
+                  () => navigate(`/provider-profile/${provider?.id}`),
+                  "Log in to book a trial class"
+                )}
                 className="rounded-xl border-2 border-primary px-4 py-2.5 text-xs font-bold text-primary transition-all active:scale-95"
               >
                 Book Trial
               </button>
             )}
             <button
-              onClick={() => {
-                const first = activeBatches[0] as any;
-                navigate(`/enroll/${first.id}`);
-              }}
+              onClick={() => requireAuth(
+                () => { const first = activeBatches[0] as any; navigate(`/enroll/${first.id}`); },
+                "Log in to enroll in this class"
+              )}
               className="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-all active:scale-95"
               style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
             >
@@ -551,6 +611,8 @@ const ClassDetail = () => {
       )}
     </div>
   );
-};
+});
+
+ClassDetail.displayName = "ClassDetail";
 
 export default ClassDetail;

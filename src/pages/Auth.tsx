@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useUser } from "@/contexts/UserContext";
+import { OAUTH_RETURN_KEY } from "@/components/AuthDrawer";
 import {
   AlertTriangle,
   ArrowRight,
@@ -101,6 +102,13 @@ const Auth = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, re
   useEffect(() => {
     if (!session || !profile) return;
     localStorage.removeItem(ROLE_STORAGE_KEY);
+    // Check for OAuth return-to key (set by AuthDrawer before triggering OAuth from a public page)
+    const returnTo = localStorage.getItem(OAUTH_RETURN_KEY);
+    if (returnTo && returnTo.startsWith("/")) {
+      localStorage.removeItem(OAUTH_RETURN_KEY);
+      navigate(returnTo, { replace: true });
+      return;
+    }
     if (intendedRole === "platform_admin" && profile.is_platform_admin) {
       navigate("/platform", { replace: true });
       return;
