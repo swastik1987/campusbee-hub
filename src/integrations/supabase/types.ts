@@ -666,17 +666,16 @@ export type Database = {
           age_group_max: number | null
           age_group_min: number | null
           category_id: string | null
-          facebook_url: string | null
-          instagram_url: string | null
-          twitter_url: string | null
           class_type: string
           cover_image_url: string | null
           created_at: string
           description: string | null
+          facebook_url: string | null
           gallery_urls: string[]
           home_radius_km: number
           id: string
           images: string[]
+          instagram_url: string | null
           is_home_based: boolean
           location: unknown
           location_lat: number | null
@@ -695,6 +694,7 @@ export type Database = {
           total_rating: number
           trial_available: boolean
           trial_fee: number | null
+          twitter_url: string | null
           updated_at: string
           venue_details: string | null
           what_to_bring: string | null
@@ -704,17 +704,16 @@ export type Database = {
           age_group_max?: number | null
           age_group_min?: number | null
           category_id?: string | null
-          facebook_url?: string | null
-          instagram_url?: string | null
-          twitter_url?: string | null
           class_type?: string
           cover_image_url?: string | null
           created_at?: string
           description?: string | null
+          facebook_url?: string | null
           gallery_urls?: string[]
           home_radius_km?: number
           id?: string
           images?: string[]
+          instagram_url?: string | null
           is_home_based?: boolean
           location?: unknown
           location_lat?: number | null
@@ -733,6 +732,7 @@ export type Database = {
           total_rating?: number
           trial_available?: boolean
           trial_fee?: number | null
+          twitter_url?: string | null
           updated_at?: string
           venue_details?: string | null
           what_to_bring?: string | null
@@ -742,17 +742,16 @@ export type Database = {
           age_group_max?: number | null
           age_group_min?: number | null
           category_id?: string | null
-          facebook_url?: string | null
-          instagram_url?: string | null
-          twitter_url?: string | null
           class_type?: string
           cover_image_url?: string | null
           created_at?: string
           description?: string | null
+          facebook_url?: string | null
           gallery_urls?: string[]
           home_radius_km?: number
           id?: string
           images?: string[]
+          instagram_url?: string | null
           is_home_based?: boolean
           location?: unknown
           location_lat?: number | null
@@ -771,6 +770,7 @@ export type Database = {
           total_rating?: number
           trial_available?: boolean
           trial_fee?: number | null
+          twitter_url?: string | null
           updated_at?: string
           venue_details?: string | null
           what_to_bring?: string | null
