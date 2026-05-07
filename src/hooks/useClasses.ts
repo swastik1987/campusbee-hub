@@ -56,7 +56,8 @@ export function useClassDetail(classId: string | undefined) {
         .from("classes")
         .select(`
           id, title, description, short_description, cover_image_url, gallery_urls,
-          promo_video_url, class_type, skill_level, age_group_min, age_group_max,
+          promo_video_url, facebook_url, instagram_url, twitter_url,
+          class_type, skill_level, age_group_min, age_group_max,
           venue_details, what_to_bring, trial_available, trial_fee, status,
           address, is_home_based, home_radius_km, location_lat, location_lng,
           moderation_status, moderation_notes, total_rating, rating_count, provider_id, category_id,
@@ -97,6 +98,9 @@ export function useCreateClass() {
       coverImageUrl: string;
       galleryUrls: string[];
       promoVideoUrl: string;
+      facebookUrl?: string;
+      instagramUrl?: string;
+      twitterUrl?: string;
       trialAvailable: boolean;
       trialFee: number;
       status: string;
@@ -129,6 +133,9 @@ export function useCreateClass() {
           cover_image_url: input.coverImageUrl || null,
           gallery_urls: input.galleryUrls,
           promo_video_url: input.promoVideoUrl || null,
+          facebook_url: input.facebookUrl || null,
+          instagram_url: input.instagramUrl || null,
+          twitter_url: input.twitterUrl || null,
           trial_available: input.trialAvailable,
           trial_fee: input.trialFee,
           status: input.status,
@@ -200,6 +207,9 @@ export function useUpdateClass() {
       coverImageUrl?: string;
       galleryUrls?: string[];
       promoVideoUrl?: string;
+      facebookUrl?: string;
+      instagramUrl?: string;
+      twitterUrl?: string;
       trialAvailable?: boolean;
       trialFee?: number;
       status?: string;
@@ -223,6 +233,9 @@ export function useUpdateClass() {
       if (fields.coverImageUrl !== undefined) updateObj.cover_image_url = fields.coverImageUrl || null;
       if (fields.galleryUrls !== undefined) updateObj.gallery_urls = fields.galleryUrls;
       if (fields.promoVideoUrl !== undefined) updateObj.promo_video_url = fields.promoVideoUrl || null;
+      if (fields.facebookUrl !== undefined) updateObj.facebook_url = fields.facebookUrl || null;
+      if (fields.instagramUrl !== undefined) updateObj.instagram_url = fields.instagramUrl || null;
+      if (fields.twitterUrl !== undefined) updateObj.twitter_url = fields.twitterUrl || null;
       if (fields.trialAvailable !== undefined) updateObj.trial_available = fields.trialAvailable;
       if (fields.trialFee !== undefined) updateObj.trial_fee = fields.trialFee;
       if (fields.status !== undefined) updateObj.status = fields.status;

@@ -666,6 +666,9 @@ export type Database = {
           age_group_max: number | null
           age_group_min: number | null
           category_id: string | null
+          facebook_url: string | null
+          instagram_url: string | null
+          twitter_url: string | null
           class_type: string
           cover_image_url: string | null
           created_at: string
@@ -701,6 +704,9 @@ export type Database = {
           age_group_max?: number | null
           age_group_min?: number | null
           category_id?: string | null
+          facebook_url?: string | null
+          instagram_url?: string | null
+          twitter_url?: string | null
           class_type?: string
           cover_image_url?: string | null
           created_at?: string
@@ -736,6 +742,9 @@ export type Database = {
           age_group_max?: number | null
           age_group_min?: number | null
           category_id?: string | null
+          facebook_url?: string | null
+          instagram_url?: string | null
+          twitter_url?: string | null
           class_type?: string
           cover_image_url?: string | null
           created_at?: string

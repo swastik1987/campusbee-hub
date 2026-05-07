@@ -56,7 +56,9 @@ import {
   Camera,
   Clock,
   Edit3,
+  Facebook,
   Image,
+  Instagram,
   Layers,
   Loader2,
   Package,
@@ -67,7 +69,9 @@ import {
   Sparkles,
   Star,
   Trash2,
+  Twitter,
   Users,
+  Youtube,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -139,6 +143,11 @@ const ProviderClassDetail = () => {
   const [editWhatToBring, setEditWhatToBring] = useState("");
   const [editTrialAvailable, setEditTrialAvailable] = useState(false);
   const [editTrialFee, setEditTrialFee] = useState("");
+  // Social links
+  const [editPromoUrl, setEditPromoUrl] = useState("");
+  const [editFacebookUrl, setEditFacebookUrl] = useState("");
+  const [editInstagramUrl, setEditInstagramUrl] = useState("");
+  const [editTwitterUrl, setEditTwitterUrl] = useState("");
   // Location edit state
   const [editIsHomeBased, setEditIsHomeBased] = useState(false);
   const [editClassLocation, setEditClassLocation] = useState<LocationValue | null>(null);
@@ -221,6 +230,10 @@ const ProviderClassDetail = () => {
     setEditWhatToBring(cls.what_to_bring || "");
     setEditTrialAvailable(cls.trial_available ?? false);
     setEditTrialFee(cls.trial_fee ? String(cls.trial_fee) : "0");
+    setEditPromoUrl((cls as any).promo_video_url ?? "");
+    setEditFacebookUrl((cls as any).facebook_url ?? "");
+    setEditInstagramUrl((cls as any).instagram_url ?? "");
+    setEditTwitterUrl((cls as any).twitter_url ?? "");
     setEditIsHomeBased((cls as any).is_home_based ?? false);
     setEditHomeRadiusKm((cls as any).home_radius_km ?? 5);
     // Pre-populate address text; lat/lng initialised if available
@@ -246,6 +259,10 @@ const ProviderClassDetail = () => {
         whatToBring: editWhatToBring,
         trialAvailable: editTrialAvailable,
         trialFee: editTrialAvailable ? parseFloat(editTrialFee) || 0 : 0,
+        promoVideoUrl: editPromoUrl,
+        facebookUrl: editFacebookUrl,
+        instagramUrl: editInstagramUrl,
+        twitterUrl: editTwitterUrl,
         address: editClassLocation?.address,
         isHomeBased: editIsHomeBased,
         locationLat: editClassLocation?.lat ?? null,
@@ -721,6 +738,35 @@ const ProviderClassDetail = () => {
                 <Input type="number" value={editTrialFee} onChange={(e) => setEditTrialFee(e.target.value)} placeholder="0 for free" className="h-10 rounded-lg" />
               </div>
             )}
+
+            {/* Social Media */}
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="text-xs font-semibold">Social Media</Label>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] flex items-center gap-1.5 text-muted-foreground">
+                  <Youtube size={11} className="text-red-500" /> YouTube / Promo Video
+                </Label>
+                <Input value={editPromoUrl} onChange={(e) => setEditPromoUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." className="h-9 rounded-lg text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] flex items-center gap-1.5 text-muted-foreground">
+                  <Facebook size={11} className="text-blue-500" /> Facebook
+                </Label>
+                <Input value={editFacebookUrl} onChange={(e) => setEditFacebookUrl(e.target.value)} placeholder="https://facebook.com/yourpage" className="h-9 rounded-lg text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] flex items-center gap-1.5 text-muted-foreground">
+                  <Instagram size={11} className="text-pink-500" /> Instagram
+                </Label>
+                <Input value={editInstagramUrl} onChange={(e) => setEditInstagramUrl(e.target.value)} placeholder="https://instagram.com/yourhandle" className="h-9 rounded-lg text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] flex items-center gap-1.5 text-muted-foreground">
+                  <Twitter size={11} className="text-sky-500" /> Twitter / X
+                </Label>
+                <Input value={editTwitterUrl} onChange={(e) => setEditTwitterUrl(e.target.value)} placeholder="https://twitter.com/yourhandle" className="h-9 rounded-lg text-xs" />
+              </div>
+            </div>
 
             <Button onClick={handleSaveClass} disabled={!editTitle.trim() || updateClass.isPending} className="w-full bg-provider text-white rounded-lg">
               {updateClass.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save Changes"}
