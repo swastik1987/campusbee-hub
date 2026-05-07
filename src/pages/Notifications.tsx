@@ -43,7 +43,7 @@ const ROUTE_MAP: Record<string, (id: string) => string> = {
   enrollment: (id) => `/enrollment/${id}`,
   payment: (id) => `/enrollment/${id}`,
   class: (id) => `/class/${id}`,
-  announcement: () => `/home`,
+  announcement: () => `/explore`,
   chat_conversation: () => `/chat`,
   review: (id) => `/class/${id}`,
   provider_registration: () => `/provider/dashboard`,

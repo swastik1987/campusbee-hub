@@ -492,7 +492,7 @@ const EnrollFlow = () => {
                 My Classes
               </Button>
               <button
-                onClick={() => navigate("/home")}
+                onClick={() => navigate("/explore")}
                 className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all active:scale-95"
                 style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
               >

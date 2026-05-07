@@ -18,9 +18,7 @@ type Persona = "seeker" | "provider" | "platform_admin";
 type NavTab = { path: string; activePaths: string[]; icon: typeof Home; label: string };
 
 const seekerTabs = [
-  // Home navigates to "/" (contextual landing). Active on both "/" and "/home"
-  // because Landing auto-redirects single-role seekers to /home.
-  { path: "/", activePaths: ["/", "/home"], icon: Home, label: "Home" },
+  { path: "/", activePaths: ["/"], icon: Home, label: "Home" },
   { path: "/explore",    activePaths: ["/explore"],    icon: Search,        label: "Explore"  },
   { path: "/my-classes", activePaths: ["/my-classes"], icon: BookOpen,      label: "Classes"  },
   { path: "/chat",       activePaths: ["/chat"],       icon: MessageCircle, label: "Chat"     },

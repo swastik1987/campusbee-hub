@@ -13,7 +13,7 @@ const PROVIDER_ROUTES_PREFIX = "/provider/";
 // Routes that require a completed onboarding (family setup)
 // i.e., seeker routes that depend on family/location context
 const REQUIRES_FAMILY_PREFIXES = [
-  "/home", "/explore", "/my-classes", "/class/", "/enroll/",
+  "/explore", "/my-classes", "/class/", "/enroll/",
   "/enrollment/", "/chat", "/family",
   "/provider-profile/",
 ];

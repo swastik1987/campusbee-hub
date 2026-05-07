@@ -380,7 +380,7 @@ const LoggedInLanding = () => {
     if (isMultiRole || isNewUser) return; // handled inline
     if (isAdmin)    { navigate("/platform",             { replace: true }); return; }
     if (isProvider) { navigate("/provider/dashboard",   { replace: true }); return; }
-    if (hasFamily)  { navigate("/home",                 { replace: true }); return; }
+    if (hasFamily)  { navigate("/explore",               { replace: true }); return; }
   }, [profile, isAdmin, isProvider, hasFamily, isMultiRole, isNewUser, navigate]);
 
   // ── Role chooser cards (multi-role) ────────────────────────────
@@ -389,7 +389,7 @@ const LoggedInLanding = () => {
       label: "Discover & Book",
       desc: "Explore classes, manage enrollments",
       icon: Search,
-      path: "/home",
+      path: "/explore",
       from: A_FROM, to: A_TO,
     },
     isProvider && {

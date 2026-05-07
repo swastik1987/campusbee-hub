@@ -58,7 +58,7 @@ const InviteAccept = () => {
           <p className="text-sm text-muted-foreground">
             This invite link is invalid or could not be found.
           </p>
-          <Button onClick={() => navigate("/home")} className="w-full">Go Home</Button>
+          <Button onClick={() => navigate("/explore")} className="w-full">Go Home</Button>
         </Card>
       </div>
     );
@@ -73,7 +73,7 @@ const InviteAccept = () => {
           <p className="text-sm text-muted-foreground">
             This invite has expired. Ask the person to send you a new one.
           </p>
-          <Button onClick={() => navigate("/home")} className="w-full">Go Home</Button>
+          <Button onClick={() => navigate("/explore")} className="w-full">Go Home</Button>
         </Card>
       </div>
     );
@@ -88,7 +88,7 @@ const InviteAccept = () => {
           <p className="text-sm text-muted-foreground">
             This invite has already been {invite.status}.
           </p>
-          <Button onClick={() => navigate("/home")} className="w-full">Go Home</Button>
+          <Button onClick={() => navigate("/explore")} className="w-full">Go Home</Button>
         </Card>
       </div>
     );
@@ -144,7 +144,7 @@ const InviteAccept = () => {
     try {
       await rejectInvite.mutateAsync(invite.id);
       toast.success("Invite declined");
-      navigate("/home");
+      navigate("/explore");
     } catch {
       toast.error("Failed to decline");
     }

@@ -84,7 +84,7 @@ const Onboarding = React.forwardRef<HTMLDivElement, Record<string, never>>((_pro
 
   const handleSeekerComplete = async () => {
     await Promise.all([refreshProfile(), refreshFamily()]);
-    navigate("/home", { replace: true });
+    navigate("/explore", { replace: true });
   };
 
   const handleLogout = async () => {
