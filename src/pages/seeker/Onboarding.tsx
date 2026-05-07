@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useCreateProviderOnboarding } from "@/hooks/useOnboarding";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,26 +16,45 @@ import { toast } from "sonner";
 type Role = "seeker" | "provider" | null;
 
 // v2 flows
-//  Seeker:   Profile → Role → Location → Family
-//  Provider: Profile → Role → ProviderProfile (auto-approved Basic tier)
+//  With URL ?role=seeker:   Profile → Location → Family        (3 steps)
+//  With URL ?role=provider: Profile → ProviderProfile          (2 steps)
+//  No URL role (fallback):  Profile → Role → Location → Family (4 steps, seeker)
+//                           Profile → Role → ProviderProfile   (3 steps, provider)
 
 const Onboarding = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, ref) => {
-  const [step, setStep] = useState(0);
-  const [role, setRole] = useState<Role>(null);
-  const [familyId, setFamilyId] = useState<string | null>(null);
-
-  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const navigate  = useNavigate();
   const { profile, refreshProfile, refreshFamily } = useUser();
   const createProvider = useCreateProviderOnboarding();
 
+  // Read role from URL param — landing page sets ?role=seeker or ?role=provider
+  const urlRoleRaw = params.get("role");
+  const urlRole: Role =
+    urlRoleRaw === "seeker" ? "seeker" :
+    urlRoleRaw === "provider" ? "provider" : null;
+
+  // hasPresetRole = true → skip the StepRoleSelect step
+  const hasPresetRole = urlRole !== null;
+
+  const [step, setStep] = useState(0);
+  const [role, setRole] = useState<Role>(urlRole);
+  const [familyId, setFamilyId] = useState<string | null>(null);
+
+  // ── Step labels ──────────────────────────────────────────────────────────
   const getStepLabels = (): string[] => {
-    if (role === "provider") return ["About You", "Role", "Profile"];
-    if (role === "seeker") return ["About You", "Role", "Location", "Family"];
+    if (hasPresetRole) {
+      if (role === "provider") return ["About You", "Your Business"];
+      return ["About You", "Location", "Family"];
+    }
+    // Fallback flow (no URL role)
+    if (role === "provider") return ["About You", "Role", "Your Business"];
+    if (role === "seeker")   return ["About You", "Role", "Location", "Family"];
     return ["About You", "Role"];
   };
   const stepLabels = getStepLabels();
   const totalSteps = stepLabels.length;
 
+  // ── Handlers ────────────────────────────────────────────────────────────
   const handleRoleSelect = (selected: "seeker" | "provider") => {
     setRole(selected);
     setStep(2);
@@ -61,7 +80,7 @@ const Onboarding = React.forwardRef<HTMLDivElement, Record<string, never>>((_pro
 
   const handleSeekerComplete = async () => {
     await Promise.all([refreshProfile(), refreshFamily()]);
-    navigate("/explore", { replace: true });
+    navigate("/home", { replace: true });
   };
 
   const handleLogout = async () => {
@@ -78,7 +97,51 @@ const Onboarding = React.forwardRef<HTMLDivElement, Record<string, never>>((_pro
     }
   };
 
+  // ── Step renderer ────────────────────────────────────────────────────────
   const renderStep = () => {
+    if (hasPresetRole) {
+      // Shortened flow: role is known from URL
+      switch (step) {
+        case 0:
+          return <StepProfile onNext={() => setStep(1)} />;
+        case 1:
+          if (role === "provider") {
+            return (
+              <StepProviderProfile
+                onNext={handleProviderComplete}
+                onBack={() => setStep(0)}
+                isSubmitting={createProvider.isPending}
+              />
+            );
+          }
+          // Seeker: location
+          if (!profile) return null;
+          return (
+            <StepLocation
+              userId={profile.id}
+              onNext={(fId) => {
+                setFamilyId(fId);
+                setStep(2);
+              }}
+              onBack={() => setStep(0)}
+            />
+          );
+        case 2:
+          // Seeker only — family
+          if (role !== "seeker" || !familyId) return null;
+          return (
+            <StepFamily
+              familyId={familyId}
+              onComplete={handleSeekerComplete}
+              onBack={() => setStep(1)}
+            />
+          );
+        default:
+          return null;
+      }
+    }
+
+    // Fallback flow: no URL role — show role selection step
     switch (step) {
       case 0:
         return <StepProfile onNext={() => setStep(1)} />;
@@ -94,7 +157,6 @@ const Onboarding = React.forwardRef<HTMLDivElement, Record<string, never>>((_pro
             />
           );
         }
-        // Seeker: location step
         if (!profile) return null;
         return (
           <StepLocation
@@ -107,7 +169,6 @@ const Onboarding = React.forwardRef<HTMLDivElement, Record<string, never>>((_pro
           />
         );
       case 3:
-        // Seeker only — family
         if (role !== "seeker" || !familyId) return null;
         return (
           <StepFamily
@@ -121,8 +182,10 @@ const Onboarding = React.forwardRef<HTMLDivElement, Record<string, never>>((_pro
     }
   };
 
+  const isSeeker = role === "seeker";
+
   return (
-    <div ref={ref} className="flex min-h-screen flex-col bg-background">
+    <div ref={ref} className={`${isSeeker ? "seeker-theme" : ""} flex min-h-screen flex-col bg-background`}>
       <div className="flex items-center justify-between px-4 pt-4 pb-0">
         <button
           onClick={handleLogout}
@@ -153,9 +216,12 @@ const Onboarding = React.forwardRef<HTMLDivElement, Record<string, never>>((_pro
           {Array.from({ length: totalSteps }).map((_, i) => (
             <div
               key={i}
-              className={`h-1.5 flex-1 rounded-full transition-colors ${
-                i <= step ? "gradient-primary" : "bg-muted"
+              className={`h-1.5 flex-1 rounded-full transition-all ${
+                i <= step ? (isSeeker ? "" : "gradient-primary") : "bg-muted"
               }`}
+              style={i <= step && isSeeker ? {
+                background: "linear-gradient(90deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))",
+              } : undefined}
             />
           ))}
         </div>

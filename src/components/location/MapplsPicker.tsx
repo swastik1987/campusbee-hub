@@ -14,6 +14,13 @@
  * - Panning the map repositions the pin; moveend reads getCenter() and updates location
  * - mapReadyRef skips the first synthetic moveend on map init
  * - emitLocation() is called BEFORE setCenter() to avoid race in moveend dedup
+ *
+ * GPS:
+ * - On mount, requests device location via navigator.geolocation (auto, no prompt delay).
+ * - Renders a permanent blue dot at GPS coordinates (non-draggable Mappls marker).
+ * - If no value is pre-set, pans the map to GPS position once it arrives — this triggers
+ *   the existing moveend → reverse-geocode flow, auto-populating the address field.
+ * - Falls back to defaultCenter on denial or any error (silent).
  */
 
 import * as React from "react";
@@ -53,7 +60,6 @@ function useMapId() {
 /** First ~2 segments of a display_name (before the city/state/country) */
 function shortName(result: NominatimResult): string {
   const parts = result.display_name.split(",").map(s => s.trim());
-  // Try to get a meaningful 1-2 part name
   if (result.name && result.name.length > 2) return result.name;
   return parts.slice(0, 2).join(", ");
 }
@@ -65,6 +71,14 @@ function addressContext(result: NominatimResult): string {
   const state = a?.state || "";
   return [city, state].filter(Boolean).join(", ");
 }
+
+/* ── GPS blue dot — Data URL SVG (classic Google Maps style) ─────────────── */
+const GPS_DOT_SVG = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">' +
+    '<circle cx="11" cy="11" r="9" fill="#4285F4" stroke="white" stroke-width="3"/>' +
+    '<circle cx="11" cy="11" r="3" fill="rgba(255,255,255,0.65)"/>' +
+  '</svg>'
+)}`;
 
 /* ── Component ────────────────────────────────────────────────────────────── */
 
@@ -106,6 +120,12 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
     const abortRef        = React.useRef<AbortController | null>(null);
     const reverseAbortRef = React.useRef<AbortController | null>(null);
 
+    // GPS state
+    const [gpsCoords, setGpsCoords]         = React.useState<[number, number] | null>(null);
+    const [mapInitialized, setMapInitialized] = React.useState(false);
+    const mapplsSdkRef  = React.useRef<any>(null);
+    const gpsDotRef     = React.useRef<any>(null);
+
     const [sdkLoading,      setSdkLoading]      = React.useState(true);
     const [sdkError,        setSdkError]        = React.useState<string | null>(null);
     const [mapMoving,       setMapMoving]        = React.useState(false);
@@ -115,6 +135,53 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
     const [searchLoading,   setSearchLoading]    = React.useState(false);
     const [reverseLoading,  setReverseLoading]   = React.useState(false);
     const [displayAddress,  setDisplayAddress]   = React.useState(value?.address ?? "");
+
+    /* ── GPS auto-request on mount ──────────────────────────────────────── */
+    React.useEffect(() => {
+      if (!navigator.geolocation) return;
+      let active = true;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (active) setGpsCoords([pos.coords.latitude, pos.coords.longitude]);
+        },
+        () => { /* denied / unavailable — silent fallback to defaultCenter */ },
+        { timeout: 10000, maximumAge: 300000, enableHighAccuracy: false }
+      );
+      return () => { active = false; };
+    }, []);
+
+    /* ── Blue dot + initial GPS pan ─────────────────────────────────────── */
+    React.useEffect(() => {
+      if (!gpsCoords || !mapInitialized || !mapInstanceRef.current || !mapplsSdkRef.current) return;
+
+      const [lat, lng] = gpsCoords;
+      const mapAny   = mapInstanceRef.current as any;
+      const mappls   = mapplsSdkRef.current as any;
+
+      // Remove any previous GPS dot
+      if (gpsDotRef.current) {
+        try { gpsDotRef.current.remove?.(); } catch { /* ignore */ }
+        try { gpsDotRef.current.setMap?.(null); } catch { /* ignore */ }
+        gpsDotRef.current = null;
+      }
+
+      // Place blue dot at GPS coordinates (non-draggable)
+      try {
+        gpsDotRef.current = new mappls.Marker({
+          map: mapAny,
+          position: { lat, lng },
+          icon: GPS_DOT_SVG,
+          draggable: false,
+        });
+      } catch {
+        // GPS dot unavailable — map still functions normally
+      }
+
+      // Pan to GPS if no value has been selected yet (triggers moveend → reverse-geocode)
+      if (!value) {
+        mapAny?.setCenter?.({ lat, lng });
+      }
+    }, [gpsCoords, mapInitialized, value]);
 
     /* ── Sync with external value changes ──────────────────────────────── */
     React.useEffect(() => {
@@ -141,7 +208,6 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
 
     /* ── Nominatim search ───────────────────────────────────────────────── */
     const fetchSuggestions = React.useCallback((query: string) => {
-      // Cancel any in-flight request
       abortRef.current?.abort();
       abortRef.current = new AbortController();
 
@@ -191,7 +257,6 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
       const lng = parseFloat(result.lon); // Nominatim uses "lon"
       if (isNaN(lat) || isNaN(lng)) return;
 
-      // Build a clean address string (strip trailing ", India")
       const address = result.display_name.replace(/,\s*India\s*$/, "");
 
       setInputText(address);
@@ -318,7 +383,10 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
             });
           }
 
+          // Store SDK ref and mark map ready for GPS blue dot effect
+          mapplsSdkRef.current = mappls;
           setSdkLoading(false);
+          if (!cancelled) setMapInitialized(true);
         })
         .catch(err => {
           if (cancelled) return;
@@ -332,8 +400,14 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
         abortRef.current?.abort();
         reverseAbortRef.current?.abort();
         if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        // Clean up GPS dot before removing map
+        if (gpsDotRef.current) {
+          try { gpsDotRef.current.remove?.(); } catch { /* ignore */ }
+          gpsDotRef.current = null;
+        }
         try { mapInstanceRef.current?.remove(); } catch { /* ignore */ }
         mapInstanceRef.current = null;
+        mapplsSdkRef.current = null;
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -384,7 +458,7 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
                   <button
                     type="button"
                     onPointerDown={e => {
-                      e.preventDefault(); // keep input focused until selection completes
+                      e.preventDefault();
                       handleSuggestionSelect(s);
                     }}
                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted flex flex-col gap-0.5"
@@ -447,6 +521,16 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
                   background: "rgba(0,0,0,0.18)",
                   transition: "all 0.15s ease",
                 }} />
+              </div>
+            )}
+
+            {/* GPS indicator hint — shown while GPS is pending */}
+            {!sdkLoading && !sdkError && !gpsCoords && (
+              <div className="absolute top-2 left-0 right-0 flex justify-center pointer-events-none">
+                <span className="flex items-center gap-1 bg-black/45 text-white text-[10px] px-2.5 py-1 rounded-full">
+                  <Navigation2 size={10} />
+                  Detecting your location…
+                </span>
               </div>
             )}
 
