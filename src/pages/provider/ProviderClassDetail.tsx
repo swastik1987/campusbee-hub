@@ -687,22 +687,8 @@ const ProviderClassDetail = () => {
               <Label className="text-xs">Venue Details</Label>
               <Input value={editVenue} onChange={(e) => setEditVenue(e.target.value)} placeholder="e.g. Community Hall, Block A" className="h-10 rounded-lg" />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">What to Bring</Label>
-              <Input value={editWhatToBring} onChange={(e) => setEditWhatToBring(e.target.value)} placeholder="e.g. Racquet, sportswear" className="h-10 rounded-lg" />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">Trial Available?</Label>
-              <Switch checked={editTrialAvailable} onCheckedChange={setEditTrialAvailable} />
-            </div>
-            {editTrialAvailable && (
-              <div className="space-y-1">
-                <Label className="text-xs">Trial Fee (₹)</Label>
-                <Input type="number" value={editTrialFee} onChange={(e) => setEditTrialFee(e.target.value)} placeholder="0 for free" className="h-10 rounded-lg" />
-              </div>
-            )}
 
-            {/* Location section */}
+            {/* Location section — directly below Venue */}
             <div className="space-y-2 pt-2 border-t">
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Class Location</Label>
@@ -719,6 +705,22 @@ const ProviderClassDetail = () => {
                 onRadiusChange={setEditHomeRadiusKm}
               />
             </div>
+
+            {/* Optional details — at the end */}
+            <div className="space-y-1 pt-2 border-t">
+              <Label className="text-xs">What to Bring</Label>
+              <Input value={editWhatToBring} onChange={(e) => setEditWhatToBring(e.target.value)} placeholder="e.g. Racquet, sportswear" className="h-10 rounded-lg" />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Trial Available?</Label>
+              <Switch checked={editTrialAvailable} onCheckedChange={setEditTrialAvailable} />
+            </div>
+            {editTrialAvailable && (
+              <div className="space-y-1">
+                <Label className="text-xs">Trial Fee (₹)</Label>
+                <Input type="number" value={editTrialFee} onChange={(e) => setEditTrialFee(e.target.value)} placeholder="0 for free" className="h-10 rounded-lg" />
+              </div>
+            )}
 
             <Button onClick={handleSaveClass} disabled={!editTitle.trim() || updateClass.isPending} className="w-full bg-provider text-white rounded-lg">
               {updateClass.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save Changes"}

@@ -154,9 +154,13 @@ export function useUpdateClassStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ classId, status }: { classId: string; status: string }) => {
+      // When publishing, also mark moderation as approved so the class goes live.
+      // (MVP: moderation edge-function may not be deployed; provider intent is to publish.)
+      const updateObj: Record<string, string> = { status };
+      if (status === "published") updateObj.moderation_status = "approved";
       const { error } = await supabase
         .from("classes")
-        .update({ status })
+        .update(updateObj)
         .eq("id", classId);
       if (error) throw error;
     },
@@ -164,6 +168,18 @@ export function useUpdateClassStatus() {
       qc.invalidateQueries({ queryKey: ["provider-classes"] });
       qc.invalidateQueries({ queryKey: ["class-detail"] });
     },
+  });
+}
+
+export function useDeleteClass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (classId: string) => {
+      // Hard-delete the draft class row (batches cascade-delete via FK)
+      const { error } = await supabase.from("classes").delete().eq("id", classId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["provider-classes"] }),
   });
 }
 

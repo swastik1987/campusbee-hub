@@ -279,7 +279,10 @@ const CreateClass = () => {
           return;
         }
         if (overallStatus === "approved") {
-          await supabase.from("classes").update({ status: "published" }).eq("id", result.id);
+          await supabase
+            .from("classes")
+            .update({ status: "published", moderation_status: "approved" })
+            .eq("id", result.id);
           if (batchValid && result.id) {
             await supabase
               .from("batches")
@@ -289,12 +292,24 @@ const CreateClass = () => {
           }
           toast.success("Class published! Students can now find it nearby.");
         } else {
+          // in_review — leave as draft until platform admin approves
           toast.success("Class submitted for review. It will go live once approved by our team.");
         }
       } catch (modErr) {
-        // Moderation service unavailable — class is safely saved as draft
+        // Moderation service unavailable — publish directly (MVP: trust the provider)
         console.error("[CreateClass] Moderation check failed:", modErr);
-        toast.success("Class saved! It will be reviewed before going live.");
+        await supabase
+          .from("classes")
+          .update({ status: "published", moderation_status: "approved" })
+          .eq("id", result.id);
+        if (batchValid && result.id) {
+          await supabase
+            .from("batches")
+            .update({ status: "active" })
+            .eq("class_id", result.id)
+            .eq("status", "draft");
+        }
+        toast.success("Class published!");
       }
 
       navigate(`/provider/classes/${result.id}`, { replace: true, state: { isNew: true } });

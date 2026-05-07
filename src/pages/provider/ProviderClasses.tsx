@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useProviderClasses } from "@/hooks/useClasses";
+import { useProviderClasses, useUpdateClassStatus, useDeleteClass } from "@/hooks/useClasses";
 import ModerationStatusBadge from "@/components/moderation/ModerationStatusBadge";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
@@ -9,7 +9,18 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, Plus, Star } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Archive, BookOpen, Loader2, Pause, Play, Plus, Star, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 const STATUS_FILTERS = ["all", "draft", "published", "paused", "archived"];
 const STATUS_COLORS: Record<string, string> = {
@@ -30,8 +41,40 @@ const ProviderClasses = () => {
   const navigate = useNavigate();
   const { providerProfile } = useUser();
   const [statusFilter, setStatusFilter] = useState("all");
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const { data: classes, isLoading } = useProviderClasses(providerProfile?.id, statusFilter);
+  const updateStatus = useUpdateClassStatus();
+  const deleteClass = useDeleteClass();
+
+  const handleStatusChange = async (
+    e: React.MouseEvent,
+    classId: string,
+    status: string,
+  ) => {
+    e.stopPropagation();
+    try {
+      await updateStatus.mutateAsync({ classId, status });
+      const label =
+        status === "published" ? "Class published" :
+        status === "paused"    ? "Class paused" :
+                                  "Class archived";
+      toast.success(label);
+    } catch {
+      toast.error("Failed to update status");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteClass.mutateAsync(deleteTarget);
+      toast.success("Draft deleted");
+      setDeleteTarget(null);
+    } catch {
+      toast.error("Failed to delete class");
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-20">
@@ -83,17 +126,34 @@ const ProviderClasses = () => {
                     <BookOpen size={24} className="text-muted-foreground" />
                   </div>
                 )}
+
                 <div className="flex-1 min-w-0">
+                  {/* Title row — status badge + delete icon for drafts */}
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-sm font-semibold truncate">{cls.title}</h3>
-                    <Badge className={`text-[10px] ${STATUS_COLORS[cls.status ?? "draft"]} border-0 shrink-0`}>
-                      {STATUS_LABELS[cls.status ?? "draft"] ?? cls.status}
-                    </Badge>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Badge className={`text-[10px] ${STATUS_COLORS[cls.status ?? "draft"]} border-0`}>
+                        {STATUS_LABELS[cls.status ?? "draft"] ?? cls.status}
+                      </Badge>
+                      {cls.status === "draft" && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(cls.id); }}
+                          className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-red-50 transition-colors"
+                          title="Delete draft"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Category + address */}
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {(cls.class_categories as any)?.name}
                     {(cls as any).address && ` · ${(cls as any).address.split(",")[0]}`}
                   </p>
+
+                  {/* Moderation badge + rating */}
                   <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                     <ModerationStatusBadge
                       status={(cls as any).moderation_status}
@@ -107,6 +167,40 @@ const ProviderClasses = () => {
                       </span>
                     )}
                   </div>
+
+                  {/* Quick status actions for published / paused */}
+                  {(cls.status === "published" || cls.status === "paused") && (
+                    <div
+                      className="mt-2 flex gap-1.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {cls.status === "published" && (
+                        <button
+                          onClick={(e) => handleStatusChange(e, cls.id, "paused")}
+                          disabled={updateStatus.isPending}
+                          className="flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                        >
+                          <Pause size={10} /> Pause
+                        </button>
+                      )}
+                      {cls.status === "paused" && (
+                        <button
+                          onClick={(e) => handleStatusChange(e, cls.id, "published")}
+                          disabled={updateStatus.isPending}
+                          className="flex items-center gap-1 rounded-md bg-green-50 border border-green-200 px-2 py-0.5 text-[11px] font-medium text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50"
+                        >
+                          <Play size={10} /> Publish
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => handleStatusChange(e, cls.id, "archived")}
+                        disabled={updateStatus.isPending}
+                        className="flex items-center gap-1 rounded-md bg-gray-100 border border-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-200 transition-colors disabled:opacity-50"
+                      >
+                        <Archive size={10} /> Archive
+                      </button>
+                    </div>
+                  )}
                 </div>
               </Card>
             ))}
@@ -139,6 +233,28 @@ const ProviderClasses = () => {
           </Button>
         </div>
       )}
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the draft class and all its batches. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteClass.isPending}
+            >
+              {deleteClass.isPending ? <Loader2 size={14} className="animate-spin" /> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <BottomNav persona="provider" />
     </div>
