@@ -162,15 +162,15 @@ const ClassDetail = () => {
         </div>
 
         {/* 2×2 info grid */}
-        {(cls.age_min || cls.age_max || cls.skill_level || cls.address) && (
+        {(cls.age_group_min || cls.age_group_max || cls.skill_level || cls.address) && (
           <div className="grid grid-cols-2 gap-2">
-            {(cls.age_min || cls.age_max) && (
+            {(cls.age_group_min || cls.age_group_max) && (
               <div className="flex items-center gap-2 rounded-xl p-3" style={{ backgroundColor: "oklch(0.96 0.04 250)" }}>
                 <Users size={15} style={{ color: "oklch(0.55 0.20 250)" }} />
                 <div>
                   <p className="text-[10px] text-muted-foreground">Age Group</p>
                   <p className="text-xs font-semibold">
-                    {cls.age_min && cls.age_max ? `${cls.age_min}–${cls.age_max} yrs` : cls.age_min ? `${cls.age_min}+ yrs` : `Up to ${cls.age_max} yrs`}
+                    {cls.age_group_min && cls.age_group_max ? `${cls.age_group_min}–${cls.age_group_max} yrs` : cls.age_group_min ? `${cls.age_group_min}+ yrs` : `Up to ${cls.age_group_max} yrs`}
                   </p>
                 </div>
               </div>
@@ -180,7 +180,7 @@ const ClassDetail = () => {
                 <Star size={15} style={{ color: "oklch(0.55 0.20 250)" }} />
                 <div>
                   <p className="text-[10px] text-muted-foreground">Level</p>
-                  <p className="text-xs font-semibold capitalize">{cls.skill_level.replace("_", " ")}</p>
+                  <p className="text-xs font-semibold capitalize">{(Array.isArray(cls.skill_level) ? cls.skill_level.join(", ") : String(cls.skill_level)).replace("_", " ")}</p>
                 </div>
               </div>
             )}
