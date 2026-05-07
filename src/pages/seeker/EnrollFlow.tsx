@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +21,8 @@ const FEE_LABELS: Record<string, string> = {
   for_duration: " total",
   one_time: "",
 };
+
+const STEP_LABELS = ["Child", "Plan", "Payment", "Done"];
 
 const EnrollFlow = () => {
   const { batchId } = useParams();
@@ -39,7 +40,6 @@ const EnrollFlow = () => {
   const createWaitlist = useCreateWaitlistEntry();
   const recordPayment = useRecordPayment();
 
-  // Fetch batch details with class info
   const { data: batch, isLoading: batchLoading } = useQuery({
     queryKey: ["enroll-batch", batchId],
     enabled: !!batchId,
@@ -69,7 +69,6 @@ const EnrollFlow = () => {
     },
   });
 
-  // Derived data — safe even when batch is null
   const cls = (batch?.classes as any) ?? null;
   const provider = cls?.provider_apartment_registrations?.service_providers ?? null;
   const schedules = batch?.batch_schedules ?? [];
@@ -81,7 +80,6 @@ const EnrollFlow = () => {
   const isFull = batch ? (batch.status === "full" || slotsLeft <= 0) : false;
   const registrationFee = (batch as any)?.registration_fee ?? 0;
 
-  // Initialize mandatory addons via useEffect (not during render)
   useEffect(() => {
     if (!addons.length) return;
     const mandatoryIds = addons.filter((a: any) => a.is_mandatory).map((a: any) => a.id);
@@ -93,7 +91,6 @@ const EnrollFlow = () => {
     }
   }, [addons]);
 
-  // Check if this member already has an enrollment in any batch of this class (registration fee is first-time only)
   const { data: existingEnrollment } = useQuery({
     queryKey: ["existing-enrollment-check", selectedMemberId, cls?.id],
     enabled: !!selectedMemberId && !!cls?.id,
@@ -137,7 +134,6 @@ const EnrollFlow = () => {
 
   const handleEnroll = async () => {
     if (!selectedMemberId || !profile || !batch) return;
-
     try {
       if (isFull && batch.auto_waitlist) {
         const result = await createWaitlist.mutateAsync({
@@ -149,7 +145,6 @@ const EnrollFlow = () => {
         setStep(3);
         return;
       }
-
       const result = await createEnrollment.mutateAsync({
         batchId: batch.id,
         familyMemberId: selectedMemberId,
@@ -187,15 +182,15 @@ const EnrollFlow = () => {
     }
   };
 
-  // Loading state
   if (batchLoading || !profile) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card px-4 py-3">
-          <button onClick={() => navigate(-1)} className="p-1"><ArrowLeft size={20} /></button>
-          <Skeleton className="h-6 w-32" />
-        </header>
-        <div className="p-6 space-y-4">
+        <div className="gradient-primary h-36 px-4 pt-12 flex items-start">
+          <button onClick={() => navigate(-1)} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
+            <ArrowLeft size={18} className="text-white" />
+          </button>
+        </div>
+        <div className="px-4 pt-4 space-y-4">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-24 w-full rounded-xl" />
           <Skeleton className="h-24 w-full rounded-xl" />
@@ -218,173 +213,246 @@ const EnrollFlow = () => {
     );
   }
 
-  return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card px-4 py-3">
-        <button onClick={() => step > 0 && step < 3 ? setStep(step - 1) : navigate(-1)} className="p-1">
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="text-lg font-bold">
-          {step === 0 ? "Select Member" : step === 1 ? "Review" : step === 2 ? "Payment" : "Done"}
-        </h1>
-      </header>
+  const scheduleSummary = schedules.map((s: any) => DAY_NAMES[s.day_of_week]).join(", ");
+  const timeSummary = schedules[0]
+    ? `${schedules[0].start_time.slice(0, 5)}–${schedules[0].end_time.slice(0, 5)}`
+    : "";
+  const selectedMember = familyMembers.find((m) => m.id === selectedMemberId);
 
-      {/* Progress */}
-      <div className="px-6 pt-4 pb-2">
-        <div className="flex gap-1.5">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-primary" : "bg-muted"}`} />
-          ))}
-        </div>
+  return (
+    <div className="flex min-h-screen flex-col bg-background pb-8">
+      {/* Hero header */}
+      <div className="gradient-primary px-4 pb-6 pt-12">
+        <button
+          onClick={() => step > 0 && step < 3 ? setStep(step - 1) : navigate(-1)}
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 mb-4"
+        >
+          <ArrowLeft size={18} className="text-white" />
+        </button>
+        <p className="text-white/70 text-xs font-semibold uppercase tracking-wider mb-0.5">
+          {cls?.title}
+        </p>
+        <h1 className="text-white text-lg font-bold leading-snug">{batch.batch_name}</h1>
+        {scheduleSummary && (
+          <p className="text-white/70 text-xs mt-1 flex items-center gap-1.5">
+            <Calendar size={11} />
+            {scheduleSummary}
+            {timeSummary && <> · <Clock size={11} /> {timeSummary}</>}
+          </p>
+        )}
       </div>
 
-      <div className="mx-auto w-full max-w-lg px-6 py-4 space-y-5">
+      {/* Step tabs */}
+      {step < 3 && (
+        <div className="bg-card border-b border-border">
+          <div className="mx-auto max-w-lg flex">
+            {STEP_LABELS.slice(0, 3).map((label, i) => (
+              <div
+                key={i}
+                className={`flex-1 py-3 text-center text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${
+                  i === step
+                    ? "border-primary text-primary"
+                    : i < step
+                    ? "border-primary/40 text-primary/60"
+                    : "border-transparent text-muted-foreground"
+                }`}
+              >
+                {i + 1}. {label}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mx-auto w-full max-w-lg px-4 py-5 space-y-4">
         {/* Step 0: Select family member */}
         {step === 0 && (
-          <div className="space-y-4 animate-fade-up">
-            <h2 className="text-xl font-bold">Who is enrolling?</h2>
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold">Who is enrolling?</h2>
             {familyMembers.length === 0 ? (
-              <Card className="p-4 text-center">
-                <p className="text-sm text-muted-foreground">No family members found. Please add a family member from your profile first.</p>
-                <Button variant="outline" className="mt-3" onClick={() => navigate("/family")}>
-                  Manage Family
+              <div className="rounded-2xl border border-dashed border-border p-6 text-center">
+                <p className="text-sm text-muted-foreground">No family members found.</p>
+                <Button variant="outline" className="mt-3 rounded-xl" onClick={() => navigate("/family")}>
+                  Add Family Member
                 </Button>
-              </Card>
+              </div>
             ) : (
               <div className="space-y-2">
                 {familyMembers.map((member) => (
-                  <Card
+                  <button
                     key={member.id}
-                    className={`flex items-center gap-3 p-4 cursor-pointer transition-all ${
-                      selectedMemberId === member.id ? "border-primary bg-primary/5" : "hover:border-primary/50"
-                    }`}
                     onClick={() => setSelectedMemberId(member.id)}
+                    className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left ${
+                      selectedMemberId === member.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-card hover:border-primary/40"
+                    }`}
                   >
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                    <Avatar className="h-11 w-11">
+                      <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
                         {member.full_name?.[0]?.toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
                       <p className="text-sm font-semibold">{member.full_name}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground capitalize">
                         {member.relationship}
-                        {member.age_group && ` · ${member.age_group}`}
+                        {(member as any).age_group && ` · ${(member as any).age_group}`}
                       </p>
                     </div>
-                    {selectedMemberId === member.id && (
-                      <CheckCircle size={20} className="text-primary" />
-                    )}
-                  </Card>
+                    <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      selectedMemberId === member.id ? "border-primary bg-primary" : "border-border"
+                    }`}>
+                      {selectedMemberId === member.id && (
+                        <div className="h-2 w-2 rounded-full bg-white" />
+                      )}
+                    </div>
+                  </button>
                 ))}
               </div>
             )}
             <Button
               disabled={!selectedMemberId}
               onClick={() => setStep(1)}
-              className="w-full h-12 bg-primary text-white font-semibold rounded-xl"
+              className="w-full h-12 gradient-primary text-white font-semibold rounded-xl"
             >
-              Continue
+              Continue →
             </Button>
           </div>
         )}
 
-        {/* Step 1: Review batch + addons */}
+        {/* Step 1: Review & plan */}
         {step === 1 && (
-          <div className="space-y-4 animate-fade-up">
-            <h2 className="text-xl font-bold">Review & Confirm</h2>
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold">Review your plan</h2>
 
-            <Card className="p-4 space-y-2">
-              <h3 className="font-semibold text-sm">{cls?.title}</h3>
-              <p className="text-xs text-muted-foreground font-medium">{batch.batch_name}</p>
-              {schedules.length > 0 && (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Calendar size={12} />
-                  {schedules.map((s: any) => DAY_NAMES[s.day_of_week]).join(", ")}
-                  <span>·</span>
-                  <Clock size={12} />
-                  {schedules[0]?.start_time?.slice(0, 5)}–{schedules[0]?.end_time?.slice(0, 5)}
+            {/* Enrolling for */}
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Enrolling</p>
+              <div className="flex items-center gap-3">
+                <Avatar className="h-9 w-9">
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                    {selectedMember?.full_name?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="text-sm font-semibold">{selectedMember?.full_name}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{selectedMember?.relationship}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Plan card */}
+            <div className={`rounded-2xl border-2 border-primary bg-primary/5 p-4 relative`}>
+              <div className="absolute -top-2.5 left-4">
+                <span className="rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
+                  {batch.fee_frequency === "monthly" ? "Monthly" :
+                   batch.fee_frequency === "quarterly" ? "Quarterly · Save more" :
+                   batch.fee_frequency === "per_session" ? "Per Session" : "Plan"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <div>
+                  <p className="text-sm font-semibold">{batch.batch_name}</p>
+                  {batch.skill_level && (
+                    <p className="text-xs text-muted-foreground capitalize mt-0.5">{batch.skill_level.replace("_", " ")}</p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="text-xl font-bold text-primary">₹{batch.fee_amount}</p>
+                  <p className="text-xs text-muted-foreground">{FEE_LABELS[batch.fee_frequency] ?? ""}</p>
+                </div>
+              </div>
+              {scheduleSummary && (
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
+                  <span className="flex items-center gap-1"><Calendar size={11} /> {scheduleSummary}</span>
+                  {timeSummary && <span className="flex items-center gap-1"><Clock size={11} /> {timeSummary}</span>}
                 </div>
               )}
-              {(batch.trainers as any)?.name && (
-                <p className="text-xs text-muted-foreground">Trainer: {(batch.trainers as any).name}</p>
-              )}
-            </Card>
-
-            <Card className="p-4 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">Enrolling</p>
-              <p className="text-sm font-semibold">
-                {familyMembers.find((m) => m.id === selectedMemberId)?.full_name}
-              </p>
-            </Card>
+            </div>
 
             {/* Addons */}
             {addons.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm font-bold">Add-ons</p>
                 {addons.map((addon: any) => (
-                  <div key={addon.id} className="flex items-center gap-3 p-3 rounded-lg border">
+                  <button
+                    key={addon.id}
+                    onClick={() => toggleAddon(addon.id)}
+                    disabled={addon.is_mandatory}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                      selectedAddonIds.includes(addon.id)
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-card"
+                    } ${addon.is_mandatory ? "opacity-80" : ""}`}
+                  >
                     <Checkbox
                       checked={selectedAddonIds.includes(addon.id)}
                       onCheckedChange={() => toggleAddon(addon.id)}
                       disabled={addon.is_mandatory}
+                      className="pointer-events-none"
                     />
                     <div className="flex-1">
-                      <p className="text-sm">{addon.name}</p>
-                      {addon.description && <p className="text-xs text-muted-foreground">{addon.description}</p>}
+                      <p className="text-sm font-medium">{addon.name}</p>
+                      {addon.description && (
+                        <p className="text-xs text-muted-foreground">{addon.description}</p>
+                      )}
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold">₹{addon.fee_amount}</p>
-                      {addon.is_mandatory && <p className="text-[9px] text-destructive">Required</p>}
+                      <p className="text-sm font-bold">₹{addon.fee_amount}</p>
+                      {addon.is_mandatory && (
+                        <p className="text-[10px] text-destructive font-semibold">Required</p>
+                      )}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
 
             {/* Cost breakdown */}
-            <Card className="p-4 space-y-2">
+            <div className="rounded-2xl border border-border bg-card p-4 space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Cost Summary</p>
               <div className="flex justify-between text-sm">
-                <span>Base fee</span>
-                <span>₹{batch.fee_amount}{FEE_LABELS[batch.fee_frequency] ?? ""}</span>
+                <span className="text-muted-foreground">Base fee</span>
+                <span className="font-semibold">₹{batch.fee_amount}{FEE_LABELS[batch.fee_frequency] ?? ""}</span>
               </div>
               {applicableRegFee > 0 && (
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Registration fee <span className="text-[10px]">(one-time)</span></span>
-                  <span>₹{applicableRegFee}</span>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Registration <span className="text-[10px]">(one-time)</span></span>
+                  <span className="font-semibold">₹{applicableRegFee}</span>
                 </div>
               )}
               {selectedAddons.map((a: any) => (
-                <div key={a.id} className="flex justify-between text-sm text-muted-foreground">
-                  <span>{a.name}</span>
-                  <span>₹{a.fee_amount}</span>
+                <div key={a.id} className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">{a.name}</span>
+                  <span className="font-semibold">₹{a.fee_amount}</span>
                 </div>
               ))}
-              <div className="flex justify-between font-bold text-sm pt-2 border-t">
+              <div className="flex justify-between font-bold pt-2 border-t border-border">
                 <span>Total</span>
-                <span>₹{totalAmount}</span>
+                <span className="text-primary text-base">₹{totalAmount}</span>
               </div>
-            </Card>
+            </div>
 
             {isFull && (
-              <Card className="p-3 border-amber-300 bg-amber-50">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
                 <p className="text-xs text-amber-700 font-medium">
                   This batch is full. You'll be added to the waitlist.
                 </p>
-              </Card>
+              </div>
             )}
 
             <Button
               onClick={handleEnroll}
               disabled={createEnrollment.isPending || createWaitlist.isPending}
-              className="w-full h-12 bg-primary text-white font-semibold rounded-xl"
+              className="w-full h-12 gradient-primary text-white font-semibold rounded-xl"
             >
               {createEnrollment.isPending || createWaitlist.isPending ? (
                 <Loader2 size={20} className="animate-spin" />
               ) : isFull ? (
                 "Join Waitlist"
               ) : (
-                "Confirm & Pay"
+                "Confirm & Pay →"
               )}
             </Button>
           </div>
@@ -392,95 +460,103 @@ const EnrollFlow = () => {
 
         {/* Step 2: Payment */}
         {step === 2 && (
-          <div className="space-y-5 animate-fade-up">
-            <h2 className="text-xl font-bold">Make Payment</h2>
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold">Make Payment</h2>
 
-            <Card className="p-4 text-center space-y-3">
-              <p className="text-3xl font-bold">₹{totalAmount}</p>
-              <p className="text-xs text-muted-foreground">Pay via UPI to the provider</p>
-            </Card>
+            <div className="rounded-2xl gradient-primary p-5 text-center">
+              <p className="text-white/70 text-xs font-semibold uppercase tracking-wider mb-1">Amount Due</p>
+              <p className="text-4xl font-bold text-white">₹{totalAmount}</p>
+              <p className="text-white/60 text-xs mt-1">Pay via UPI to provider</p>
+            </div>
 
             {provider?.upi_qr_image_url && (
               <div className="flex justify-center">
-                <img
-                  src={provider.upi_qr_image_url}
-                  alt="UPI QR"
-                  className="h-48 w-48 rounded-xl border object-contain"
-                />
+                <div className="rounded-2xl border border-border bg-card p-4">
+                  <img
+                    src={provider.upi_qr_image_url}
+                    alt="UPI QR"
+                    className="h-48 w-48 object-contain"
+                  />
+                </div>
               </div>
             )}
 
             {provider?.upi_id && (
-              <div className="flex items-center gap-2 p-3 rounded-lg border">
+              <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3.5">
                 <div className="flex-1">
-                  <p className="text-xs text-muted-foreground">UPI ID</p>
-                  <p className="text-sm font-mono font-semibold">{provider.upi_id}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">UPI ID</p>
+                  <p className="text-sm font-mono font-semibold mt-0.5">{provider.upi_id}</p>
                 </div>
-                <Button size="sm" variant="outline" onClick={copyUPI}>
-                  <Copy size={14} className="mr-1" /> Copy
+                <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={copyUPI}>
+                  <Copy size={13} /> Copy
                 </Button>
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label>UPI Transaction Reference</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                UPI Transaction Reference
+              </Label>
               <Input
                 value={upiRef}
                 onChange={(e) => setUpiRef(e.target.value)}
                 placeholder="12-digit UPI reference number"
-                className="h-11 rounded-xl"
+                className="h-12 rounded-xl"
               />
             </div>
 
             <Button
               onClick={handleRecordPayment}
               disabled={!upiRef.trim() || recordPayment.isPending}
-              className="w-full h-12 bg-primary text-white font-semibold rounded-xl"
+              className="w-full h-12 gradient-primary text-white font-semibold rounded-xl"
             >
               {recordPayment.isPending ? (
                 <Loader2 size={20} className="animate-spin" />
               ) : (
-                "I've Made the Payment"
+                "I've Made the Payment →"
               )}
             </Button>
 
             <button
               onClick={() => { setStep(3); toast.info("You can pay later from My Classes"); }}
-              className="w-full text-center text-sm text-muted-foreground"
+              className="w-full text-center text-sm text-muted-foreground py-1"
             >
-              Pay Later
+              Skip — Pay Later
             </button>
           </div>
         )}
 
         {/* Step 3: Success */}
         {step === 3 && (
-          <div className="flex flex-col items-center gap-4 py-12 text-center animate-fade-up">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-              <CheckCircle size={32} className="text-green-600" />
+          <div className="flex flex-col items-center gap-4 py-12 text-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
+              <CheckCircle size={36} className="text-green-600" />
             </div>
             {waitlistPosition ? (
               <>
-                <h2 className="text-xl font-bold">Added to Waitlist</h2>
-                <p className="text-sm text-muted-foreground">
+                <h2 className="text-xl font-bold">Added to Waitlist!</h2>
+                <p className="text-sm text-muted-foreground max-w-xs">
                   You're #{waitlistPosition} on the waitlist. We'll notify you when a spot opens.
                 </p>
               </>
             ) : (
               <>
-                <h2 className="text-xl font-bold">Enrolled!</h2>
-                <p className="text-sm text-muted-foreground">
+                <h2 className="text-xl font-bold">You're Enrolled!</h2>
+                <p className="text-sm text-muted-foreground max-w-xs">
                   {batch.registration_mode === "manual"
                     ? "Your enrollment is pending approval from the provider."
                     : "Your provider will confirm the payment shortly."}
                 </p>
               </>
             )}
-            <div className="flex gap-3 mt-4">
-              <Button variant="outline" onClick={() => navigate("/my-classes")}>
+            <div className="flex gap-3 mt-2">
+              <Button variant="outline" className="rounded-xl" onClick={() => navigate("/my-classes")}>
                 My Classes
               </Button>
-              <Button onClick={() => navigate("/home")} className="bg-primary text-white">
+              <Button
+                className="gradient-primary text-white rounded-xl"
+                onClick={() => navigate("/home")}
+              >
                 Go Home
               </Button>
             </div>

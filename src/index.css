@@ -15,7 +15,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 215 28% 17%;
 
-    --primary: 38 92% 50%;
+    --primary: 204 86% 52%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96.1%;
@@ -41,7 +41,7 @@
 
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 38 92% 50%;
+    --ring: 204 86% 52%;
 
     --radius: 0.75rem;
 
@@ -68,14 +68,12 @@
 
 @layer utilities {
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(38, 92%, 50%) 0%, hsl(16, 83%, 48%) 100%);
+    background: linear-gradient(135deg, hsl(204, 86%, 55%) 0%, hsl(210, 88%, 46%) 100%);
   }
 
   .gradient-primary-text {
-    background: linear-gradient(135deg, hsl(38, 92%, 50%) 0%, hsl(16, 83%, 48%) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: hsl(204, 86%, 42%);
+    -webkit-text-fill-color: hsl(204, 86%, 42%);
   }
 
   .safe-bottom {
