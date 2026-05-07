@@ -373,6 +373,7 @@ const LoggedInLanding = () => {
   if (hasFamily)  activeRoles.push("seeker");
   const isMultiRole = activeRoles.length > 1;
   const isNewUser   = activeRoles.length === 0;
+  const hasAnyRole  = activeRoles.length >= 1;
 
   // ── Role chooser cards (multi-role) ────────────────────────────
   const ROLE_CARDS = [
@@ -399,27 +400,7 @@ const LoggedInLanding = () => {
     },
   ].filter(Boolean) as { label: string; desc: string; icon: typeof Search; path: string; from: string; to: string }[];
 
-  // For single-role users being redirected, show brief blank state
-  const singleRoleTarget = !isMultiRole && !isNewUser
-    ? (hasFamily ? "/explore" : isProvider ? "/provider/dashboard" : isAdmin ? "/platform" : null)
-    : null;
-
-  useEffect(() => {
-    if (singleRoleTarget) {
-      navigate(singleRoleTarget, { replace: true });
-    }
-  }, [singleRoleTarget, navigate]);
-
-  if (singleRoleTarget) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: `linear-gradient(135deg, ${A_FROM}, ${A_TO})`, color: "#fff", fontWeight: 800, fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>C</div>
-          <p className="text-sm text-muted-foreground">Loading your home…</p>
-        </div>
-      </div>
-    );
-  }
+  // Users always stay on "/" — no auto-redirect to /explore, /provider/dashboard or /platform.
 
   return (
     <div className="flex min-h-screen flex-col" style={{ background: PAGE, color: INK, fontFamily: '-apple-system, "Inter", system-ui, sans-serif' }}>
@@ -504,8 +485,8 @@ const LoggedInLanding = () => {
           </div>
         </div>
 
-        {/* ── Multi-role chooser ─────────────────────────────────── */}
-        {isMultiRole && (
+        {/* ── Role chooser (shown for any signed-in user with ≥1 role) ── */}
+        {hasAnyRole && (
           <div className="space-y-3">
             <p style={{ fontSize: 13, fontWeight: 700, color: MUTED }}>Where would you like to go?</p>
             {ROLE_CARDS.map(card => (
