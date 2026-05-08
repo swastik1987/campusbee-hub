@@ -12,7 +12,6 @@ import Header from "@/components/layout/Header";
 import ClassCard from "@/components/shared/ClassCard";
 import BottomNav from "@/components/BottomNav";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -24,7 +23,8 @@ import {
 import { Slider } from "@/components/ui/slider";
 import {
   Search,
-  SlidersHorizontal,
+  ChevronUp,
+  ChevronDown,
   X,
   Trophy,
   Swords,
@@ -93,8 +93,8 @@ const Explore = () => {
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [categorySlug, setCategorySlug]   = useState(params.get("category") ?? "");
   const [sort, setSort]                   = useState(params.get("sort")      ?? "newest");
-  const [filterSheet, setFilterSheet]     = useState(false);
   const [searchRadius, setSearchRadius]   = useState(10);
+  const [pillsExpanded, setPillsExpanded] = useState(true);
   const [radiusSheet, setRadiusSheet]     = useState(false);
 
   const { data: allCategories } = useCategories();
@@ -281,7 +281,6 @@ const Explore = () => {
   }, [classes, seekerLat, seekerLng, searchRadius, applyTrustMarkers]);
 
   const clearFilters = () => { setCategorySlug(""); setSearch(""); setSort("newest"); };
-  const hasFilters = !!categorySlug || !!debouncedSearch;
 
   // Unified list for display
   const activeList = isSearching ? displayClasses : filteredClasses;
@@ -410,40 +409,47 @@ const Explore = () => {
         <div className="sticky top-14 z-30 border-b border-border/40 bg-background/95 backdrop-blur-sm">
           <div className="space-y-2.5 px-4 pb-3 pt-3">
 
-            {/* Search row */}
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search
-                  size={15}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search classes, sports, activities…"
-                  className="h-10 rounded-full border-border/50 bg-muted/40 pl-9 pr-8 text-sm focus-visible:bg-background"
-                />
-                {search && (
-                  <button
-                    onClick={() => setSearch("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
-                  >
-                    <X size={13} />
-                  </button>
-                )}
-              </div>
+            {/* Search row — full-width, white card */}
+            <div className="relative">
+              <Search
+                size={15}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search classes, sports, activities…"
+                className="h-10 rounded-full border-border bg-card pl-9 pr-8 text-sm shadow-sm focus-visible:ring-primary/30"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* Categories header + collapse toggle */}
+            <div className="flex items-center justify-between px-0.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Categories
+              </span>
               <button
-                onClick={() => setFilterSheet(true)}
-                className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted/50 transition-colors hover:bg-muted active:scale-95"
+                onClick={() => setPillsExpanded((v) => !v)}
+                className="flex items-center gap-0.5 rounded-full px-2 py-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
+                aria-label={pillsExpanded ? "Collapse categories" : "Expand categories"}
               >
-                <SlidersHorizontal size={17} />
-                {hasFilters && (
-                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary" />
-                )}
+                {pillsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
             </div>
 
-            {/* Category icon + label pills — flex-wrap, all visible */}
+            {/* Category icon + label pills — collapsible */}
+            <div
+              className="overflow-hidden transition-all duration-300 ease-in-out"
+              style={{ maxHeight: pillsExpanded ? "200px" : "0px", opacity: pillsExpanded ? 1 : 0 }}
+            >
             <div className="-mx-4 flex flex-wrap gap-2 px-4 pb-1 pt-0.5">
 
               {/* "All" pill */}
@@ -487,6 +493,7 @@ const Explore = () => {
               })}
 
             </div>
+            </div>{/* end collapsible wrapper */}
 
           </div>
         </div>
@@ -678,38 +685,6 @@ const Explore = () => {
               ))}
             </div>
             <Button className="w-full" onClick={() => setRadiusSheet(false)}>Apply</Button>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* ── Filter Sheet ──────────────────────────────────────────────── */}
-      <Sheet open={filterSheet} onOpenChange={setFilterSheet}>
-        <SheetContent side="bottom" className="max-h-[60vh] overflow-y-auto rounded-t-2xl">
-          <SheetHeader><SheetTitle>Filters</SheetTitle></SheetHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Category</p>
-              <div className="flex flex-wrap gap-2">
-                {parentCategories.map((cat) => (
-                  <Badge
-                    key={cat.id}
-                    variant={categorySlug === cat.slug ? "default" : "outline"}
-                    className={`cursor-pointer ${categorySlug === cat.slug ? "bg-primary" : ""}`}
-                    onClick={() => setCategorySlug(categorySlug === cat.slug ? "" : cat.slug)}
-                  >
-                    {cat.name}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-            {hasFilters && (
-              <button
-                onClick={() => { clearFilters(); setFilterSheet(false); }}
-                className="w-full py-2 text-center text-sm font-medium text-destructive"
-              >
-                Clear All Filters
-              </button>
-            )}
           </div>
         </SheetContent>
       </Sheet>
