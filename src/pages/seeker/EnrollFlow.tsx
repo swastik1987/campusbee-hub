@@ -55,10 +55,8 @@ const EnrollFlow = () => {
           classes(
             id, title, cover_image_url,
             class_addons(id, name, description, fee_amount, fee_type, is_mandatory, is_active),
-            provider_apartment_registrations(
-              service_providers(id, business_name, upi_id, upi_qr_image_url, whatsapp_number,
-                users(full_name)
-              )
+            service_providers(id, business_name, upi_id, upi_qr_image_url, whatsapp_number,
+              users(full_name)
             )
           )
         `)
@@ -71,7 +69,7 @@ const EnrollFlow = () => {
 
   // Derived data — safe even when batch is null
   const cls = (batch?.classes as any) ?? null;
-  const provider = cls?.provider_apartment_registrations?.service_providers ?? null;
+  const provider = cls?.service_providers ?? null;
   const schedules = batch?.batch_schedules ?? [];
   const addons = useMemo(
     () => (cls?.class_addons ?? []).filter((a: any) => a.is_active),
