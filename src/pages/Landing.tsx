@@ -28,6 +28,7 @@ import {
   Star,
   Trophy,
   Users,
+  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -97,7 +98,54 @@ const TRUST_BADGES = [
 
 const GuestLanding = () => {
   const navigate = useNavigate();
-  const [activeToggle, setActiveToggle] = useState<"learner" | "instructor">("learner");
+  const [detectedLocation, setDetectedLocation] = useState("HSR Layout, Bengaluru");
+  const [locationLoading, setLocationLoading] = useState(true);
+  const [demoUrl, setDemoUrl] = useState<string | null>(null);
+  const [demoOpen, setDemoOpen] = useState(false);
+
+  useEffect(() => {
+    // Fetch instructor demo video URL from platform settings
+    supabase
+      .from("platform_settings")
+      .select("value")
+      .eq("key", "instructor_demo_video_url")
+      .maybeSingle()
+      .then(({ data }) => {
+        const v = data?.value;
+        if (v && typeof v === "string" && v.trim()) setDemoUrl(v.trim());
+      });
+
+    // Detect visitor location via browser geolocation + Nominatim reverse-geocode
+    if (!navigator.geolocation) {
+      setLocationLoading(false);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+            { headers: { "User-Agent": "CampusBee/2.0 (campusbee.in)" } }
+          );
+          const json = await res.json();
+          const addr = json?.address ?? {};
+          const area = addr.suburb ?? addr.neighbourhood ?? addr.city_district ?? null;
+          const city = addr.city ?? addr.town ?? addr.village ?? null;
+          if (area) {
+            setDetectedLocation(city && city !== area ? `${area}, ${city}` : area);
+          } else if (city) {
+            setDetectedLocation(city);
+          }
+        } catch {
+          // keep default
+        }
+        setLocationLoading(false);
+      },
+      () => setLocationLoading(false),
+      { timeout: 6000, maximumAge: 300_000 }
+    );
+  }, []);
 
   return (
     <div style={{ background: PAGE, minHeight: "100vh", color: INK, fontFamily: '-apple-system, "Inter", system-ui, sans-serif' }}>
@@ -146,34 +194,6 @@ const GuestLanding = () => {
         </div>
       </div>
 
-      {/* ── Toggle ───────────────────────────────────────────────── */}
-      <div style={{ padding: "0 20px 16px" }}>
-        <div style={{ background: "#fff", border: `1px solid ${HAIR}`, borderRadius: 14, padding: 4, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
-          <button
-            onClick={() => setActiveToggle("learner")}
-            style={{
-              background: activeToggle === "learner" ? `linear-gradient(135deg, ${A_FROM}, ${A_TO})` : "transparent",
-              color: activeToggle === "learner" ? "#fff" : INK,
-              border: "none", borderRadius: 10, padding: "10px 12px", fontSize: 13, fontWeight: 800,
-              textAlign: "center", cursor: "pointer", transition: "all 0.15s ease",
-            }}
-          >
-            I'm a learner
-          </button>
-          <button
-            onClick={() => setActiveToggle("instructor")}
-            style={{
-              background: activeToggle === "instructor" ? INK : "transparent",
-              color: activeToggle === "instructor" ? "#fff" : INK,
-              border: "none", borderRadius: 10, padding: "10px 12px", fontSize: 13, fontWeight: 700,
-              textAlign: "center", cursor: "pointer", transition: "all 0.15s ease",
-            }}
-          >
-            I'm an instructor
-          </button>
-        </div>
-      </div>
-
       {/* ── Learner card ─────────────────────────────────────────── */}
       <div style={{ margin: "0 20px 20px", background: "#fff", border: `1px solid ${HAIR}`, borderRadius: 20, padding: 18, boxShadow: "0 8px 24px -16px rgba(15,23,42,0.1)" }}>
         <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 6px", letterSpacing: -0.3, lineHeight: 1.25 }}>
@@ -187,7 +207,9 @@ const GuestLanding = () => {
         <div style={{ background: A_SOFT, border: `1px solid ${A_RING}`, borderRadius: 14, padding: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: `1px solid ${HAIR}`, borderRadius: 10, padding: "10px 12px" }}>
             <MapPin size={16} style={{ color: A_TO, flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: MUTED, flex: 1 }}>HSR Layout, Bengaluru</span>
+            <span style={{ fontSize: 12, color: MUTED, flex: 1 }}>
+              {locationLoading ? "Detecting location…" : detectedLocation}
+            </span>
             <Pencil size={13} style={{ color: MUTED }} />
           </div>
           <button
@@ -239,12 +261,14 @@ const GuestLanding = () => {
           >
             Become an instructor <ArrowRight size={15} />
           </button>
-          <button
-            onClick={() => navigate("/auth")}
-            style={{ marginTop: 8, width: "100%", background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 11, padding: "12px 14px", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer" }}
-          >
-            <Play size={13} /> Watch demo (90s)
-          </button>
+          {demoUrl && (
+            <button
+              onClick={() => setDemoOpen(true)}
+              style={{ marginTop: 8, width: "100%", background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 11, padding: "12px 14px", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer" }}
+            >
+              <Play size={13} /> Watch demo
+            </button>
+          )}
         </div>
       </div>
 
@@ -317,6 +341,34 @@ const GuestLanding = () => {
         </div>
         <div style={{ fontSize: 11, color: MUTED }}>© 2026 CampusBee · Built in Bengaluru 🇮🇳</div>
       </div>
+
+      {/* ── Demo video modal ─────────────────────────────────────── */}
+      {demoOpen && demoUrl && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          onClick={() => setDemoOpen(false)}
+        >
+          <div
+            style={{ position: "relative", width: "100%", maxWidth: 520, background: "#000", borderRadius: 18, overflow: "hidden", boxShadow: "0 32px 64px rgba(0,0,0,0.6)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setDemoOpen(false)}
+              style={{ position: "absolute", top: 10, right: 10, zIndex: 2, background: "rgba(0,0,0,0.55)", border: "none", borderRadius: "50%", width: 34, height: 34, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}
+              aria-label="Close"
+            >
+              <X size={16} />
+            </button>
+            <video
+              src={demoUrl}
+              controls
+              autoPlay
+              playsInline
+              style={{ width: "100%", display: "block", maxHeight: "75vh", objectFit: "contain" }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

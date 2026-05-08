@@ -46,6 +46,7 @@ import PlatformModeration from "./pages/platform/PlatformModeration";
 import PlatformSubscriptions from "./pages/platform/PlatformSubscriptions";
 import PlatformSponsored from "./pages/platform/PlatformSponsored";
 import PlatformProviders from "./pages/platform/PlatformProviders";
+import PlatformSettings from "./pages/platform/PlatformSettings";
 import NotFound from "./pages/NotFound";
 
 /**
@@ -138,6 +139,7 @@ const App = () => (
               <Route path="providers" element={<PlatformProviders />} />
               <Route path="categories" element={<PlatformCategories />} />
               <Route path="analytics" element={<PlatformAnalytics />} />
+              <Route path="settings" element={<PlatformSettings />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

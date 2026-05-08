@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
+  Settings,
   ShieldAlert,
   UserCog,
   Users,
@@ -23,6 +24,7 @@ const navItems = [
   { path: "/platform/providers",     icon: Users,           label: "Providers"     },
   { path: "/platform/categories",    icon: FolderTree,      label: "Categories"    },
   { path: "/platform/analytics",     icon: BarChart3,       label: "Analytics"     },
+  { path: "/platform/settings",      icon: Settings,        label: "Settings"      },
 ];
 
 const PlatformLayout = () => {
