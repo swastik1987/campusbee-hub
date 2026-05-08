@@ -98,7 +98,11 @@ const Explore = () => {
   const [radiusSheet, setRadiusSheet]     = useState(false);
 
   const { data: allCategories } = useCategories();
-  const parentCategories = allCategories?.filter((c) => !c.parent_id) ?? [];
+  const parentCategories  = allCategories?.filter((c) => !c.parent_id) ?? [];
+  const activeCatIdx      = categorySlug ? parentCategories.findIndex((c) => c.slug === categorySlug) : -1;
+  const activeCat         = activeCatIdx >= 0 ? parentCategories[activeCatIdx] : null;
+  const ActiveCatIcon     = activeCat ? (CATEGORY_ICONS[activeCat.icon ?? ""] ?? BookOpen) : null;
+  const activeCatHue      = activeCatIdx >= 0 ? PILL_HUES[activeCatIdx % PILL_HUES.length] : 250;
 
   // Resolve selected parent category → include all child IDs
   const selectedCategoryIds = (() => {
@@ -432,13 +436,28 @@ const Explore = () => {
             </div>
 
             {/* Categories header + collapse toggle */}
-            <div className="flex items-center justify-between px-0.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Categories
-              </span>
+            <div className="flex items-center justify-between gap-2 px-0.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {!pillsExpanded && activeCat ? "Selected Category" : "Categories"}
+                </span>
+                {!pillsExpanded && activeCat && ActiveCatIcon && (
+                  <div
+                    className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+                    style={{
+                      background: `linear-gradient(135deg, oklch(0.65 0.22 ${activeCatHue}), oklch(0.52 0.24 ${activeCatHue}))`,
+                      color: "#fff",
+                      boxShadow: `0 2px 8px oklch(0.62 0.22 ${activeCatHue} / 0.35)`,
+                    }}
+                  >
+                    <ActiveCatIcon size={11} style={{ color: "#fff" }} />
+                    {activeCat.name}
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => setPillsExpanded((v) => !v)}
-                className="flex items-center gap-0.5 rounded-full px-2 py-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
+                className="flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
                 aria-label={pillsExpanded ? "Collapse categories" : "Expand categories"}
               >
                 {pillsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
