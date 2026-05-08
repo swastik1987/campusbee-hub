@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Calendar, CheckCircle, Clock, Copy, Loader2 } from "lucide-react";
+import { ArrowLeft, Calendar, CheckCircle, Clock, Copy, Loader2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -23,10 +23,12 @@ const FEE_LABELS: Record<string, string> = {
   one_time: "",
 };
 
+const STEP_LABELS = ["Member", "Review", "Payment"];
+
 const EnrollFlow = () => {
   const { batchId } = useParams();
   const navigate = useNavigate();
-  const { profile, familyMembers } = useUser();
+  const { profile, family, familyMembers, refreshFamily } = useUser();
 
   const [step, setStep] = useState(0);
   const [selectedMemberId, setSelectedMemberId] = useState("");
@@ -38,6 +40,28 @@ const EnrollFlow = () => {
   const createEnrollment = useCreateEnrollment();
   const createWaitlist = useCreateWaitlistEntry();
   const recordPayment = useRecordPayment();
+
+  // Lazy ensure: existing users who completed onboarding before migration 026
+  // won't have a self member row yet — create it silently on mount.
+  useEffect(() => {
+    if (!family || !profile) return;
+    const hasSelf = familyMembers.some((m) => m.relationship === "self");
+    if (hasSelf) return;
+
+    supabase
+      .rpc("ensure_self_family_member", {
+        p_family_id: family.id,
+        p_full_name: profile.full_name,
+      })
+      .then(({ error }) => {
+        if (!error) refreshFamily();
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [family?.id, profile?.id]);
+
+  // Split members: "self" row pinned first, everyone else below.
+  const selfMember = familyMembers.find((m) => m.relationship === "self");
+  const otherMembers = familyMembers.filter((m) => m.relationship !== "self");
 
   // Fetch batch details with class info
   const { data: batch, isLoading: batchLoading } = useQuery({
@@ -185,7 +209,13 @@ const EnrollFlow = () => {
     }
   };
 
-  // Loading state
+  // Name of the selected member (for review step)
+  const selectedMemberName =
+    selectedMemberId === selfMember?.id
+      ? profile?.full_name
+      : familyMembers.find((m) => m.id === selectedMemberId)?.full_name;
+
+  // ─── Loading state ────────────────────────────────────────────────────────
   if (batchLoading || !profile) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
@@ -216,75 +246,202 @@ const EnrollFlow = () => {
     );
   }
 
+  // ─── Step 3: Full-screen success (no header or progress bar) ─────────────
+  if (step === 3) {
+    return (
+      <div className="seeker-theme flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-6 py-12 text-center animate-fade-up">
+        <div
+          className="flex h-20 w-20 items-center justify-center rounded-full"
+          style={{ background: "linear-gradient(135deg, #d1fae5, #a7f3d0)" }}
+        >
+          <CheckCircle size={40} className="text-green-600" />
+        </div>
+
+        {waitlistPosition ? (
+          <>
+            <div>
+              <h2 className="text-2xl font-bold">Added to Waitlist</h2>
+              <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                You're <span className="font-semibold text-foreground">#{waitlistPosition}</span> on the waitlist.
+                We'll notify you when a spot opens up!
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <h2 className="text-2xl font-bold">You're enrolled! 🎉</h2>
+              <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                {batch.registration_mode === "manual"
+                  ? "Your enrollment is pending approval from the provider."
+                  : "Your provider will confirm the payment shortly."}
+              </p>
+            </div>
+          </>
+        )}
+
+        <div className="w-full max-w-xs space-y-3">
+          <button
+            onClick={() => navigate("/my-classes")}
+            className="w-full h-12 rounded-xl border-2 border-border bg-card font-semibold text-sm transition-all active:scale-95"
+          >
+            View My Classes
+          </button>
+          <button
+            onClick={() => navigate("/explore")}
+            className="w-full h-12 rounded-xl text-white font-semibold text-sm transition-all active:scale-95"
+            style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
+          >
+            Explore More Classes
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Steps 0–2 ───────────────────────────────────────────────────────────
   return (
     <div className="seeker-theme flex min-h-screen flex-col bg-background">
+      {/* Header */}
       <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card px-4 py-3">
-        <button onClick={() => step > 0 && step < 3 ? setStep(step - 1) : navigate(-1)} className="p-1">
+        <button
+          onClick={() => (step > 0 ? setStep(step - 1) : navigate(-1))}
+          className="p-1"
+        >
           <ArrowLeft size={20} />
         </button>
         <h1 className="text-lg font-bold">
-          {step === 0 ? "Select Member" : step === 1 ? "Review" : step === 2 ? "Payment" : "Done"}
+          {step === 0 ? "Select Member" : step === 1 ? "Review" : "Payment"}
         </h1>
       </header>
 
-      {/* Gradient progress bar */}
-      <div className="px-6 pt-4 pb-2">
-        <div className="flex gap-1.5">
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-1.5 flex-1 rounded-full overflow-hidden"
-              style={{ background: i <= step ? "linear-gradient(90deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" : "hsl(var(--muted))" }}
-            />
+      {/* Stepper progress bar */}
+      <div className="px-6 pt-4 pb-3">
+        <div className="flex gap-2">
+          {STEP_LABELS.map((label, i) => (
+            <div key={i} className="flex-1 space-y-1.5">
+              <div
+                className="h-1.5 w-full rounded-full overflow-hidden"
+                style={{
+                  background:
+                    i <= step
+                      ? "linear-gradient(90deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))"
+                      : "hsl(var(--muted))",
+                }}
+              />
+              <p
+                className={`text-[10px] text-center font-medium ${
+                  i <= step ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                {label}
+              </p>
+            </div>
           ))}
         </div>
-        <p className="text-[10px] text-muted-foreground text-right mt-1">
-          Step {step + 1} of 4
-        </p>
       </div>
 
       <div className="mx-auto w-full max-w-lg px-6 py-4 space-y-5">
-        {/* Step 0: Select family member */}
+        {/* ── Step 0: Select family member ── */}
         {step === 0 && (
           <div className="space-y-4 animate-fade-up">
             <h2 className="text-xl font-bold">Who is enrolling?</h2>
-            {familyMembers.length === 0 ? (
-              <Card className="p-4 text-center">
-                <p className="text-sm text-muted-foreground">No family members found. Please add a family member from your profile first.</p>
-                <Button variant="outline" className="mt-3" onClick={() => navigate("/family")}>
-                  Manage Family
-                </Button>
+
+            {/* Self member pinned at top */}
+            {selfMember && (
+              <Card
+                className={`flex items-center gap-3 p-4 cursor-pointer transition-all ${
+                  selectedMemberId === selfMember.id
+                    ? "border-2 bg-primary/5"
+                    : "hover:border-primary/40"
+                }`}
+                style={
+                  selectedMemberId === selfMember.id
+                    ? { borderColor: "oklch(0.62 0.20 250)" }
+                    : undefined
+                }
+                onClick={() => setSelectedMemberId(selfMember.id)}
+              >
+                <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                  <AvatarImage src={profile.avatar_url ?? undefined} />
+                  <AvatarFallback className="bg-primary/15 text-primary font-bold text-xs">
+                    {profile.full_name?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold truncate">{profile.full_name}</p>
+                    <span className="flex-shrink-0 text-[10px] font-semibold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">
+                      You
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Myself</p>
+                </div>
+                {selectedMemberId === selfMember.id && (
+                  <CheckCircle size={20} className="text-primary flex-shrink-0" />
+                )}
               </Card>
-            ) : (
-              <div className="space-y-2">
-                {familyMembers.map((member) => (
-                  <Card
-                    key={member.id}
-                    className={`flex items-center gap-3 p-4 cursor-pointer transition-all ${
-                      selectedMemberId === member.id ? "border-2" : "hover:border-primary/50"
-                    }`}
-                    style={selectedMemberId === member.id ? { borderColor: "oklch(0.62 0.20 250)", backgroundColor: "oklch(0.96 0.04 250)" } : undefined}
-                    onClick={() => setSelectedMemberId(member.id)}
-                  >
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                        {member.full_name?.[0]?.toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold">{member.full_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {member.relationship}
-                        {member.age_group && ` · ${member.age_group}`}
-                      </p>
-                    </div>
-                    {selectedMemberId === member.id && (
-                      <CheckCircle size={20} className="text-primary" />
-                    )}
-                  </Card>
-                ))}
-              </div>
             )}
+
+            {/* Divider before other members */}
+            {otherMembers.length > 0 && (
+              <p className="text-xs font-semibold text-muted-foreground px-1 pt-1">
+                Family members
+              </p>
+            )}
+
+            {/* Other family members */}
+            {otherMembers.map((member) => (
+              <Card
+                key={member.id}
+                className={`flex items-center gap-3 p-4 cursor-pointer transition-all ${
+                  selectedMemberId === member.id
+                    ? "border-2"
+                    : "hover:border-primary/50"
+                }`}
+                style={
+                  selectedMemberId === member.id
+                    ? { borderColor: "oklch(0.62 0.20 250)", backgroundColor: "oklch(0.96 0.04 250)" }
+                    : undefined
+                }
+                onClick={() => setSelectedMemberId(member.id)}
+              >
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                    {member.full_name?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{member.full_name}</p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {member.relationship}
+                    {member.age_group && ` · ${member.age_group}`}
+                  </p>
+                </div>
+                {selectedMemberId === member.id && (
+                  <CheckCircle size={20} className="text-primary flex-shrink-0" />
+                )}
+              </Card>
+            ))}
+
+            {/* Empty state: no self member yet (lazy creation in progress) */}
+            {!selfMember && otherMembers.length === 0 && (
+              <Card className="p-5 text-center">
+                <Loader2 size={20} className="animate-spin mx-auto text-primary mb-2" />
+                <p className="text-sm text-muted-foreground">Setting up your account…</p>
+              </Card>
+            )}
+
+            {/* "Add family member" CTA */}
+            <button
+              type="button"
+              onClick={() => navigate("/family")}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-muted-foreground/30 p-3 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+            >
+              <UserPlus size={16} />
+              Enrolling for someone else? Add a family member
+            </button>
+
             <button
               disabled={!selectedMemberId}
               onClick={() => setStep(1)}
@@ -296,7 +453,7 @@ const EnrollFlow = () => {
           </div>
         )}
 
-        {/* Step 1: Review batch + addons */}
+        {/* ── Step 1: Review batch + addons ── */}
         {step === 1 && (
           <div className="space-y-4 animate-fade-up">
             <h2 className="text-xl font-bold">Review & Confirm</h2>
@@ -318,11 +475,9 @@ const EnrollFlow = () => {
               )}
             </Card>
 
-            <Card className="p-4 space-y-2">
+            <Card className="p-4 space-y-1">
               <p className="text-xs font-medium text-muted-foreground">Enrolling</p>
-              <p className="text-sm font-semibold">
-                {familyMembers.find((m) => m.id === selectedMemberId)?.full_name}
-              </p>
+              <p className="text-sm font-semibold">{selectedMemberName}</p>
             </Card>
 
             {/* Addons */}
@@ -338,11 +493,15 @@ const EnrollFlow = () => {
                     />
                     <div className="flex-1">
                       <p className="text-sm">{addon.name}</p>
-                      {addon.description && <p className="text-xs text-muted-foreground">{addon.description}</p>}
+                      {addon.description && (
+                        <p className="text-xs text-muted-foreground">{addon.description}</p>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold">₹{addon.fee_amount}</p>
-                      {addon.is_mandatory && <p className="text-[9px] text-destructive">Required</p>}
+                      {addon.is_mandatory && (
+                        <p className="text-[9px] text-destructive">Required</p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -357,7 +516,10 @@ const EnrollFlow = () => {
               </div>
               {applicableRegFee > 0 && (
                 <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Registration fee <span className="text-[10px]">(one-time)</span></span>
+                  <span>
+                    Registration fee{" "}
+                    <span className="text-[10px]">(one-time)</span>
+                  </span>
                   <span>₹{applicableRegFee}</span>
                 </div>
               )}
@@ -398,7 +560,7 @@ const EnrollFlow = () => {
           </div>
         )}
 
-        {/* Step 2: Payment */}
+        {/* ── Step 2: Payment ── */}
         {step === 2 && (
           <div className="space-y-5 animate-fade-up">
             <h2 className="text-xl font-bold">Make Payment</h2>
@@ -454,49 +616,14 @@ const EnrollFlow = () => {
             </button>
 
             <button
-              onClick={() => { setStep(3); toast.info("You can pay later from My Classes"); }}
+              onClick={() => {
+                setStep(3);
+                toast.info("You can pay later from My Classes");
+              }}
               className="w-full text-center text-sm text-muted-foreground"
             >
               Pay Later
             </button>
-          </div>
-        )}
-
-        {/* Step 3: Success */}
-        {step === 3 && (
-          <div className="flex flex-col items-center gap-4 py-12 text-center animate-fade-up">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-              <CheckCircle size={32} className="text-green-600" />
-            </div>
-            {waitlistPosition ? (
-              <>
-                <h2 className="text-xl font-bold">Added to Waitlist</h2>
-                <p className="text-sm text-muted-foreground">
-                  You're #{waitlistPosition} on the waitlist. We'll notify you when a spot opens.
-                </p>
-              </>
-            ) : (
-              <>
-                <h2 className="text-xl font-bold">Enrolled!</h2>
-                <p className="text-sm text-muted-foreground">
-                  {batch.registration_mode === "manual"
-                    ? "Your enrollment is pending approval from the provider."
-                    : "Your provider will confirm the payment shortly."}
-                </p>
-              </>
-            )}
-            <div className="flex gap-3 mt-4">
-              <Button variant="outline" onClick={() => navigate("/my-classes")}>
-                My Classes
-              </Button>
-              <button
-                onClick={() => navigate("/explore")}
-                className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all active:scale-95"
-                style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
-              >
-                Go Home
-              </button>
-            </div>
           </div>
         )}
       </div>

@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import MapplsPicker from "@/components/location/MapplsPicker";
 import { useUpdateSeekerLocation, type LocationValue } from "@/hooks/useLocation";
 import { useCreateFamily } from "@/hooks/useOnboarding";
+import { useUser } from "@/contexts/UserContext";
+import { supabase } from "@/integrations/supabase/client";
 
 interface StepLocationProps {
   userId: string;
@@ -22,6 +24,7 @@ const StepLocation = React.forwardRef<HTMLDivElement, StepLocationProps>(
   ({ userId, onNext, onBack }, ref) => {
     const [value, setValue] = React.useState<LocationValue | null>(null);
 
+    const { profile } = useUser();
     const updateLocation = useUpdateSeekerLocation();
     const createFamily = useCreateFamily();
 
@@ -33,6 +36,12 @@ const StepLocation = React.forwardRef<HTMLDivElement, StepLocationProps>(
       try {
         await updateLocation.mutateAsync({ userId, ...value });
         const fam = await createFamily.mutateAsync({ userId });
+        // Ensure a "self" family_member row exists so the user can enroll themselves.
+        // The RPC is idempotent — safe to call even if the row already exists.
+        await supabase.rpc("ensure_self_family_member", {
+          p_family_id: fam.id,
+          p_full_name: profile?.full_name ?? "Me",
+        });
         toast.success("Home location saved");
         onNext(fam.id);
       } catch (err) {
