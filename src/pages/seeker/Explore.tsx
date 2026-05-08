@@ -44,6 +44,7 @@ import {
   Pencil,
   Navigation2,
   ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -96,9 +97,21 @@ const Explore = () => {
   const [filterSheet, setFilterSheet]     = useState(false);
   const [searchRadius, setSearchRadius]   = useState(10);
   const [radiusSheet, setRadiusSheet]     = useState(false);
+  const [catsExpanded, setCatsExpanded]   = useState(false);
 
   const { data: allCategories } = useCategories();
   const parentCategories = allCategories?.filter((c) => !c.parent_id) ?? [];
+
+  const FIRST_ROW_COUNT = 5;
+  const firstRowCats    = parentCategories.slice(0, FIRST_ROW_COUNT);
+  const secondRowCats   = parentCategories.slice(FIRST_ROW_COUNT);
+  const hasSecondRow    = secondRowCats.length > 0;
+  const activeInSecondRow = secondRowCats.some((c) => c.slug === categorySlug);
+
+  const handleCatSelect = (slug: string) => {
+    setCategorySlug((prev) => (prev === slug ? "" : slug));
+    setCatsExpanded(false);
+  };
 
   // Resolve selected parent category → include all child IDs
   const selectedCategoryIds = (() => {
@@ -443,12 +456,12 @@ const Explore = () => {
               </button>
             </div>
 
-            {/* Category icon + label pills */}
+            {/* Category pills — row 1 (sticky, always visible) */}
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 scrollbar-hide">
 
               {/* "All" pill */}
               <button
-                onClick={() => setCategorySlug("")}
+                onClick={() => { setCategorySlug(""); setCatsExpanded(false); }}
                 className="flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-all active:scale-95"
                 style={{
                   background: !categorySlug
@@ -462,15 +475,15 @@ const Explore = () => {
                 All
               </button>
 
-              {/* Dynamic category pills */}
-              {parentCategories.map((cat, idx) => {
+              {/* First-row category pills */}
+              {firstRowCats.map((cat, idx) => {
                 const IconComp = CATEGORY_ICONS[cat.icon ?? ""] ?? BookOpen;
                 const hue = PILL_HUES[idx % PILL_HUES.length];
                 const isActive = categorySlug === cat.slug;
                 return (
                   <button
                     key={cat.id}
-                    onClick={() => setCategorySlug(isActive ? "" : cat.slug)}
+                    onClick={() => handleCatSelect(cat.slug)}
                     className="flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-all active:scale-95"
                     style={{
                       background: isActive
@@ -480,16 +493,71 @@ const Explore = () => {
                       boxShadow: isActive ? `0 2px 8px oklch(0.62 0.22 ${hue} / 0.35)` : "none",
                     }}
                   >
-                    <IconComp
-                      size={12}
-                      style={{ color: isActive ? "#fff" : `oklch(0.45 0.22 ${hue})` }}
-                    />
+                    <IconComp size={12} style={{ color: isActive ? "#fff" : `oklch(0.45 0.22 ${hue})` }} />
                     {cat.name}
                   </button>
                 );
               })}
 
+              {/* Expand toggle — shown only when there are second-row categories */}
+              {hasSecondRow && (
+                <button
+                  onClick={() => setCatsExpanded((v) => !v)}
+                  className="relative flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all active:scale-95"
+                  style={{
+                    background: catsExpanded ? "oklch(0.90 0.06 250)" : "oklch(0.95 0.03 250)",
+                    color: "oklch(0.42 0.18 250)",
+                    border: "1.5px dashed oklch(0.72 0.14 250)",
+                  }}
+                >
+                  {catsExpanded
+                    ? <X size={11} />
+                    : <><ChevronDown size={11} />{`+${secondRowCats.length}`}</>
+                  }
+                  {/* Dot when an active filter lives in the second row */}
+                  {!catsExpanded && activeInSecondRow && (
+                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary" />
+                  )}
+                </button>
+              )}
+
             </div>
+
+            {/* Category pills — row 2 (animated expand/collapse) */}
+            {hasSecondRow && (
+              <div
+                className="-mx-4 overflow-hidden transition-all duration-300 ease-in-out"
+                style={{
+                  maxHeight: catsExpanded ? "120px" : "0px",
+                  opacity: catsExpanded ? 1 : 0,
+                }}
+              >
+                <div className="flex flex-wrap gap-2 px-4 pb-1.5 pt-1">
+                  {secondRowCats.map((cat, idx) => {
+                    const IconComp = CATEGORY_ICONS[cat.icon ?? ""] ?? BookOpen;
+                    const hue = PILL_HUES[(idx + FIRST_ROW_COUNT) % PILL_HUES.length];
+                    const isActive = categorySlug === cat.slug;
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => handleCatSelect(cat.slug)}
+                        className="flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-all active:scale-95"
+                        style={{
+                          background: isActive
+                            ? `linear-gradient(135deg, oklch(0.65 0.22 ${hue}), oklch(0.52 0.24 ${hue}))`
+                            : `oklch(0.93 0.06 ${hue})`,
+                          color: isActive ? "#fff" : `oklch(0.38 0.18 ${hue})`,
+                          boxShadow: isActive ? `0 2px 8px oklch(0.62 0.22 ${hue} / 0.35)` : "none",
+                        }}
+                      >
+                        <IconComp size={12} style={{ color: isActive ? "#fff" : `oklch(0.45 0.22 ${hue})` }} />
+                        {cat.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
           </div>
         </div>
