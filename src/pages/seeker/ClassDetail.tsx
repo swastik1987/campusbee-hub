@@ -25,10 +25,12 @@ import {
   Clock,
   MapPin,
   MessageCircle,
+  Navigation,
   Share2,
   Star,
   Users,
 } from "lucide-react";
+import { haversineKm, formatDistance } from "@/hooks/useLocation";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const FEE_LABELS: Record<string, string> = {
@@ -47,6 +49,17 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
   const { data: reviews } = useClassReviews(classId);
   // Certifications — loaded after class data resolves
   const providerId = cls ? (cls as any).service_providers?.id : undefined;
+
+  // Distance from seeker home — computed client-side via haversine
+  const distanceKm = React.useMemo(() => {
+    if (!cls) return null;
+    const clsLat = (cls as any).location_lat as number | null | undefined;
+    const clsLng = (cls as any).location_lng as number | null | undefined;
+    const seekerLat = profile?.seeker_home_lat;
+    const seekerLng = profile?.seeker_home_lng;
+    if (clsLat == null || clsLng == null || seekerLat == null || seekerLng == null) return null;
+    return haversineKm({ lat: seekerLat, lng: seekerLng }, { lat: clsLat, lng: clsLng });
+  }, [cls, profile]);
   const { data: providerCerts } = useSeekerProviderCertifications(providerId);
 
   const [showFullDesc, setShowFullDesc] = useState(false);
@@ -130,6 +143,20 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
     window.open(`https://wa.me/${provider.whatsapp_number}?text=${msg}`, "_blank");
   };
 
+  const handleGetDirections = () => {
+    const clsLat = (cls as any).location_lat as number | null | undefined;
+    const clsLng = (cls as any).location_lng as number | null | undefined;
+    let url: string;
+    if (clsLat != null && clsLng != null) {
+      url = `https://www.google.com/maps/dir/?api=1&destination=${clsLat},${clsLng}`;
+    } else if (cls.address) {
+      url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cls.address)}`;
+    } else {
+      return;
+    }
+    window.open(url, "_blank");
+  };
+
   return (
     <div ref={ref} className="seeker-theme flex min-h-screen flex-col bg-background pb-20">
       {/* Hero / Gallery — taller, with frosted-glass overlay buttons */}
@@ -175,7 +202,15 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-5">
         {/* Title + meta */}
         <div>
-          <h2 className="text-xl font-bold">{cls.title}</h2>
+          <div className="flex items-start justify-between gap-2">
+            <h2 className="text-xl font-bold leading-tight flex-1">{cls.title}</h2>
+            {distanceKm != null && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0 mt-1 bg-muted px-2 py-0.5 rounded-full">
+                <MapPin size={11} />
+                {formatDistance(distanceKm)}
+              </span>
+            )}
+          </div>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             {cls.class_categories && (
               <Badge variant="outline" className="text-xs">{(cls.class_categories as any).name}</Badge>
@@ -222,10 +257,20 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
             {cls.address && (
               <div className="col-span-2 flex items-start gap-2 rounded-xl p-3" style={{ backgroundColor: "oklch(0.96 0.04 250)" }}>
                 <MapPin size={15} className="mt-0.5 flex-shrink-0" style={{ color: "oklch(0.55 0.20 250)" }} />
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-[10px] text-muted-foreground">Location</p>
                   <p className="text-xs font-semibold line-clamp-2">{cls.address}</p>
                 </div>
+                {((cls as any).location_lat != null || cls.address) && (
+                  <button
+                    onClick={handleGetDirections}
+                    className="flex items-center gap-1 shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-white transition-all active:scale-95"
+                    style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
+                  >
+                    <Navigation size={11} />
+                    Directions
+                  </button>
+                )}
               </div>
             )}
           </div>

@@ -238,6 +238,7 @@ export function useSeekerClassDetail(classId: string | undefined) {
           promo_video_url, class_type, skill_level, age_group_min, age_group_max,
           venue_details, what_to_bring, trial_available, trial_fee, status,
           total_rating, rating_count, created_at, address, is_home_based,
+          location_lat, location_lng,
           class_categories(id, name, slug, icon),
           service_providers(
             id, user_id, business_name, provider_type, bio,
