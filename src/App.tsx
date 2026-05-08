@@ -41,6 +41,10 @@ import PlatformLayout from "./pages/platform/PlatformLayout";
 import PlatformDashboard from "./pages/platform/PlatformDashboard";
 import PlatformCategories from "./pages/platform/PlatformCategories";
 import PlatformAnalytics from "./pages/platform/PlatformAnalytics";
+import PlatformModeration from "./pages/platform/PlatformModeration";
+import PlatformSubscriptions from "./pages/platform/PlatformSubscriptions";
+import PlatformSponsored from "./pages/platform/PlatformSponsored";
+import PlatformProviders from "./pages/platform/PlatformProviders";
 import NotFound from "./pages/NotFound";
 
 /**
@@ -126,6 +130,10 @@ const App = () => (
             {/* Platform admin routes (nested layout) */}
             <Route path="/platform" element={<AuthGuard><PlatformLayout /></AuthGuard>}>
               <Route index element={<PlatformDashboard />} />
+              <Route path="moderation" element={<PlatformModeration />} />
+              <Route path="subscriptions" element={<PlatformSubscriptions />} />
+              <Route path="sponsored" element={<PlatformSponsored />} />
+              <Route path="providers" element={<PlatformProviders />} />
               <Route path="categories" element={<PlatformCategories />} />
               <Route path="analytics" element={<PlatformAnalytics />} />
             </Route>
