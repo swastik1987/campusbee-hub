@@ -54,7 +54,11 @@ const EnrollFlow = () => {
         p_full_name: profile.full_name,
       })
       .then(({ error }) => {
-        if (!error) refreshFamily();
+        if (error) {
+          console.error("[EnrollFlow] ensure_self_family_member failed:", error);
+        } else {
+          refreshFamily();
+        }
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [family?.id, profile?.id]);
