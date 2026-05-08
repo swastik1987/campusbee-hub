@@ -118,25 +118,6 @@ const ProviderStudents = () => {
     return providerBatches.map((b) => b.id);
   }, [providerBatches, batchFilter]);
 
-  // Fetch active enrollment counts per batch so we can show seats available
-  const { data: batchActiveCounts } = useQuery({
-    queryKey: ["batch-active-counts", activeBatchIds],
-    enabled: activeBatchIds.length > 0,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("enrollments")
-        .select("batch_id")
-        .in("batch_id", activeBatchIds)
-        .eq("status", "active");
-      if (error) throw error;
-      const counts: Record<string, number> = {};
-      for (const row of data ?? []) {
-        counts[row.batch_id] = (counts[row.batch_id] ?? 0) + 1;
-      }
-      return counts;
-    },
-  });
-
   const isRemovedTab = tab === "removed";
   const statusFilter = tab === "pending" ? "pending" : tab === "active" ? "active" : "all";
   const { data: enrollments, isLoading } = useProviderEnrollments(
@@ -239,9 +220,9 @@ const ProviderStudents = () => {
                     ? `${schedules[0].start_time?.slice(0, 5)}–${schedules[0].end_time?.slice(0, 5)}`
                     : "";
 
-                  // Batch capacity
-                  const maxCapacity: number | null = batch?.max_capacity ?? null;
-                  const activeCount = batchActiveCounts?.[batch?.id] ?? 0;
+                  // Batch capacity — uses max_batch_size / current_enrollment_count from DB
+                  const maxCapacity: number | null = batch?.max_batch_size ?? null;
+                  const activeCount: number = batch?.current_enrollment_count ?? 0;
                   const seatsAvailable = maxCapacity != null ? Math.max(0, maxCapacity - activeCount) : null;
                   const isBatchFull = maxCapacity != null && activeCount >= maxCapacity;
 
