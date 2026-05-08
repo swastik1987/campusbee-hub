@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
+import UpgradeRequestSheet from "@/components/subscription/UpgradeRequestSheet";
 import {
   useProviderStats,
   useProviderTodaySchedule,
@@ -21,7 +23,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { useState } from "react";
 import {
   Users,
   BookOpen,
@@ -35,13 +36,16 @@ import {
   CheckCircle2,
   XCircle,
   FolderTree,
+  Crown,
+  ArrowRight,
 } from "lucide-react";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+
 const ProviderDashboard = () => {
   const navigate = useNavigate();
-  const { providerProfile } = useUser();
+  const { providerProfile, isPremium } = useUser();
   const providerId = providerProfile?.id;
 
   const { data: stats, isLoading: statsLoading } = useProviderStats(providerId);
@@ -53,6 +57,7 @@ const ProviderDashboard = () => {
 
   const [showBatchPicker, setShowBatchPicker] = useState(false);
   const [showCerts, setShowCerts] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   const actionCount = pendingEnrollments?.length ?? 0;
   const pendingCatRequests = (catRequests ?? []).filter((r) => r.status === "pending");
@@ -124,6 +129,46 @@ const ProviderDashboard = () => {
             </>
           )}
         </div>
+
+        {/* Subscription tier banner */}
+        {isPremium ? (
+          <Card
+            className="flex items-center gap-3 p-3 border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 cursor-pointer"
+            onClick={() => navigate("/provider/subscription")}
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 shrink-0">
+              <Crown size={16} className="text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-900">Premium Plan</p>
+              {providerProfile?.subscription_valid_until && (
+                <p className="text-[10px] text-amber-700">
+                  Active until{" "}
+                  {new Date(providerProfile.subscription_valid_until).toLocaleDateString(
+                    "en-IN", { day: "numeric", month: "short", year: "numeric" }
+                  )}
+                </p>
+              )}
+            </div>
+            <ArrowRight size={14} className="text-amber-500 shrink-0" />
+          </Card>
+        ) : (
+          <Card
+            className="flex items-center gap-3 p-3 border-dashed border-amber-200 cursor-pointer hover:bg-amber-50/50 transition-colors"
+            onClick={() => setShowUpgrade(true)}
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 shrink-0">
+              <Crown size={16} className="text-amber-500" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold">Upgrade to Premium</p>
+              <p className="text-[10px] text-muted-foreground">
+                Unlock analytics, sponsored listings &amp; more
+              </p>
+            </div>
+            <ArrowRight size={14} className="text-muted-foreground shrink-0" />
+          </Card>
+        )}
 
         {/* Today's Schedule */}
         <div>
@@ -329,6 +374,7 @@ const ProviderDashboard = () => {
         </SheetContent>
       </Sheet>
 
+      <UpgradeRequestSheet open={showUpgrade} onOpenChange={setShowUpgrade} />
       <BottomNav persona="provider" />
     </div>
   );

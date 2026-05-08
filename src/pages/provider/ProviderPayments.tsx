@@ -1,6 +1,9 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useProviderPayments, useConfirmPayment, useDisputePayment } from "@/hooks/useEngagement";
+import PremiumGate from "@/components/subscription/PremiumGate";
+import UpgradeRequestSheet from "@/components/subscription/UpgradeRequestSheet";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,7 +20,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Check, CreditCard, Loader2, Wallet, X } from "lucide-react";
+import { Bell, Check, CreditCard, Crown, Loader2, Smartphone, Wallet, X } from "lucide-react";
 import { toast } from "sonner";
 
 const PAYMENT_COLORS: Record<string, string> = {
@@ -29,8 +32,10 @@ const PAYMENT_COLORS: Record<string, string> = {
 };
 
 const ProviderPayments = () => {
-  const { profile, providerProfile } = useUser();
+  const navigate = useNavigate();
+  const { profile, providerProfile, isPremium } = useUser();
   const [tab, setTab] = useState("recorded");
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const { data: payments, isLoading } = useProviderPayments(
     providerProfile?.id,
@@ -71,6 +76,54 @@ const ProviderPayments = () => {
 
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-4">
         <h2 className="text-lg font-bold">Payments</h2>
+
+        {/* Premium: Collect via App + Reminders ──────────────────────────── */}
+        <PremiumGate
+          featureName="In-app Collection"
+          featureDescription="Send payment requests and reminders directly through CampusBee"
+          fallback={
+            <Card
+              className="flex items-center gap-3 p-3 border-dashed border-amber-200 cursor-pointer hover:bg-amber-50/50 transition-colors"
+              onClick={() => setUpgradeOpen(true)}
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 shrink-0">
+                <Crown size={16} className="text-amber-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold">Collect via App — Premium</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Send payment requests &amp; automated reminders to students
+                </p>
+              </div>
+              <Crown size={14} className="text-amber-400 shrink-0" />
+            </Card>
+          }
+        >
+          <Card className="p-4 space-y-3 border-amber-200 bg-amber-50/30">
+            <div className="flex items-center gap-2">
+              <Crown size={14} className="text-amber-600" />
+              <p className="text-sm font-semibold text-amber-900">Premium Tools</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                className="flex flex-col items-center gap-1.5 rounded-lg bg-white border p-3 text-center hover:border-amber-300 transition-colors"
+                onClick={() => navigate("/provider/payments")}
+              >
+                <Smartphone size={18} className="text-amber-600" />
+                <span className="text-xs font-medium">Send Request</span>
+                <span className="text-[10px] text-muted-foreground">Collect from student</span>
+              </button>
+              <button
+                className="flex flex-col items-center gap-1.5 rounded-lg bg-white border p-3 text-center hover:border-amber-300 transition-colors"
+                onClick={() => navigate("/provider/payments")}
+              >
+                <Bell size={18} className="text-amber-600" />
+                <span className="text-xs font-medium">Send Reminders</span>
+                <span className="text-[10px] text-muted-foreground">Notify overdue students</span>
+              </button>
+            </div>
+          </Card>
+        </PremiumGate>
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full">
@@ -216,6 +269,7 @@ const ProviderPayments = () => {
         </SheetContent>
       </Sheet>
 
+      <UpgradeRequestSheet open={upgradeOpen} onOpenChange={setUpgradeOpen} />
       <BottomNav persona="provider" />
     </div>
   );
