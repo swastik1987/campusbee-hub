@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useProviderEnrollments, useRemovedEnrollments, useUpdateEnrollmentStatus } from "@/hooks/useEngagement";
 import { useQuery } from "@tanstack/react-query";
@@ -13,7 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Check, Clock, CreditCard, Filter, MessageCircle, UserMinus, Users, X } from "lucide-react";
+import { Calendar, Check, Clock, CreditCard, Filter, MessageCircle, Phone, UserMinus, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -52,8 +52,23 @@ function getAge(dob: string | null): string | null {
 
 const ProviderStudents = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { providerProfile } = useUser();
-  const [tab, setTab] = useState("all");
+
+  // Derive tab from URL so the Dashboard "Review" link can deep-link here
+  const urlTab = searchParams.get("tab") ?? "all";
+  const [tab, setTab] = useState(urlTab);
+
+  const handleTabChange = (val: string) => {
+    setTab(val);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (val === "all") next.delete("tab");
+      else next.set("tab", val);
+      return next;
+    }, { replace: true });
+  };
+
   const [classFilter, setClassFilter] = useState("all");
   const [batchFilter, setBatchFilter] = useState("all");
 
@@ -102,6 +117,25 @@ const ProviderStudents = () => {
     if (batchFilter !== "all") return [batchFilter];
     return providerBatches.map((b) => b.id);
   }, [providerBatches, batchFilter]);
+
+  // Fetch active enrollment counts per batch so we can show seats available
+  const { data: batchActiveCounts } = useQuery({
+    queryKey: ["batch-active-counts", activeBatchIds],
+    enabled: activeBatchIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("enrollments")
+        .select("batch_id")
+        .in("batch_id", activeBatchIds)
+        .eq("status", "active");
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      for (const row of data ?? []) {
+        counts[row.batch_id] = (counts[row.batch_id] ?? 0) + 1;
+      }
+      return counts;
+    },
+  });
 
   const isRemovedTab = tab === "removed";
   const statusFilter = tab === "pending" ? "pending" : tab === "active" ? "active" : "all";
@@ -172,7 +206,7 @@ const ProviderStudents = () => {
           </Select>
         </div>
 
-        <Tabs value={tab} onValueChange={setTab}>
+        <Tabs value={tab} onValueChange={handleTabChange}>
           <TabsList className="w-full">
             <TabsTrigger value="all" className="flex-1 text-xs">All</TabsTrigger>
             <TabsTrigger value="active" className="flex-1 text-xs">Active</TabsTrigger>
@@ -204,6 +238,12 @@ const ProviderStudents = () => {
                   const timeSummary = schedules[0]
                     ? `${schedules[0].start_time?.slice(0, 5)}–${schedules[0].end_time?.slice(0, 5)}`
                     : "";
+
+                  // Batch capacity
+                  const maxCapacity: number | null = batch?.max_capacity ?? null;
+                  const activeCount = batchActiveCounts?.[batch?.id] ?? 0;
+                  const seatsAvailable = maxCapacity != null ? Math.max(0, maxCapacity - activeCount) : null;
+                  const isBatchFull = maxCapacity != null && activeCount >= maxCapacity;
 
                   return (
                     <Card key={enrollment.id} className={`p-4 space-y-3 ${isRemovedTab ? "border-destructive/20 bg-destructive/5" : ""}`}>
@@ -242,6 +282,14 @@ const ProviderStudents = () => {
                             {age && <span>· {age}</span>}
                             {member?.age_group && !age && <span>· {member.age_group}</span>}
                           </div>
+                          {/* Seeker (parent/guardian) who placed the request */}
+                          {enrolledUser?.full_name && (
+                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
+                              <Phone size={9} className="shrink-0" />
+                              <span>Requested by&nbsp;</span>
+                              <span className="font-medium text-foreground truncate">{enrolledUser.full_name}</span>
+                            </div>
+                          )}
                           {isRemovedTab && (enrollment as any).dropped_at && (
                             <p className="text-[10px] text-destructive/70 mt-0.5">
                               Removed {new Date((enrollment as any).dropped_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
@@ -278,6 +326,20 @@ const ProviderStudents = () => {
                             {batch.end_date && ` — To ${new Date(batch.end_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`}
                           </p>
                         )}
+                        {/* Batch capacity */}
+                        {maxCapacity != null ? (
+                          <div className="flex items-center gap-1.5 text-[11px]">
+                            <Users size={10} className="shrink-0 text-muted-foreground" />
+                            <span className={isBatchFull ? "text-red-600 font-semibold" : "text-muted-foreground"}>
+                              {activeCount} / {maxCapacity} seats filled
+                            </span>
+                            {isBatchFull ? (
+                              <Badge className="text-[9px] border-0 bg-red-100 text-red-700 px-1 py-0 h-4">Full</Badge>
+                            ) : (
+                              <span className="text-green-700 font-medium">&middot; {seatsAvailable} available</span>
+                            )}
+                          </div>
+                        ) : null}
                       </div>
 
                       {/* Payment info for pending enrollments */}

@@ -81,19 +81,28 @@ const ProviderDashboard = () => {
             <div className="space-y-2">
               {/* Pending enrollment requests */}
               {(pendingEnrollments ?? []).map((e) => (
-                <Card key={e.enrollmentId} className="flex items-center gap-3 p-3 border-amber-200 bg-amber-50/50">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
+                <Card
+                  key={e.enrollmentId}
+                  className="flex items-center gap-3 p-3 border-amber-200 bg-amber-50/50 cursor-pointer hover:bg-amber-100/60 active:scale-[0.99] transition-all"
+                  onClick={() => navigate("/provider/students?tab=pending")}
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 shrink-0">
                     <Users size={16} className="text-amber-600" />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{e.memberName}</p>
-                    <p className="text-xs text-muted-foreground">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{e.memberName}</p>
+                    <p className="text-xs text-muted-foreground truncate">
                       {e.classTitle} · {e.batchName}
                     </p>
                   </div>
-                  <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2.5 text-[11px] border-amber-400 text-amber-700 hover:bg-amber-100 shrink-0"
+                    onClick={(ev) => { ev.stopPropagation(); navigate("/provider/students?tab=pending"); }}
+                  >
                     Review
-                  </Badge>
+                  </Button>
                 </Card>
               ))}
             </div>
