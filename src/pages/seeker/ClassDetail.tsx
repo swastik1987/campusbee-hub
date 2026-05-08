@@ -4,8 +4,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import AuthDrawer from "@/components/AuthDrawer";
 import { useSeekerClassDetail, useClassReviews } from "@/hooks/useSeeker";
-import { useSeekerProviderCertifications, useSeekerTrainerCertifications } from "@/hooks/useCertifications";
+import { useSeekerProviderCertifications } from "@/hooks/useCertifications";
 import CertificationGallery from "@/components/shared/CertificationGallery";
+import { useUpcomingDemoSessions, useBookDemoSession } from "@/hooks/useDemoSessions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import {
   BookOpen,
   Calendar,
   CheckCircle2,
+  Circle,
   Clock,
   MapPin,
   MessageCircle,
@@ -31,6 +33,7 @@ import {
   Users,
 } from "lucide-react";
 import { haversineKm, formatDistance } from "@/hooks/useLocation";
+import { toast } from "sonner";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const FEE_LABELS: Record<string, string> = {
@@ -44,10 +47,9 @@ const FEE_LABELS: Record<string, string> = {
 const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, ref) => {
   const { classId } = useParams();
   const navigate = useNavigate();
-  const { session, profile } = useUser();
+  const { session, profile, familyMembers } = useUser();
   const { data: cls, isLoading, isError } = useSeekerClassDetail(classId);
   const { data: reviews } = useClassReviews(classId);
-  // Certifications — loaded after class data resolves
   const providerId = cls ? (cls as any).service_providers?.id : undefined;
 
   // Distance from seeker home — computed client-side via haversine
@@ -60,12 +62,25 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
     if (clsLat == null || clsLng == null || seekerLat == null || seekerLng == null) return null;
     return haversineKm({ lat: seekerLat, lng: seekerLng }, { lat: clsLat, lng: clsLng });
   }, [cls, profile]);
+
   const { data: providerCerts } = useSeekerProviderCertifications(providerId);
 
+  // Batch & trial selection state
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [wantsTrial, setWantsTrial] = useState(false);
+  const [showTrialSheet, setShowTrialSheet] = useState(false);
+  const [selectedDemoId, setSelectedDemoId] = useState<string | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+
+  // Misc UI state
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [galleryIdx, setGalleryIdx] = useState(0);
   const [loginOpen, setLoginOpen] = useState(false);
   const [loginMessage, setLoginMessage] = useState<string | undefined>(undefined);
+
+  // Demo sessions for this class
+  const { data: demoSessions } = useUpcomingDemoSessions(classId);
+  const { mutateAsync: bookDemo, isPending: bookingDemo } = useBookDemoSession();
 
   /** Gate an action behind authentication. Opens AuthDrawer if not logged in. */
   const requireAuth = (fn: () => void, message?: string) => {
@@ -121,19 +136,20 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
   const provider = (cls as any).service_providers;
   const providerUser = provider?.users;
   const activeBatches = (cls.batches ?? []).filter((b: any) => b.status === "active" || b.status === "full");
-  const lowestFee = activeBatches.length > 0
-    ? Math.min(...activeBatches.map((b: any) => b.fee_amount))
-    : null;
-  const lowestBatch = activeBatches.find((b: any) => b.fee_amount === lowestFee);
   const gallery = [cls.cover_image_url, ...(cls.gallery_urls ?? [])].filter(Boolean) as string[];
+
+  // Derive selected batch details
+  const selectedBatch = activeBatches.find((b: any) => b.id === selectedBatchId) as any | undefined;
+  const selectedBatchFull = selectedBatch
+    ? (selectedBatch.status === "full" || (selectedBatch.max_batch_size - (selectedBatch.current_enrollment_count ?? 0)) <= 0)
+    : false;
 
   const handleShare = () => {
     const text = `Check out ${cls.title} on CampusBee!`;
     if (navigator.share) {
       navigator.share({ title: cls.title, text });
     } else {
-      const waUrl = `https://wa.me/?text=${encodeURIComponent(text + " " + window.location.href)}`;
-      window.open(waUrl, "_blank");
+      window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + window.location.href)}`, "_blank");
     }
   };
 
@@ -157,9 +173,46 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
     window.open(url, "_blank");
   };
 
+  const handleEnrollNow = () => {
+    if (!selectedBatchId) return;
+    requireAuth(
+      () => navigate(`/enroll/${selectedBatchId}`),
+      selectedBatchFull ? "Log in to join the waitlist" : "Log in to enroll in this class"
+    );
+  };
+
+  const handleBookTrialClick = () => {
+    requireAuth(() => {
+      if (!demoSessions?.length) {
+        toast.info("No trial sessions scheduled yet. Contact the provider to arrange one.");
+        return;
+      }
+      setShowTrialSheet(true);
+    }, "Log in to book a trial class");
+  };
+
+  const handleConfirmDemo = async () => {
+    if (!selectedDemoId || !selectedMemberId || !profile) return;
+    try {
+      await bookDemo({
+        demoSessionId: selectedDemoId,
+        familyMemberId: selectedMemberId,
+        registeredBy: profile.id,
+      });
+      toast.success("Trial class booked! Check your notifications for confirmation.");
+      setShowTrialSheet(false);
+      setSelectedDemoId(null);
+      setSelectedMemberId(null);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to book trial. Please try again.");
+    }
+  };
+
+  const activeFamilyMembers = familyMembers.filter((m) => m.is_active);
+
   return (
-    <div ref={ref} className="seeker-theme flex min-h-screen flex-col bg-background pb-20">
-      {/* Hero / Gallery — taller, with frosted-glass overlay buttons */}
+    <div ref={ref} className="seeker-theme flex min-h-screen flex-col bg-background pb-28">
+      {/* Hero / Gallery */}
       <div className="relative">
         {gallery.length > 0 ? (
           <>
@@ -182,7 +235,6 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
             <BookOpen size={40} className="text-white/60" />
           </div>
         )}
-        {/* Frosted overlay action buttons */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
           <button
             onClick={() => navigate(-1)}
@@ -240,7 +292,9 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
                 <div>
                   <p className="text-[10px] text-muted-foreground">Age Group</p>
                   <p className="text-xs font-semibold">
-                    {cls.age_group_min && cls.age_group_max ? `${cls.age_group_min}–${cls.age_group_max} yrs` : cls.age_group_min ? `${cls.age_group_min}+ yrs` : `Up to ${cls.age_group_max} yrs`}
+                    {cls.age_group_min && cls.age_group_max
+                      ? `${cls.age_group_min}–${cls.age_group_max} yrs`
+                      : cls.age_group_min ? `${cls.age_group_min}+ yrs` : `Up to ${cls.age_group_max} yrs`}
                   </p>
                 </div>
               </div>
@@ -250,7 +304,9 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
                 <Star size={15} style={{ color: "oklch(0.55 0.20 250)" }} />
                 <div>
                   <p className="text-[10px] text-muted-foreground">Level</p>
-                  <p className="text-xs font-semibold capitalize">{(Array.isArray(cls.skill_level) ? cls.skill_level.join(", ") : String(cls.skill_level)).replace("_", " ")}</p>
+                  <p className="text-xs font-semibold capitalize">
+                    {(Array.isArray(cls.skill_level) ? cls.skill_level.join(", ") : String(cls.skill_level)).replace("_", " ")}
+                  </p>
                 </div>
               </div>
             )}
@@ -279,7 +335,7 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
         {/* Provider card */}
         <Card className="p-4">
           <div className="flex items-center gap-3">
-            <Avatar className="h-12 w-12" onClick={() => navigate(`/provider-profile/${provider?.id}`)}>
+            <Avatar className="h-12 w-12 cursor-pointer" onClick={() => navigate(`/provider-profile/${provider?.id}`)}>
               <AvatarImage src={providerUser?.avatar_url} />
               <AvatarFallback className="bg-provider/10 text-provider">
                 {providerUser?.full_name?.[0]?.toUpperCase()}
@@ -298,7 +354,9 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
                 )}
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {provider?.provider_type === "academy" && <Badge variant="secondary" className="text-[9px] px-1 py-0">Academy</Badge>}
+                {provider?.provider_type === "academy" && (
+                  <Badge variant="secondary" className="text-[9px] px-1 py-0">Academy</Badge>
+                )}
                 {provider?.experience_years && <span>{provider.experience_years} yrs exp</span>}
               </div>
             </div>
@@ -394,9 +452,14 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
           </div>
         )}
 
-        {/* Available Batches */}
+        {/* ── Available Batches — radio-button selection ── */}
         <div>
-          <h3 className="text-sm font-bold mb-3">Available Batches</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold">Available Batches</h3>
+            {activeBatches.length > 0 && !selectedBatchId && (
+              <span className="text-[11px] text-muted-foreground">Select one to enroll</span>
+            )}
+          </div>
           {activeBatches.length > 0 ? (
             <div className="space-y-3">
               {activeBatches.map((batch: any) => {
@@ -407,95 +470,110 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
                   : "";
                 const slotsLeft = batch.max_batch_size - (batch.current_enrollment_count ?? 0);
                 const isFull = batch.status === "full" || slotsLeft <= 0;
+                const isSelected = selectedBatchId === batch.id;
 
                 return (
-                  <Card key={batch.id} className="p-4 space-y-2 border-2 transition-all" style={{ borderColor: isFull ? undefined : "oklch(0.62 0.20 250 / 0.25)" }}>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="font-semibold text-sm">{batch.batch_name}</h4>
-                        {batch.skill_level && (
-                          <Badge variant="secondary" className="text-[10px] capitalize mt-0.5">
-                            {batch.skill_level.replace("_", " ")}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-sm">
-                          ₹{batch.fee_amount}
-                          <span className="text-xs font-normal text-muted-foreground">
-                            {FEE_LABELS[batch.fee_frequency] ?? ""}
-                          </span>
-                        </p>
-                        {batch.registration_fee > 0 && (
-                          <p className="text-[10px] text-muted-foreground">
-                            + ₹{batch.registration_fee} reg. fee
+                  <button
+                    key={batch.id}
+                    onClick={() => setSelectedBatchId(isSelected ? null : batch.id)}
+                    className="w-full text-left"
+                  >
+                    <Card
+                      className={`p-4 space-y-2 border-2 transition-all ${
+                        isSelected
+                          ? "border-primary shadow-md"
+                          : "border-border hover:border-primary/40"
+                      }`}
+                    >
+                      {/* Radio indicator + name + fee */}
+                      <div className="flex items-start gap-3">
+                        {/* Radio dot */}
+                        <div className="mt-0.5 shrink-0">
+                          {isSelected ? (
+                            <div className="h-4 w-4 rounded-full border-2 border-primary flex items-center justify-center">
+                              <div className="h-2 w-2 rounded-full bg-primary" />
+                            </div>
+                          ) : (
+                            <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/40" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-sm">{batch.batch_name}</h4>
+                          {batch.skill_level && (
+                            <Badge variant="secondary" className="text-[10px] capitalize mt-0.5">
+                              {batch.skill_level.replace("_", " ")}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-bold text-sm">
+                            ₹{batch.fee_amount}
+                            <span className="text-xs font-normal text-muted-foreground">
+                              {FEE_LABELS[batch.fee_frequency] ?? ""}
+                            </span>
                           </p>
-                        )}
+                          {batch.registration_fee > 0 && (
+                            <p className="text-[10px] text-muted-foreground">
+                              + ₹{batch.registration_fee} reg.
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    {scheduleSummary && (
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Calendar size={12} />
-                        <span>{scheduleSummary}</span>
-                        <span>·</span>
-                        <Clock size={12} />
-                        <span>{timeSummary}</span>
-                      </div>
-                    )}
-                    {batch.trainers?.name && (
-                      <p className="text-xs text-muted-foreground">Trainer: {batch.trainers.name}</p>
-                    )}
-                    {(() => {
-                      const today = new Date().toISOString().split("T")[0];
-                      const startDate = batch.start_date;
-                      const endDate = batch.end_date;
-                      const isFuture = startDate && startDate > today;
-                      return (
-                        (startDate || endDate) && (
-                          <div className="flex flex-wrap items-center gap-x-2 text-xs">
-                            {isFuture ? (
-                              <span className="text-blue-600 font-medium">
-                                Starting from {new Date(startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                              </span>
-                            ) : startDate ? (
-                              <span className="text-green-600 font-medium">Class is live</span>
-                            ) : null}
-                            {endDate && (
-                              <span className="text-muted-foreground">
-                                · Ending on {new Date(endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                              </span>
-                            )}
-                          </div>
-                        )
-                      );
-                    })()}
-                    <div className="flex items-center justify-between pt-1">
-                      <div className="flex items-center gap-1 text-xs">
+
+                      {/* Schedule */}
+                      {scheduleSummary && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground pl-7">
+                          <Calendar size={12} />
+                          <span>{scheduleSummary}</span>
+                          <span>·</span>
+                          <Clock size={12} />
+                          <span>{timeSummary}</span>
+                        </div>
+                      )}
+
+                      {batch.trainers?.name && (
+                        <p className="text-xs text-muted-foreground pl-7">Trainer: {batch.trainers.name}</p>
+                      )}
+
+                      {/* Dates */}
+                      {(() => {
+                        const today = new Date().toISOString().split("T")[0];
+                        const startDate = batch.start_date;
+                        const endDate = batch.end_date;
+                        const isFuture = startDate && startDate > today;
+                        return (
+                          (startDate || endDate) && (
+                            <div className="flex flex-wrap items-center gap-x-2 text-xs pl-7">
+                              {isFuture ? (
+                                <span className="text-blue-600 font-medium">
+                                  Starting {new Date(startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                                </span>
+                              ) : startDate ? (
+                                <span className="text-green-600 font-medium">Live now</span>
+                              ) : null}
+                              {endDate && (
+                                <span className="text-muted-foreground">
+                                  · Ends {new Date(endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                                </span>
+                              )}
+                            </div>
+                          )
+                        );
+                      })()}
+
+                      {/* Slots */}
+                      <div className="flex items-center gap-1 text-xs pl-7">
                         <Users size={12} className="text-muted-foreground" />
                         {isFull ? (
-                          <span className="text-amber-600 font-medium">Full</span>
+                          <span className="text-amber-600 font-medium">Full — Waitlist open</span>
                         ) : slotsLeft <= 5 ? (
                           <span className="text-green-600 font-medium">{slotsLeft} spots left</span>
                         ) : (
-                          <span className="text-muted-foreground">{slotsLeft} spots left</span>
+                          <span className="text-muted-foreground">{slotsLeft} spots available</span>
                         )}
                       </div>
-                      <button
-                        onClick={() => requireAuth(
-                          () => navigate(`/enroll/${batch.id}`),
-                          isFull ? "Log in to join the waitlist" : "Log in to enroll in this class"
-                        )}
-                        className="rounded-xl px-4 py-2 text-xs font-bold text-white transition-all active:scale-95"
-                        style={{
-                          background: isFull
-                            ? "#F59E0B"
-                            : "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))",
-                        }}
-                      >
-                        {isFull ? "Join Waitlist" : "Enroll Now"}
-                      </button>
-                    </div>
-                  </Card>
+                    </Card>
+                  </button>
                 );
               })}
             </div>
@@ -530,29 +608,33 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
           </div>
         )}
 
-        {/* Trial */}
+        {/* ── Trial — checkbox opt-in ── */}
         {cls.trial_available && (
-          <Card className="p-4 border-primary/30 bg-primary/5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-sm">Trial Class Available</p>
-                <p className="text-xs text-muted-foreground">
-                  {cls.trial_fee && cls.trial_fee > 0 ? `₹${cls.trial_fee}` : "Free"} — Try before you enroll
-                </p>
+          <button
+            onClick={() => setWantsTrial(!wantsTrial)}
+            className="w-full text-left"
+          >
+            <Card className={`p-4 border-2 transition-all ${wantsTrial ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}>
+              <div className="flex items-center gap-3">
+                {/* Checkbox indicator */}
+                <div className={`h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                  wantsTrial ? "border-primary bg-primary" : "border-muted-foreground/40"
+                }`}>
+                  {wantsTrial && (
+                    <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none">
+                      <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-sm">I'd like a Trial Class</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {cls.trial_fee && cls.trial_fee > 0 ? `₹${cls.trial_fee}` : "Free"} · Try before you commit
+                  </p>
+                </div>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-primary text-primary"
-                onClick={() => requireAuth(
-                  () => navigate(`/provider-profile/${provider?.id}`),
-                  "Log in to book a trial class"
-                )}
-              >
-                Book Trial
-              </Button>
-            </div>
-          </Card>
+            </Card>
+          </button>
         )}
 
         {/* Reviews */}
@@ -610,50 +692,176 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
         </div>
       </div>
 
-      {/* Auth drawer — shown when anonymous visitor taps a gated action */}
-      <AuthDrawer
-        open={loginOpen}
-        onOpenChange={setLoginOpen}
-        message={loginMessage}
-      />
+      {/* Auth drawer */}
+      <AuthDrawer open={loginOpen} onOpenChange={setLoginOpen} message={loginMessage} />
 
-      {/* Sticky bottom CTA */}
-      {activeBatches.length > 0 && lowestFee !== null && (
-        <div className="seeker-theme fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card/95 backdrop-blur-sm p-3 safe-bottom">
-          <div className="mx-auto max-w-lg flex items-center gap-3">
+      {/* ── Sticky bottom CTA bar ── */}
+      {activeBatches.length > 0 && (
+        <div className="seeker-theme fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card/95 backdrop-blur-sm safe-bottom">
+          <div className="mx-auto max-w-lg px-3 py-3 flex items-center gap-2">
+            {/* Left: selection summary */}
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-muted-foreground">Starting from</p>
-              <p className="font-bold text-sm">
-                ₹{lowestFee}
-                <span className="text-xs font-normal text-muted-foreground">
-                  {FEE_LABELS[lowestBatch?.fee_frequency ?? ""] ?? ""}
-                </span>
-              </p>
+              {selectedBatch ? (
+                <>
+                  <p className="text-[10px] text-muted-foreground truncate">{selectedBatch.batch_name}</p>
+                  <p className="font-bold text-sm">
+                    ₹{selectedBatch.fee_amount}
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {FEE_LABELS[selectedBatch.fee_frequency] ?? ""}
+                    </span>
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground leading-tight">Select a batch<br />above to continue</p>
+              )}
             </div>
-            {cls.trial_available && (
+
+            {/* Book Trial — only when checkbox is checked */}
+            {cls.trial_available && wantsTrial && (
               <button
-                onClick={() => requireAuth(
-                  () => navigate(`/provider-profile/${provider?.id}`),
-                  "Log in to book a trial class"
-                )}
-                className="rounded-xl border-2 border-primary px-4 py-2.5 text-xs font-bold text-primary transition-all active:scale-95"
+                onClick={handleBookTrialClick}
+                className="rounded-xl border-2 border-primary px-3 py-2.5 text-xs font-bold text-primary transition-all active:scale-95 whitespace-nowrap"
               >
                 Book Trial
               </button>
             )}
+
+            {/* Enroll Now — only when batch is selected */}
             <button
-              onClick={() => requireAuth(
-                () => { const first = activeBatches[0] as any; navigate(`/enroll/${first.id}`); },
-                "Log in to enroll in this class"
-              )}
-              className="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-all active:scale-95"
-              style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
+              onClick={handleEnrollNow}
+              disabled={!selectedBatchId}
+              className={`rounded-xl px-4 py-2.5 text-sm font-bold text-white transition-all whitespace-nowrap ${
+                selectedBatchId
+                  ? "active:scale-95"
+                  : "opacity-40 cursor-not-allowed"
+              }`}
+              style={{
+                background: selectedBatchId
+                  ? selectedBatchFull
+                    ? "#F59E0B"
+                    : "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))"
+                  : "oklch(0.60 0.0 0)",
+              }}
             >
-              Enroll Now
+              {selectedBatchFull ? "Join Waitlist" : "Enroll Now"}
             </button>
           </div>
         </div>
       )}
+
+      {/* ── Trial Booking Sheet ── */}
+      <Sheet open={showTrialSheet} onOpenChange={(o) => { setShowTrialSheet(o); if (!o) { setSelectedDemoId(null); setSelectedMemberId(null); } }}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="text-base">Book a Trial Class</SheetTitle>
+            <p className="text-xs text-muted-foreground">{cls.title}</p>
+          </SheetHeader>
+
+          {/* Demo session list */}
+          <div className="mb-5">
+            <p className="text-sm font-semibold mb-2">Choose a session</p>
+            {demoSessions && demoSessions.length > 0 ? (
+              <div className="space-y-2">
+                {demoSessions.map((demo: any) => {
+                  const isChosen = selectedDemoId === demo.id;
+                  const spotsLeft = demo.max_participants - (demo.current_count ?? 0);
+                  return (
+                    <button
+                      key={demo.id}
+                      onClick={() => setSelectedDemoId(isChosen ? null : demo.id)}
+                      className="w-full text-left"
+                    >
+                      <div className={`flex items-center gap-3 rounded-xl border-2 p-3 transition-all ${
+                        isChosen ? "border-primary bg-primary/5" : "border-border"
+                      }`}>
+                        <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          isChosen ? "border-primary" : "border-muted-foreground/40"
+                        }`}>
+                          {isChosen && <div className="h-2 w-2 rounded-full bg-primary" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold">
+                            {new Date(demo.session_date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {demo.start_time?.slice(0, 5)} – {demo.end_time?.slice(0, 5)}
+                            {spotsLeft <= 3 && spotsLeft > 0 && (
+                              <span className="ml-2 text-amber-600 font-medium">{spotsLeft} spots left</span>
+                            )}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold">
+                            {demo.fee > 0 ? `₹${demo.fee}` : "Free"}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">No trial sessions scheduled yet.</p>
+            )}
+          </div>
+
+          {/* Family member selector */}
+          {demoSessions && demoSessions.length > 0 && (
+            <div className="mb-5">
+              <p className="text-sm font-semibold mb-2">Who is this for?</p>
+              {activeFamilyMembers.length > 0 ? (
+                <div className="space-y-2">
+                  {activeFamilyMembers.map((member) => {
+                    const isChosen = selectedMemberId === member.id;
+                    return (
+                      <button
+                        key={member.id}
+                        onClick={() => setSelectedMemberId(isChosen ? null : member.id)}
+                        className="w-full text-left"
+                      >
+                        <div className={`flex items-center gap-3 rounded-xl border-2 p-3 transition-all ${
+                          isChosen ? "border-primary bg-primary/5" : "border-border"
+                        }`}>
+                          <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                            isChosen ? "border-primary" : "border-muted-foreground/40"
+                          }`}>
+                            {isChosen && <div className="h-2 w-2 rounded-full bg-primary" />}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold">{member.full_name}</p>
+                            {member.relationship && (
+                              <p className="text-xs text-muted-foreground capitalize">{member.relationship}</p>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed p-4 text-center">
+                  <p className="text-sm text-muted-foreground">No family members added yet.</p>
+                  <button
+                    onClick={() => { setShowTrialSheet(false); navigate("/family"); }}
+                    className="text-xs text-primary font-semibold mt-1"
+                  >
+                    Add a family member →
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Confirm button */}
+          <Button
+            className="w-full"
+            disabled={!selectedDemoId || !selectedMemberId || bookingDemo}
+            onClick={handleConfirmDemo}
+          >
+            {bookingDemo ? "Booking…" : "Confirm Trial Booking"}
+          </Button>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 });
