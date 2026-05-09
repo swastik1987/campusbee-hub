@@ -236,16 +236,20 @@ const ProviderStudents = () => {
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
+                          {/* Row 1: student name + status badge + actions */}
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold truncate">
-                              {member?.full_name ?? member?.name}
-                            </p>
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Student</span>
+                              <p className="text-sm font-semibold truncate leading-tight">
+                                {member?.full_name ?? member?.name ?? "—"}
+                              </p>
+                            </div>
                             <Badge className={`text-[9px] border-0 shrink-0 ${STATUS_COLORS[enrollment.status ?? ""] ?? "bg-gray-100"}`}>
                               {enrollment.status}
                             </Badge>
                             {isRemovedTab && (
                               <span className="ml-auto flex items-center gap-1 text-[9px] text-destructive font-medium shrink-0">
-                                <UserMinus size={10} /> Removed from family
+                                <UserMinus size={10} /> Removed
                               </span>
                             )}
                             {!isRemovedTab && enrolledUser?.id && (
@@ -258,19 +262,25 @@ const ProviderStudents = () => {
                               </button>
                             )}
                           </div>
-                          <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground mt-0.5">
-                            {member?.relationship && <span>{member.relationship}</span>}
-                            {age && <span>· {age}</span>}
-                            {member?.age_group && !age && <span>· {member.age_group}</span>}
-                          </div>
-                          {/* Seeker (parent/guardian) who placed the request */}
-                          {enrolledUser?.full_name && (
-                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
-                              <Phone size={9} className="shrink-0" />
-                              <span>Requested by&nbsp;</span>
-                              <span className="font-medium text-foreground truncate">{enrolledUser.full_name}</span>
+
+                          {/* Row 2: relationship + age */}
+                          {(member?.relationship || age || member?.age_group) && (
+                            <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground mt-0.5">
+                              {member?.relationship && <span className="capitalize">{member.relationship}</span>}
+                              {age && <span>· {age}</span>}
+                              {member?.age_group && !age && <span>· {member.age_group}</span>}
                             </div>
                           )}
+
+                          {/* Row 3: seeker (parent/guardian) — always shown */}
+                          <div className="flex items-center gap-1.5 mt-1.5 rounded-md bg-muted/60 px-2 py-1">
+                            <Phone size={9} className="shrink-0 text-muted-foreground" />
+                            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide shrink-0">Seeker:</span>
+                            <span className="text-[11px] font-semibold text-foreground truncate">
+                              {enrolledUser?.full_name ?? "—"}
+                            </span>
+                          </div>
+
                           {isRemovedTab && (enrollment as any).dropped_at && (
                             <p className="text-[10px] text-destructive/70 mt-0.5">
                               Removed {new Date((enrollment as any).dropped_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}

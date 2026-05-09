@@ -511,6 +511,27 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
                       Trainer: {(batch.trainers as any).name}
                     </p>
                   )}
+                  {(() => {
+                    const schedules: any[] = (batch as any).batch_schedules ?? [];
+                    if (!schedules.length) return null;
+                    const days = schedules
+                      .map((s: any) => DAY_NAMES[s.day_of_week])
+                      .join(", ");
+                    const s0 = schedules[0];
+                    const time = `${s0.start_time?.slice(0, 5)} – ${s0.end_time?.slice(0, 5)}`;
+                    return (
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Calendar size={11} />
+                          {days}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock size={11} />
+                          {time}
+                        </span>
+                      </div>
+                    );
+                  })()}
                   <div className="flex gap-2 pt-1">
                     <Button size="sm" variant="outline" className="text-xs h-7"
                       onClick={() => openEditBatch(batch)}>

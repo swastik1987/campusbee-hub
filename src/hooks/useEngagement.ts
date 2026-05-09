@@ -110,7 +110,7 @@ export function useProviderEnrollments(batchIds: string[], status?: string) {
         .select(`
           id, batch_id, family_member_id, enrolled_by, status, enrolled_at, approved_at, dropped_at, notes, created_at,
           family_members(id, full_name, relationship, date_of_birth, age_group, deleted_at),
-          enrolled_user:users!enrollments_enrolled_by_fkey(id, full_name, avatar_url),
+          enrolled_user:users!enrolled_by(id, full_name, avatar_url),
           batches(id, batch_name, class_id, fee_amount, fee_frequency, start_date, end_date, status, max_batch_size, current_enrollment_count,
             classes(id, title),
             batch_schedules(day_of_week, start_time, end_time)
@@ -142,7 +142,7 @@ export function useRemovedEnrollments(batchIds: string[]) {
         .select(`
           id, batch_id, family_member_id, enrolled_by, status, enrolled_at, dropped_at, drop_reason, created_at,
           family_members(id, full_name, relationship, date_of_birth, age_group, deleted_at),
-          enrolled_user:users!enrollments_enrolled_by_fkey(id, full_name, avatar_url),
+          enrolled_user:users!enrolled_by(id, full_name, avatar_url),
           batches(id, batch_name, class_id, fee_amount, fee_frequency,
             classes(id, title),
             batch_schedules(day_of_week, start_time, end_time)

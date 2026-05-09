@@ -287,7 +287,8 @@ export function useBatches(classId: string | undefined) {
           age_group_min, age_group_max, max_batch_size, current_enrollment_count,
           fee_amount, fee_frequency, start_date, end_date, total_sessions,
           status, registration_mode, auto_waitlist, notes, created_at,
-          trainers(id, name, photo_url)
+          trainers(id, name, photo_url),
+          batch_schedules(day_of_week, start_time, end_time)
         `)
         .eq("class_id", classId!)
         .order("created_at", { ascending: false });
