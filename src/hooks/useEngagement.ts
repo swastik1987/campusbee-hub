@@ -200,6 +200,10 @@ export function useUpdateEnrollmentStatus() {
       qc.invalidateQueries({ queryKey: ["provider-enrollments"] });
       qc.invalidateQueries({ queryKey: ["pending-enrollments"] });
       qc.invalidateQueries({ queryKey: ["my-enrollments"] });
+      // Refresh batch seat counts on both provider and seeker views
+      qc.invalidateQueries({ queryKey: ["batches"] });
+      qc.invalidateQueries({ queryKey: ["seeker-class-detail"] });
+      qc.invalidateQueries({ queryKey: ["enroll-batch"] });
     },
   });
 }

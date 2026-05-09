@@ -405,6 +405,9 @@ export function useCreateEnrollment() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-enrollments"] });
       qc.invalidateQueries({ queryKey: ["batches"] });
+      qc.invalidateQueries({ queryKey: ["seeker-class-detail"] });
+      qc.invalidateQueries({ queryKey: ["enroll-batch"] });
+      qc.invalidateQueries({ queryKey: ["provider-enrollments"] });
     },
   });
 }

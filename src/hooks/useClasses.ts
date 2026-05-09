@@ -465,6 +465,7 @@ export function useUpdateBatch() {
       qc.invalidateQueries({ queryKey: ["batches"] });
       qc.invalidateQueries({ queryKey: ["batch-schedules"] });
       qc.invalidateQueries({ queryKey: ["class-detail"] });
+      qc.invalidateQueries({ queryKey: ["seeker-class-detail"] });
     },
   });
 }
