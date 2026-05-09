@@ -145,11 +145,15 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
     : false;
 
   const handleShare = () => {
+    const url = `${window.location.origin}/class/${cls.id}`;
     const text = `Check out ${cls.title} on CampusBee!`;
     if (navigator.share) {
-      navigator.share({ title: cls.title, text });
+      navigator.share({ title: cls.title, text, url }).catch(() => {});
     } else {
-      window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + window.location.href)}`, "_blank");
+      navigator.clipboard
+        .writeText(url)
+        .then(() => toast.success("Class link copied!"))
+        .catch(() => toast.error("Failed to copy link"));
     }
   };
 
@@ -283,8 +287,8 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
           )}
         </div>
 
-        {/* 2×2 info grid */}
-        {(cls.age_group_min || cls.age_group_max || cls.skill_level || cls.address) && (
+        {/* Info grid */}
+        {(cls.age_group_min || cls.age_group_max || cls.address || (cls as any).venue_details) && (
           <div className="grid grid-cols-2 gap-2">
             {(cls.age_group_min || cls.age_group_max) && (
               <div className="flex items-center gap-2 rounded-xl p-3" style={{ backgroundColor: "oklch(0.96 0.04 250)" }}>
@@ -295,17 +299,6 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
                     {cls.age_group_min && cls.age_group_max
                       ? `${cls.age_group_min}–${cls.age_group_max} yrs`
                       : cls.age_group_min ? `${cls.age_group_min}+ yrs` : `Up to ${cls.age_group_max} yrs`}
-                  </p>
-                </div>
-              </div>
-            )}
-            {cls.skill_level && (
-              <div className="flex items-center gap-2 rounded-xl p-3" style={{ backgroundColor: "oklch(0.96 0.04 250)" }}>
-                <Star size={15} style={{ color: "oklch(0.55 0.20 250)" }} />
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Level</p>
-                  <p className="text-xs font-semibold capitalize">
-                    {(Array.isArray(cls.skill_level) ? cls.skill_level.join(", ") : String(cls.skill_level)).replace("_", " ")}
                   </p>
                 </div>
               </div>
@@ -327,6 +320,15 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
                     Directions
                   </button>
                 )}
+              </div>
+            )}
+            {(cls as any).venue_details && (
+              <div className="col-span-2 flex items-start gap-2 rounded-xl p-3" style={{ backgroundColor: "oklch(0.96 0.04 250)" }}>
+                <MapPin size={15} className="mt-0.5 flex-shrink-0" style={{ color: "oklch(0.55 0.20 250)" }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-muted-foreground">Venue</p>
+                  <p className="text-xs font-semibold">{(cls as any).venue_details}</p>
+                </div>
               </div>
             )}
           </div>
@@ -428,27 +430,14 @@ const ClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_pr
           </div>
         )}
 
-        {/* Venue + What to bring */}
-        {(cls.venue_details || cls.what_to_bring) && (
-          <div className="space-y-2">
-            {cls.venue_details && (
-              <div className="flex items-start gap-2">
-                <MapPin size={14} className="text-muted-foreground mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs font-medium">Venue</p>
-                  <p className="text-xs text-muted-foreground">{cls.venue_details}</p>
-                </div>
-              </div>
-            )}
-            {cls.what_to_bring && (
-              <div className="flex items-start gap-2">
-                <BookOpen size={14} className="text-muted-foreground mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs font-medium">What to Bring</p>
-                  <p className="text-xs text-muted-foreground">{cls.what_to_bring}</p>
-                </div>
-              </div>
-            )}
+        {/* What to bring */}
+        {cls.what_to_bring && (
+          <div className="flex items-start gap-2">
+            <BookOpen size={14} className="text-muted-foreground mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-xs font-medium">What to Bring</p>
+              <p className="text-xs text-muted-foreground">{cls.what_to_bring}</p>
+            </div>
           </div>
         )}
 

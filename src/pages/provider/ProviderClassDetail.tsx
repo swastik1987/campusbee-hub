@@ -19,6 +19,7 @@ import {
 import { useTrainers } from "@/hooks/useProvider";
 import ClassLocationPicker from "@/components/location/ClassLocationPicker";
 import type { LocationValue } from "@/hooks/useLocation";
+import ClockTimePicker from "@/components/provider/ClockTimePicker";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -95,17 +96,6 @@ const FEATURED_STATUS_LABELS: Record<string, { label: string; color: string }> =
   cancelled: { label: "Cancelled", color: "bg-gray-100 text-gray-600" },
   rejected: { label: "Rejected", color: "bg-red-100 text-red-600" },
 };
-
-const TIME_OPTIONS = Array.from({ length: 36 }, (_, i) => {
-  const totalMinutes = 5 * 60 + i * 30;
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = totalMinutes % 60;
-  const period = hours < 12 ? "AM" : "PM";
-  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-  const value = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
-  const label = `${displayHours}:${String(mins).padStart(2, "0")} ${period}`;
-  return { value, label };
-});
 
 const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, ref) => {
   const { classId } = useParams();
@@ -300,8 +290,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
     const { data: scheds } = await supabase
       .from("batch_schedules")
       .select("day_of_week, start_time, end_time")
-      .eq("batch_id", batch.id)
-      .eq("is_active", true);
+      .eq("batch_id", batch.id);
     if (scheds && scheds.length > 0) {
       setEditBatchDays(scheds.map((s) => s.day_of_week));
       setEditBatchStartTime(scheds[0].start_time?.slice(0, 5) || "06:00");
@@ -913,17 +902,17 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
       <Sheet open={editBatchOpen} onOpenChange={setEditBatchOpen}>
         <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
           <SheetHeader><SheetTitle>Edit Batch</SheetTitle></SheetHeader>
-          <div className="space-y-3 py-4">
-            <div className="space-y-1">
-              <Label className="text-xs">Batch Name</Label>
-              <Input value={editBatchName} onChange={(e) => setEditBatchName(e.target.value)} className="h-10 rounded-lg" />
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Batch Name</Label>
+              <Input value={editBatchName} onChange={(e) => setEditBatchName(e.target.value)} className="h-11 rounded-xl" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Batch Type</Label>
+              <div className="space-y-2">
+                <Label>Batch Type</Label>
                 <Select value={editBatchType} onValueChange={setEditBatchType}>
-                  <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="level">Level</SelectItem>
                     <SelectItem value="age_group">Age Group</SelectItem>
@@ -933,15 +922,15 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
                 </Select>
               </div>
               {editBatchType === "level" && (
-                <div className="space-y-1">
-                  <Label className="text-xs">Skill Level</Label>
+                <div className="space-y-2">
+                  <Label>Skill Level</Label>
                   <Select value={editBatchSkillLevel} onValueChange={setEditBatchSkillLevel}>
-                    <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="beginner">Beginner</SelectItem>
                       <SelectItem value="intermediate">Intermediate</SelectItem>
                       <SelectItem value="advanced">Advanced</SelectItem>
-                      <SelectItem value="all_levels">All Levels</SelectItem>
+                      <SelectItem value="all">All Levels</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -950,22 +939,22 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
 
             {editBatchType === "age_group" && (
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Min Age</Label>
-                  <Input type="number" value={editBatchAgeMin} onChange={(e) => setEditBatchAgeMin(e.target.value)} className="h-10 rounded-lg" />
+                <div className="space-y-2">
+                  <Label>Min Age</Label>
+                  <Input type="number" value={editBatchAgeMin} onChange={(e) => setEditBatchAgeMin(e.target.value)} className="h-11 rounded-xl" />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Max Age</Label>
-                  <Input type="number" value={editBatchAgeMax} onChange={(e) => setEditBatchAgeMax(e.target.value)} className="h-10 rounded-lg" />
+                <div className="space-y-2">
+                  <Label>Max Age</Label>
+                  <Input type="number" value={editBatchAgeMax} onChange={(e) => setEditBatchAgeMax(e.target.value)} className="h-11 rounded-xl" />
                 </div>
               </div>
             )}
 
             {isAcademy && trainers && trainers.length > 0 && (
-              <div className="space-y-1">
-                <Label className="text-xs">Assign Trainer</Label>
+              <div className="space-y-2">
+                <Label>Assign Trainer</Label>
                 <Select value={editBatchTrainerId} onValueChange={setEditBatchTrainerId}>
-                  <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select trainer" /></SelectTrigger>
+                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select trainer" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">None</SelectItem>
                     {trainers.map((t) => (
@@ -978,7 +967,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
 
             {/* Schedule */}
             <div className="space-y-2">
-              <Label className="text-xs">Schedule</Label>
+              <Label>Schedule</Label>
               <div className="flex flex-wrap gap-2">
                 {[
                   { value: 1, label: "Mon" },
@@ -993,7 +982,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
                     key={d.value}
                     type="button"
                     onClick={() => toggleEditDay(d.value)}
-                    className={`h-9 w-9 rounded-lg text-xs font-semibold transition-all ${
+                    className={`h-10 w-10 rounded-lg text-xs font-semibold transition-all ${
                       editBatchDays.includes(d.value)
                         ? "bg-provider text-white"
                         : "bg-muted text-muted-foreground hover:bg-accent"
@@ -1004,45 +993,31 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
                 ))}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <Label className="text-xs">Start Time</Label>
-                  <Select value={editBatchStartTime} onValueChange={setEditBatchStartTime}>
-                    <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select" /></SelectTrigger>
-                    <SelectContent>
-                      {TIME_OPTIONS.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ClockTimePicker value={editBatchStartTime} onChange={setEditBatchStartTime} />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <Label className="text-xs">End Time</Label>
-                  <Select value={editBatchEndTime} onValueChange={setEditBatchEndTime}>
-                    <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select" /></SelectTrigger>
-                    <SelectContent>
-                      {TIME_OPTIONS.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ClockTimePicker value={editBatchEndTime} onChange={setEditBatchEndTime} />
                 </div>
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs">Max Batch Size</Label>
-              <Input type="number" value={editBatchCapacity} onChange={(e) => setEditBatchCapacity(e.target.value)} className="h-10 rounded-lg" />
+            <div className="space-y-2">
+              <Label>Max Batch Size</Label>
+              <Input type="number" value={editBatchCapacity} onChange={(e) => setEditBatchCapacity(e.target.value)} className="h-11 rounded-xl" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Class Fee (₹)</Label>
-                <Input type="number" value={editBatchFee} onChange={(e) => setEditBatchFee(e.target.value)} className="h-10 rounded-lg" />
+              <div className="space-y-2">
+                <Label>Class Fee (₹)</Label>
+                <Input type="number" value={editBatchFee} onChange={(e) => setEditBatchFee(e.target.value)} className="h-11 rounded-xl" />
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Fee Frequency</Label>
+              <div className="space-y-2">
+                <Label>Fee Frequency</Label>
                 <Select value={editBatchFeeFreq} onValueChange={setEditBatchFeeFreq}>
-                  <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="monthly">Monthly</SelectItem>
                     <SelectItem value="per_session">Per Session</SelectItem>
@@ -1054,30 +1029,30 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs">Registration Fee (₹)</Label>
-              <Input type="number" value={editBatchRegFee} onChange={(e) => setEditBatchRegFee(e.target.value)} placeholder="0" className="h-10 rounded-lg" />
+            <div className="space-y-2">
+              <Label>Registration Fee (₹)</Label>
+              <Input type="number" value={editBatchRegFee} onChange={(e) => setEditBatchRegFee(e.target.value)} placeholder="0" className="h-11 rounded-xl" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Start Date</Label>
-                <Input type="date" value={editBatchStartDate} onChange={(e) => setEditBatchStartDate(e.target.value)} className="h-10 rounded-lg" />
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input type="date" value={editBatchStartDate} onChange={(e) => setEditBatchStartDate(e.target.value)} className="h-11 rounded-xl" />
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">End Date</Label>
-                <Input type="date" value={editBatchEndDate} onChange={(e) => setEditBatchEndDate(e.target.value)} className="h-10 rounded-lg" />
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input type="date" value={editBatchEndDate} onChange={(e) => setEditBatchEndDate(e.target.value)} className="h-11 rounded-xl" />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs">Total Sessions</Label>
-              <Input type="number" value={editBatchTotalSessions} onChange={(e) => setEditBatchTotalSessions(e.target.value)} placeholder="Optional" className="h-10 rounded-lg" />
+            <div className="space-y-2">
+              <Label>Total Sessions</Label>
+              <Input type="number" value={editBatchTotalSessions} onChange={(e) => setEditBatchTotalSessions(e.target.value)} placeholder="Optional" className="h-11 rounded-xl" />
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-lg border">
+            <div className="flex items-center justify-between p-3 rounded-xl border">
               <div>
-                <p className="text-xs font-medium">Registration Mode</p>
+                <p className="text-sm font-medium">Registration Mode</p>
                 <p className="text-[10px] text-muted-foreground">
                   {editBatchRegMode === "auto" ? "Auto-accept enrollments" : "Manual approval required"}
                 </p>
@@ -1091,20 +1066,20 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
               </Select>
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-lg border">
+            <div className="flex items-center justify-between p-3 rounded-xl border">
               <div>
-                <p className="text-xs font-medium">Auto-Waitlist</p>
+                <p className="text-sm font-medium">Auto-Waitlist</p>
                 <p className="text-[10px] text-muted-foreground">Add to waitlist when full</p>
               </div>
               <Switch checked={editBatchAutoWaitlist} onCheckedChange={setEditBatchAutoWaitlist} />
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs">Notes</Label>
-              <Textarea value={editBatchNotes} onChange={(e) => setEditBatchNotes(e.target.value)} rows={2} className="rounded-lg" />
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea value={editBatchNotes} onChange={(e) => setEditBatchNotes(e.target.value)} rows={2} className="rounded-xl" />
             </div>
 
-            <Button onClick={handleSaveBatch} disabled={!editBatchName.trim() || updateBatch.isPending} className="w-full bg-provider text-white rounded-lg">
+            <Button onClick={handleSaveBatch} disabled={!editBatchName.trim() || updateBatch.isPending} className="w-full bg-provider text-white rounded-xl">
               {updateBatch.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save Changes"}
             </Button>
           </div>
