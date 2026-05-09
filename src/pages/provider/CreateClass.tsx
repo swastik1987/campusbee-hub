@@ -40,7 +40,6 @@ import { toast } from "sonner";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STEPS = ["Category", "Details", "Location", "Media", "Review"];
-const SKILL_LEVELS = ["beginner", "intermediate", "advanced", "all_levels"];
 
 /** Red asterisk for required fields */
 const Req = () => <span className="text-red-500 ml-0.5">*</span>;
@@ -66,7 +65,6 @@ const CreateClass = () => {
   const [shortDesc, setShortDesc] = useState("");
   const [description, setDescription] = useState("");
   const [classType, setClassType] = useState("recurring");
-  const [skillLevels, setSkillLevels] = useState<string[]>([]);
   const [whatToBring, setWhatToBring] = useState("");
   const [trialAvailable, setTrialAvailable] = useState(false);
   const [trialFee, setTrialFee] = useState("0");
@@ -108,9 +106,6 @@ const CreateClass = () => {
     const parentIdsWithChildren = new Set(filteredSubCategories.map((c) => c.parent_id));
     return parents.filter((p) => parentIdsWithChildren.has(p.id));
   }, [allCategories, filteredSubCategories, specializationIds]);
-
-  const toggleSkill = (s: string) =>
-    setSkillLevels((p) => (p.includes(s) ? p.filter((x) => x !== s) : [...p, s]));
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -160,7 +155,7 @@ const CreateClass = () => {
         description,
         shortDescription: shortDesc,
         classType,
-        skillLevel: skillLevels,
+        skillLevel: [],
         ageGroupMin: null,
         ageGroupMax: null,
         venueDetails: venue,
@@ -401,7 +396,7 @@ const CreateClass = () => {
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Badminton for Beginners"
+                placeholder="e.g. Badminton Classes, Morning Yoga"
                 className="h-11 rounded-xl"
               />
             </div>
@@ -445,25 +440,6 @@ const CreateClass = () => {
                   <SelectItem value="one_time">One-Time (single session)</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            {/* Skill Levels */}
-            <div className="space-y-2">
-              <Label>Skill Levels<Opt /></Label>
-              <div className="flex flex-wrap gap-2">
-                {SKILL_LEVELS.map((s) => (
-                  <Badge
-                    key={s}
-                    variant={skillLevels.includes(s) ? "default" : "outline"}
-                    className={`cursor-pointer capitalize ${
-                      skillLevels.includes(s) ? "bg-provider" : ""
-                    }`}
-                    onClick={() => toggleSkill(s)}
-                  >
-                    {s.replace("_", " ")}
-                  </Badge>
-                ))}
-              </div>
             </div>
 
             {/* What to Bring */}
@@ -755,11 +731,6 @@ const CreateClass = () => {
                 <Badge variant="outline" className="capitalize">
                   {classType.replace("_", " ")}
                 </Badge>
-                {skillLevels.map((s) => (
-                  <Badge key={s} variant="secondary" className="capitalize">
-                    {s.replace("_", " ")}
-                  </Badge>
-                ))}
               </div>
 
               {/* Location */}

@@ -18,6 +18,9 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import ClockTimePicker from "@/components/provider/ClockTimePicker";
+
+// TIME_OPTIONS removed — time selection uses ClockTimePicker
 
 const DAYS = [
   { value: 1, label: "Mon" },
@@ -29,16 +32,6 @@ const DAYS = [
   { value: 0, label: "Sun" },
 ];
 
-const TIME_OPTIONS = Array.from({ length: 36 }, (_, i) => {
-  const totalMinutes = 5 * 60 + i * 30;
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = totalMinutes % 60;
-  const period = hours < 12 ? "AM" : "PM";
-  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-  const value = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
-  const label = `${displayHours}:${String(mins).padStart(2, "0")} ${period}`;
-  return { value, label };
-});
 
 const Req = () => <span className="text-red-500 ml-0.5">*</span>;
 const Opt = () => <span className="text-muted-foreground text-xs font-normal ml-1">(optional)</span>;
@@ -51,7 +44,7 @@ const CreateBatch = () => {
 
   const [batchName, setBatchName] = useState("");
   const [batchType, setBatchType] = useState("level");
-  const [skillLevel, setSkillLevel] = useState("");
+  const [skillLevel, setSkillLevel] = useState("all");
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
   const [trainerId, setTrainerId] = useState("");
@@ -151,7 +144,7 @@ const CreateBatch = () => {
                   <SelectItem value="beginner">Beginner</SelectItem>
                   <SelectItem value="intermediate">Intermediate</SelectItem>
                   <SelectItem value="advanced">Advanced</SelectItem>
-                  <SelectItem value="all_levels">All Levels</SelectItem>
+                  <SelectItem value="all">All Levels</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -207,25 +200,11 @@ const CreateBatch = () => {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Start Time<Req /></Label>
-              <Select value={startTime} onValueChange={setStartTime}>
-                <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>
-                  {TIME_OPTIONS.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ClockTimePicker value={startTime} onChange={setStartTime} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">End Time<Req /></Label>
-              <Select value={endTime} onValueChange={setEndTime}>
-                <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>
-                  {TIME_OPTIONS.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ClockTimePicker value={endTime} onChange={setEndTime} />
             </div>
           </div>
         </div>

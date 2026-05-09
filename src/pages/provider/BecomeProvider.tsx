@@ -127,7 +127,7 @@ const BecomeProvider = () => {
       });
       toast.success("You're now a provider on CampusBee! Start creating your first class.");
       await refreshProfile();
-      navigate("/provider/dashboard", { replace: true });
+      navigate("/provider/classes", { replace: true });
     } catch {
       toast.error("Failed to submit application");
     }
