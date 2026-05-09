@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useProviderEnrollments, useRemovedEnrollments, useUpdateEnrollmentStatus } from "@/hooks/useEngagement";
+import { useProviderEnrollments, useRemovedEnrollments, useUpdateEnrollmentStatus, useProviderStudentNames } from "@/hooks/useEngagement";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/layout/Header";
@@ -132,6 +132,14 @@ const ProviderStudents = () => {
   const displayLoading = isRemovedTab ? removedLoading : isLoading;
   const updateStatus = useUpdateEnrollmentStatus();
 
+  // Fetch student + seeker names via SECURITY DEFINER RPC (bypasses RLS)
+  const { data: studentNames } = useProviderStudentNames(activeBatchIds);
+  const nameMap = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof studentNames>[0]>();
+    studentNames?.forEach((n) => map.set(n.enrollment_id, n));
+    return map;
+  }, [studentNames]);
+
   const handleApprove = async (enrollmentId: string) => {
     try {
       await updateStatus.mutateAsync({ enrollmentId, status: "active" });
@@ -205,8 +213,7 @@ const ProviderStudents = () => {
             ) : displayEnrollments.length > 0 ? (
               <div className="space-y-3">
                 {displayEnrollments.map((enrollment) => {
-                  const member = enrollment.family_members as any;
-                  const enrolledUser = (enrollment as any).enrolled_user;
+                  const nameEntry = nameMap.get(enrollment.id);
                   const batch = enrollment.batches as any;
                   const cls = batch?.classes;
                   const schedules = batch?.batch_schedules ?? [];
@@ -214,7 +221,7 @@ const ProviderStudents = () => {
                   const latestPayment = payments.length > 0
                     ? payments.sort((a: any, b: any) => new Date(b.paid_at ?? b.created_at ?? 0).getTime() - new Date(a.paid_at ?? a.created_at ?? 0).getTime())[0]
                     : null;
-                  const age = getAge(member?.date_of_birth);
+                  const age = getAge(nameEntry?.student_dob ?? null);
                   const scheduleSummary = schedules.map((s: any) => DAY_NAMES[s.day_of_week]).join(", ");
                   const timeSummary = schedules[0]
                     ? `${schedules[0].start_time?.slice(0, 5)}–${schedules[0].end_time?.slice(0, 5)}`
@@ -232,7 +239,7 @@ const ProviderStudents = () => {
                       <div className="flex items-start gap-3">
                         <Avatar className="h-10 w-10 mt-0.5">
                           <AvatarFallback className="bg-provider/10 text-provider text-xs">
-                            {(member?.full_name ?? member?.name ?? "")[0]?.toUpperCase()}
+                            {(nameEntry?.student_name ?? "")[0]?.toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
@@ -241,7 +248,7 @@ const ProviderStudents = () => {
                             <div className="min-w-0">
                               <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Student</span>
                               <p className="text-sm font-semibold truncate leading-tight">
-                                {member?.full_name ?? member?.name ?? "—"}
+                                {nameEntry?.student_name ?? "—"}
                               </p>
                             </div>
                             <Badge className={`text-[9px] border-0 shrink-0 ${STATUS_COLORS[enrollment.status ?? ""] ?? "bg-gray-100"}`}>
@@ -252,11 +259,11 @@ const ProviderStudents = () => {
                                 <UserMinus size={10} /> Removed
                               </span>
                             )}
-                            {!isRemovedTab && enrolledUser?.id && (
+                            {!isRemovedTab && nameEntry?.seeker_id && (
                               <button
-                                onClick={(e) => { e.stopPropagation(); navigate(`/chat?with=${enrolledUser.id}`); }}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/chat?with=${nameEntry.seeker_id}`); }}
                                 className="ml-auto shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-indigo-500/10 transition-colors hover:bg-indigo-500/20"
-                                title={`Chat with ${enrolledUser.full_name ?? "parent"}`}
+                                title={`Chat with ${nameEntry.seeker_name ?? "parent"}`}
                               >
                                 <MessageCircle size={14} className="text-indigo-600" />
                               </button>
@@ -264,11 +271,11 @@ const ProviderStudents = () => {
                           </div>
 
                           {/* Row 2: relationship + age */}
-                          {(member?.relationship || age || member?.age_group) && (
+                          {(nameEntry?.student_relation || age || nameEntry?.student_age_grp) && (
                             <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground mt-0.5">
-                              {member?.relationship && <span className="capitalize">{member.relationship}</span>}
+                              {nameEntry?.student_relation && <span className="capitalize">{nameEntry.student_relation}</span>}
                               {age && <span>· {age}</span>}
-                              {member?.age_group && !age && <span>· {member.age_group}</span>}
+                              {nameEntry?.student_age_grp && !age && <span>· {nameEntry.student_age_grp}</span>}
                             </div>
                           )}
 
@@ -277,7 +284,7 @@ const ProviderStudents = () => {
                             <Phone size={9} className="shrink-0 text-muted-foreground" />
                             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide shrink-0">Seeker:</span>
                             <span className="text-[11px] font-semibold text-foreground truncate">
-                              {enrolledUser?.full_name ?? "—"}
+                              {nameEntry?.seeker_name ?? "—"}
                             </span>
                           </div>
 

@@ -109,8 +109,6 @@ export function useProviderEnrollments(batchIds: string[], status?: string) {
         .from("enrollments")
         .select(`
           id, batch_id, family_member_id, enrolled_by, status, enrolled_at, approved_at, dropped_at, notes, created_at,
-          family_members(id, full_name, relationship, date_of_birth, age_group, deleted_at),
-          enrolled_user:users!enrollments_enrolled_by_fkey(id, full_name, avatar_url),
           batches(id, batch_name, class_id, fee_amount, fee_frequency, start_date, end_date, status, max_batch_size, current_enrollment_count,
             classes(id, title),
             batch_schedules(day_of_week, start_time, end_time)
@@ -141,8 +139,6 @@ export function useRemovedEnrollments(batchIds: string[]) {
         .from("enrollments")
         .select(`
           id, batch_id, family_member_id, enrolled_by, status, enrolled_at, dropped_at, drop_reason, created_at,
-          family_members(id, full_name, relationship, date_of_birth, age_group, deleted_at),
-          enrolled_user:users!enrollments_enrolled_by_fkey(id, full_name, avatar_url),
           batches(id, batch_name, class_id, fee_amount, fee_frequency,
             classes(id, title),
             batch_schedules(day_of_week, start_time, end_time)
@@ -152,8 +148,34 @@ export function useRemovedEnrollments(batchIds: string[]) {
         .eq("status", "dropped")
         .order("dropped_at", { ascending: false, nullsFirst: false });
       if (error) throw error;
-      // Filter client-side: only show members deleted from the family
-      return (data ?? []).filter((e) => !!(e.family_members as any)?.deleted_at);
+      // Return all dropped enrollments; names/deleted_at fetched via RPC
+      return data ?? [];
+    },
+  });
+}
+
+export interface StudentNameEntry {
+  enrollment_id: string;
+  student_name: string | null;
+  student_relation: string | null;
+  student_dob: string | null;
+  student_age_grp: string | null;
+  seeker_id: string | null;
+  seeker_name: string | null;
+  seeker_avatar: string | null;
+}
+
+/** Fetches student + seeker names via a SECURITY DEFINER RPC (bypasses RLS). */
+export function useProviderStudentNames(batchIds: string[]) {
+  return useQuery({
+    queryKey: ["provider-student-names", batchIds],
+    enabled: batchIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_provider_student_names", {
+        p_batch_ids: batchIds,
+      });
+      if (error) throw error;
+      return (data ?? []) as StudentNameEntry[];
     },
   });
 }
