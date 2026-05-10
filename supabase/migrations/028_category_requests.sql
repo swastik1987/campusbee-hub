@@ -5,10 +5,22 @@
 --
 -- NOTE: apply manually in Supabase SQL editor:
 --   https://supabase.com/dashboard/project/uspqewlpgdsvabturfes/sql
+--
+-- Safe to re-run: drops the table + RPCs before recreating.
+
+-- ── Drop old objects first (idempotent re-run) ────────────────────────────────
+
+DROP TABLE IF EXISTS public.category_requests CASCADE;
+
+DROP FUNCTION IF EXISTS public._cat_notify(UUID, TEXT, TEXT, TEXT, UUID);
+DROP FUNCTION IF EXISTS public.approve_category_request(UUID, UUID, TEXT, TEXT, UUID);
+DROP FUNCTION IF EXISTS public.reject_category_request(UUID, UUID, TEXT);
+DROP FUNCTION IF EXISTS public.retag_category_request(UUID, UUID, UUID, TEXT);
+DROP FUNCTION IF EXISTS public.respond_to_category_retag(UUID, BOOLEAN);
 
 -- ── Table ─────────────────────────────────────────────────────────────────────
 
-CREATE TABLE IF NOT EXISTS public.category_requests (
+CREATE TABLE public.category_requests (
   id                   UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
   provider_id          UUID        NOT NULL REFERENCES public.service_providers(id) ON DELETE CASCADE,
   requested_by         UUID        NOT NULL REFERENCES public.users(id),
@@ -36,21 +48,18 @@ CREATE TABLE IF NOT EXISTS public.category_requests (
 ALTER TABLE public.category_requests ENABLE ROW LEVEL SECURITY;
 
 -- Providers see their own requests
-DROP POLICY IF EXISTS "cat_req_provider_select" ON public.category_requests;
 CREATE POLICY "cat_req_provider_select" ON public.category_requests
   FOR SELECT USING (
     provider_id IN (SELECT id FROM public.service_providers WHERE user_id = auth.uid())
   );
 
 -- Platform admins see all requests
-DROP POLICY IF EXISTS "cat_req_admin_select" ON public.category_requests;
 CREATE POLICY "cat_req_admin_select" ON public.category_requests
   FOR SELECT USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND is_platform_admin = true)
   );
 
 -- Providers insert their own requests
-DROP POLICY IF EXISTS "cat_req_provider_insert" ON public.category_requests;
 CREATE POLICY "cat_req_provider_insert" ON public.category_requests
   FOR INSERT WITH CHECK (
     provider_id IN (SELECT id FROM public.service_providers WHERE user_id = auth.uid())
@@ -58,14 +67,12 @@ CREATE POLICY "cat_req_provider_insert" ON public.category_requests
   );
 
 -- Providers update their own (for retag accept / decline)
-DROP POLICY IF EXISTS "cat_req_provider_update" ON public.category_requests;
 CREATE POLICY "cat_req_provider_update" ON public.category_requests
   FOR UPDATE USING (
     provider_id IN (SELECT id FROM public.service_providers WHERE user_id = auth.uid())
   );
 
 -- Platform admins update all (for review actions)
-DROP POLICY IF EXISTS "cat_req_admin_update" ON public.category_requests;
 CREATE POLICY "cat_req_admin_update" ON public.category_requests
   FOR UPDATE USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND is_platform_admin = true)
