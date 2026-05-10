@@ -47,10 +47,25 @@ export function useSubmitCategoryRequest() {
       /** Sub-category names to auto-create on approval (new_category only) */
       subcategories?: string[];
     }) => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error("You must be signed in to submit a category request.");
+      }
+
+      const { data: provider, error: providerErr } = await supabase
+        .from("service_providers")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+      if (providerErr) throw providerErr;
+
       const { data, error } = await supabase
         .from("category_requests")
         .insert({
-          provider_id:             input.providerId,
+          provider_id:             provider.id,
           request_type:            input.requestType,
           requested_name:          input.name,
           requested_icon:          input.icon ?? null,
