@@ -722,6 +722,20 @@ const PlatformCategories = () => {
                           </p>
                         )}
 
+                        {/* Requested sub-categories */}
+                        {(req.requested_subcategories as string[] | null)?.length && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {(req.requested_subcategories as string[]).map((s, i) => (
+                              <span
+                                key={i}
+                                className="bg-muted rounded px-1.5 py-0.5 text-[10px] font-medium"
+                              >
+                                + {s}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
                         {/* Rejection reason */}
                         {req.admin_notes && req.status === "rejected" && (
                           <p className="text-xs text-red-600 mt-1">
@@ -823,6 +837,27 @@ const PlatformCategories = () => {
                     {approveTarget.description}
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* Sub-categories to be auto-created (read-only info) */}
+            {(approveTarget?.requested_subcategories as string[] | null)?.length > 0 && (
+              <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 space-y-1.5">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                  Sub-categories (auto-created on approval)
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(approveTarget.requested_subcategories as string[]).map(
+                    (s: string, i: number) => (
+                      <span
+                        key={i}
+                        className="bg-primary/10 text-primary rounded-lg px-2.5 py-1 text-xs font-medium"
+                      >
+                        {s}
+                      </span>
+                    )
+                  )}
+                </div>
               </div>
             )}
 

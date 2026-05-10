@@ -185,6 +185,25 @@ const ProviderCategories = () => {
                   </Badge>
                 </div>
 
+                {/* Requested sub-categories */}
+                {req.requested_subcategories?.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Requested sub-categories
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {req.requested_subcategories.map((s: string, i: number) => (
+                        <span
+                          key={i}
+                          className="bg-provider/10 text-provider rounded-lg px-2 py-0.5 text-[11px] font-medium"
+                        >
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Description */}
                 {req.description && (
                   <p className="text-xs text-muted-foreground">

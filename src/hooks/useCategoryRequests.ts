@@ -13,6 +13,7 @@ export function useMyCategoryRequests(providerId: string | undefined) {
         .from("category_requests")
         .select(`
           id, request_type, requested_name, requested_icon, description,
+          requested_subcategories,
           status, admin_notes, parent_category_id, retag_category_id, requested_at,
           parent_cat:class_categories!category_requests_parent_category_id_fkey(id, name, icon),
           retag_cat:class_categories!category_requests_retag_category_id_fkey(id, name, icon)
@@ -26,26 +27,10 @@ export function useMyCategoryRequests(providerId: string | undefined) {
 }
 
 /**
- * Dashboard-friendly alias — returns pending + rejected requests with
- * `requested_name` and `admin_notes` (matches the shape ProviderDashboard uses).
- * Internally identical to useMyCategoryRequests.
+ * Dashboard-friendly alias — same data as useMyCategoryRequests.
+ * ProviderDashboard uses r.requested_name / r.admin_notes / r.status.
  */
 export const useProviderCategoryRequests = useMyCategoryRequests;
-
-/** Platform admin: count of pending category requests (for dashboard badge). */
-export function usePendingCategoryRequestCount() {
-  return useQuery({
-    queryKey: ["category-requests-admin-count"],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from("category_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pending");
-      if (error) throw error;
-      return count ?? 0;
-    },
-  });
-}
 
 /** Submit a new category / sub-category request. Returns { id }. */
 export function useSubmitCategoryRequest() {
@@ -56,22 +41,24 @@ export function useSubmitCategoryRequest() {
       requestType: "new_category" | "new_subcategory";
       name: string;
       description?: string;
+      /** Icon name — only relevant for new_category requests */
       icon?: string;
       parentCategoryId: string | null;
+      /** Sub-category names to auto-create on approval (new_category only) */
+      subcategories?: string[];
     }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
       const { data, error } = await supabase
         .from("category_requests")
         .insert({
-          provider_id:        input.providerId,
-          requested_by:       user.id,
-          request_type:       input.requestType,
-          requested_name:     input.name,
-          requested_icon:     input.icon ?? null,
-          description:        input.description ?? null,
-          parent_category_id: input.parentCategoryId,
+          provider_id:             input.providerId,
+          request_type:            input.requestType,
+          requested_name:          input.name,
+          requested_icon:          input.icon ?? null,
+          description:             input.description ?? null,
+          parent_category_id:      input.parentCategoryId,
+          requested_subcategories: input.subcategories?.length
+            ? input.subcategories
+            : null,
         })
         .select("id")
         .single();
@@ -113,6 +100,7 @@ export function usePlatformCategoryRequests(status: string = "pending") {
         .from("category_requests")
         .select(`
           id, request_type, requested_name, requested_icon, description,
+          requested_subcategories,
           status, admin_notes, admin_modified_name, admin_modified_icon,
           retag_category_id, parent_category_id, requested_at,
           service_providers(business_name),
@@ -132,9 +120,24 @@ export function usePlatformCategoryRequests(status: string = "pending") {
   });
 }
 
+/** Platform admin: count of pending category requests (for dashboard badge). */
+export function usePendingCategoryRequestCount() {
+  return useQuery({
+    queryKey: ["category-requests-admin-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("category_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+}
+
 /**
  * Approve a request: calls the approve_category_request RPC which atomically
- * creates the category in class_categories and notifies the provider.
+ * creates the category (+ any requested sub-categories) and notifies the provider.
  */
 export function useApproveCategoryRequest() {
   const qc = useQueryClient();
@@ -158,6 +161,7 @@ export function useApproveCategoryRequest() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["category-requests-admin"] });
+      qc.invalidateQueries({ queryKey: ["category-requests-admin-count"] });
       qc.invalidateQueries({ queryKey: ["categories"] });
     },
   });
@@ -181,6 +185,7 @@ export function useRejectCategoryRequest() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["category-requests-admin"] });
+      qc.invalidateQueries({ queryKey: ["category-requests-admin-count"] });
     },
   });
 }

@@ -3,15 +3,19 @@
  *
  * Bottom-sheet form for providers to request a new category or sub-category.
  *
- * Flow:
- * 1. Pick request type  — "Sub-category under existing" OR "New top-level category"
- * 2. (Sub-category only) Pick parent from existing categories (shown with real icon)
- * 3. Enter name + optional description
- * 4. Click "Check for Existing Matches" — client-side fuzzy match against all
- *    categories; shows matches with their actual Lucide icons.
- *    Provider can either "Use this" (calls onSelectExisting) or dismiss and proceed.
- * 5. (Optional) Pick icon from scrollable icon grid
- * 6. Submit
+ * Flow — New Category:
+ *   1. Enter name + optional icon (scrollable Lucide grid)
+ *   2. Add optional sub-categories (names only, no icons)
+ *   3. Check for duplicates
+ *   4. Optional description
+ *   5. Submit
+ *
+ * Flow — New Sub-category:
+ *   1. Pick parent from existing categories
+ *   2. Enter name (no icon step)
+ *   3. Check for duplicates
+ *   4. Optional description
+ *   5. Submit
  */
 
 import * as React from "react";
@@ -41,7 +45,9 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Plus,
   Search,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -94,6 +100,10 @@ const CategoryRequestSheet = React.forwardRef<
   const [icon, setIcon] = React.useState("");
   const [showIconPicker, setShowIconPicker] = React.useState(false);
 
+  // Sub-categories (new_category only)
+  const [subcats, setSubcats] = React.useState<string[]>([]);
+  const [subcatInput, setSubcatInput] = React.useState("");
+
   // Duplicate-check state
   const [checked, setChecked] = React.useState(false);
   const [similarCats, setSimilarCats] = React.useState<Category[]>([]);
@@ -108,6 +118,8 @@ const CategoryRequestSheet = React.forwardRef<
     setDescription("");
     setIcon("");
     setShowIconPicker(false);
+    setSubcats([]);
+    setSubcatInput("");
     setChecked(false);
     setSimilarCats([]);
     setSimilarDismissed(false);
@@ -116,6 +128,18 @@ const CategoryRequestSheet = React.forwardRef<
   const handleClose = () => {
     reset();
     onOpenChange(false);
+  };
+
+  const handleTypeChange = (type: "new_subcategory" | "new_category") => {
+    setRequestType(type);
+    setParentId("none");
+    setIcon("");
+    setShowIconPicker(false);
+    setSubcats([]);
+    setSubcatInput("");
+    setChecked(false);
+    setSimilarCats([]);
+    setSimilarDismissed(false);
   };
 
   const handleNameChange = (v: string) => {
@@ -132,6 +156,18 @@ const CategoryRequestSheet = React.forwardRef<
     setSimilarDismissed(false);
   };
 
+  // Sub-category management
+  const handleAddSubcat = () => {
+    const v = subcatInput.trim();
+    if (!v || subcats.includes(v)) return;
+    setSubcats((prev) => [...prev, v]);
+    setSubcatInput("");
+  };
+
+  const handleRemoveSubcat = (idx: number) => {
+    setSubcats((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   const handleSubmit = async () => {
     if (!name.trim()) return;
     if (requestType === "new_subcategory" && parentId === "none") {
@@ -144,11 +180,15 @@ const CategoryRequestSheet = React.forwardRef<
         requestType,
         name: name.trim(),
         description: description.trim() || undefined,
-        icon: icon.trim() || undefined,
+        icon: requestType === "new_category" ? (icon.trim() || undefined) : undefined,
         parentCategoryId:
           requestType === "new_subcategory" && parentId !== "none"
             ? parentId
             : null,
+        subcategories:
+          requestType === "new_category"
+            ? subcats.filter((s) => s.trim().length > 0)
+            : undefined,
       });
       toast.success("Request submitted — we'll review it shortly!");
       onSubmitted?.(result.id, name.trim());
@@ -211,13 +251,7 @@ const CategoryRequestSheet = React.forwardRef<
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => {
-                    setRequestType(opt.value);
-                    setParentId("none");
-                    setChecked(false);
-                    setSimilarCats([]);
-                    setSimilarDismissed(false);
-                  }}
+                  onClick={() => handleTypeChange(opt.value)}
                   className={`text-left p-3 rounded-xl border text-sm transition-all ${
                     requestType === opt.value
                       ? "border-provider bg-provider/5 text-provider"
@@ -278,6 +312,99 @@ const CategoryRequestSheet = React.forwardRef<
               className="h-11 rounded-xl"
             />
           </div>
+
+          {/* ── Icon picker (new_category only, collapsible) ─ */}
+          {requestType === "new_category" && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">
+                  Icon{" "}
+                  <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setShowIconPicker((v) => !v)}
+                  className="flex items-center gap-1 text-xs text-provider hover:underline"
+                >
+                  {SelectedIcon && (
+                    <SelectedIcon size={13} className="text-provider" />
+                  )}
+                  {icon || "Choose icon"}
+                  {showIconPicker ? (
+                    <ChevronUp size={11} />
+                  ) : (
+                    <ChevronDown size={11} />
+                  )}
+                </button>
+              </div>
+              {showIconPicker && (
+                <IconPicker value={icon} onChange={setIcon} />
+              )}
+            </div>
+          )}
+
+          {/* ── Sub-categories (new_category only) ────────── */}
+          {requestType === "new_category" && (
+            <div className="space-y-2">
+              <div>
+                <Label className="text-xs">
+                  Sub-categories{" "}
+                  <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Add the sub-categories you'd like under this new category.
+                </p>
+              </div>
+              {/* Input row */}
+              <div className="flex gap-2">
+                <Input
+                  value={subcatInput}
+                  onChange={(e) => setSubcatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddSubcat();
+                    }
+                  }}
+                  placeholder="e.g., Classical, Hip Hop, Contemporary…"
+                  className="h-9 rounded-xl text-sm flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddSubcat}
+                  disabled={
+                    !subcatInput.trim() ||
+                    subcats.includes(subcatInput.trim())
+                  }
+                  className="h-9 w-9 shrink-0 p-0"
+                >
+                  <Plus size={14} />
+                </Button>
+              </div>
+              {/* Pill list */}
+              {subcats.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {subcats.map((s, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-1 bg-provider/10 rounded-lg px-2.5 py-1"
+                    >
+                      <span className="text-xs font-medium text-provider">{s}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSubcat(i)}
+                        className="text-provider/50 hover:text-provider ml-0.5 leading-none"
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Duplicate check ───────────────────────────── */}
           {name.trim().length >= 3 && (
@@ -365,34 +492,6 @@ const CategoryRequestSheet = React.forwardRef<
               )}
             </div>
           )}
-
-          {/* ── Icon picker (collapsible) ──────────────────── */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">
-                Icon{" "}
-                <span className="text-muted-foreground font-normal">(optional)</span>
-              </Label>
-              <button
-                type="button"
-                onClick={() => setShowIconPicker((v) => !v)}
-                className="flex items-center gap-1 text-xs text-provider hover:underline"
-              >
-                {SelectedIcon && (
-                  <SelectedIcon size={13} className="text-provider" />
-                )}
-                {icon || "Choose icon"}
-                {showIconPicker ? (
-                  <ChevronUp size={11} />
-                ) : (
-                  <ChevronDown size={11} />
-                )}
-              </button>
-            </div>
-            {showIconPicker && (
-              <IconPicker value={icon} onChange={setIcon} />
-            )}
-          </div>
 
           {/* ── Description ───────────────────────────────── */}
           <div className="space-y-1.5">

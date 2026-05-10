@@ -21,26 +21,26 @@ DROP FUNCTION IF EXISTS public.respond_to_category_retag(UUID, BOOLEAN);
 -- ── Table ─────────────────────────────────────────────────────────────────────
 
 CREATE TABLE public.category_requests (
-  id                   UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
-  provider_id          UUID        NOT NULL REFERENCES public.service_providers(id) ON DELETE CASCADE,
-  requested_by         UUID        NOT NULL REFERENCES public.users(id),
-  request_type         TEXT        NOT NULL CHECK (request_type IN ('new_category', 'new_subcategory')),
-  parent_category_id   UUID        REFERENCES public.class_categories(id),
-  requested_name       TEXT        NOT NULL,
-  requested_icon       TEXT,
-  description          TEXT,
+  id                       UUID          DEFAULT gen_random_uuid() PRIMARY KEY,
+  provider_id              UUID          NOT NULL REFERENCES public.service_providers(id) ON DELETE CASCADE,
+  request_type             TEXT          NOT NULL CHECK (request_type IN ('new_category', 'new_subcategory')),
+  parent_category_id       UUID          REFERENCES public.class_categories(id),
+  requested_name           TEXT          NOT NULL,
+  requested_icon           TEXT,                          -- only relevant for new_category
+  requested_subcategories  TEXT[],                        -- sub-cat names to auto-create on approval (new_category only)
+  description              TEXT,
   -- Review outcome
-  status               TEXT        NOT NULL DEFAULT 'pending'
-                                   CHECK (status IN ('pending','approved','rejected','retag_pending','retag_declined')),
-  admin_notes          TEXT,               -- rejection reason OR retag explanation
-  admin_modified_name  TEXT,               -- admin can rename before approving
-  admin_modified_icon  TEXT,               -- admin can re-icon before approving
-  retag_category_id    UUID        REFERENCES public.class_categories(id),  -- existing cat admin maps to
-  reviewed_by          UUID        REFERENCES public.users(id),
-  reviewed_at          TIMESTAMPTZ,
-  created_category_id  UUID        REFERENCES public.class_categories(id),  -- populated on approval
-  requested_at         TIMESTAMPTZ DEFAULT NOW(),
-  updated_at           TIMESTAMPTZ DEFAULT NOW()
+  status                   TEXT          NOT NULL DEFAULT 'pending'
+                                         CHECK (status IN ('pending','approved','rejected','retag_pending','retag_declined')),
+  admin_notes              TEXT,                          -- rejection reason OR retag explanation
+  admin_modified_name      TEXT,
+  admin_modified_icon      TEXT,
+  retag_category_id        UUID          REFERENCES public.class_categories(id),
+  reviewed_by              UUID          REFERENCES public.users(id),
+  reviewed_at              TIMESTAMPTZ,
+  created_category_id      UUID          REFERENCES public.class_categories(id),
+  requested_at             TIMESTAMPTZ   DEFAULT NOW(),
+  updated_at               TIMESTAMPTZ   DEFAULT NOW()
 );
 
 -- ── RLS ───────────────────────────────────────────────────────────────────────
@@ -63,7 +63,6 @@ CREATE POLICY "cat_req_admin_select" ON public.category_requests
 CREATE POLICY "cat_req_provider_insert" ON public.category_requests
   FOR INSERT WITH CHECK (
     provider_id IN (SELECT id FROM public.service_providers WHERE user_id = auth.uid())
-    AND requested_by = auth.uid()
   );
 
 -- Providers update their own (for retag accept / decline)
@@ -80,7 +79,7 @@ CREATE POLICY "cat_req_admin_update" ON public.category_requests
 
 GRANT SELECT, INSERT, UPDATE ON public.category_requests TO authenticated;
 
--- ── Helper: safe notify (wraps send_notification so missing types don't abort) ──
+-- ── Helper: safe notify ───────────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public._cat_notify(
   p_user_id UUID,
@@ -92,32 +91,38 @@ CREATE OR REPLACE FUNCTION public._cat_notify(
 BEGIN
   PERFORM public.send_notification(p_user_id, p_title, p_body, p_type, 'category_request', p_ref_id);
 EXCEPTION WHEN OTHERS THEN
-  NULL; -- best-effort; never abort the main operation
+  NULL;
 END;
 $$;
 
 -- ── RPC: approve_category_request ─────────────────────────────────────────────
--- Atomically creates a row in class_categories, marks the request approved,
--- and notifies the provider.
+-- Creates the category, auto-creates any requested_subcategories, marks
+-- request approved, notifies provider.
 
 CREATE OR REPLACE FUNCTION public.approve_category_request(
   p_request_id    UUID,
   p_admin_user_id UUID,
   p_final_name    TEXT,
-  p_final_icon    TEXT    DEFAULT NULL,
-  p_parent_id     UUID    DEFAULT NULL
+  p_final_icon    TEXT  DEFAULT NULL,
+  p_parent_id     UUID  DEFAULT NULL
 )
 RETURNS UUID
 LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
-  v_slug       TEXT;
-  v_new_cat_id UUID;
-  v_req_name   TEXT;
-  v_prov_user  UUID;
-  v_next_order INT;
+  v_slug          TEXT;
+  v_sub_slug      TEXT;
+  v_new_cat_id    UUID;
+  v_req_name      TEXT;
+  v_req_subcats   TEXT[];
+  v_prov_user     UUID;
+  v_next_order    INT;
+  v_subcat_name   TEXT;
+  v_subcat_order  INT := 1;
 BEGIN
-  SELECT requested_name INTO v_req_name
-  FROM public.category_requests WHERE id = p_request_id;
+  SELECT requested_name, requested_subcategories
+  INTO   v_req_name, v_req_subcats
+  FROM   public.category_requests
+  WHERE  id = p_request_id;
 
   -- Build a unique slug from the final name
   v_slug := lower(regexp_replace(trim(p_final_name), '[^a-zA-Z0-9]+', '-', 'g'));
@@ -126,15 +131,29 @@ BEGIN
     v_slug := v_slug || '-' || substring(gen_random_uuid()::text, 1, 6);
   END IF;
 
-  -- Determine next sort_order
+  -- Determine sort_order for the new category
   SELECT COALESCE(MAX(sort_order), 0) + 1 INTO v_next_order
-  FROM public.class_categories
-  WHERE (parent_id IS NULL) = (p_parent_id IS NULL);
+  FROM   public.class_categories
+  WHERE  (parent_id IS NULL) = (p_parent_id IS NULL);
 
-  -- Create the new category
+  -- Create the main category
   INSERT INTO public.class_categories (name, slug, icon, parent_id, sort_order, is_active)
   VALUES (p_final_name, v_slug, p_final_icon, p_parent_id, v_next_order, true)
   RETURNING id INTO v_new_cat_id;
+
+  -- Auto-create requested sub-categories (new_category requests only)
+  IF v_req_subcats IS NOT NULL AND array_length(v_req_subcats, 1) > 0 THEN
+    FOREACH v_subcat_name IN ARRAY v_req_subcats LOOP
+      v_sub_slug := lower(regexp_replace(trim(v_subcat_name), '[^a-zA-Z0-9]+', '-', 'g'));
+      v_sub_slug := trim(both '-' from v_sub_slug);
+      IF EXISTS (SELECT 1 FROM public.class_categories WHERE slug = v_sub_slug) THEN
+        v_sub_slug := v_sub_slug || '-' || substring(gen_random_uuid()::text, 1, 6);
+      END IF;
+      INSERT INTO public.class_categories (name, slug, icon, parent_id, sort_order, is_active)
+      VALUES (v_subcat_name, v_sub_slug, NULL, v_new_cat_id, v_subcat_order, true);
+      v_subcat_order := v_subcat_order + 1;
+    END LOOP;
+  END IF;
 
   -- Mark the request approved
   UPDATE public.category_requests SET
@@ -147,12 +166,12 @@ BEGIN
     updated_at          = NOW()
   WHERE id = p_request_id;
 
-  -- Find the requesting user
+  -- Find the provider's user account
   SELECT u.id INTO v_prov_user
-  FROM public.category_requests cr
-  JOIN public.service_providers sp ON sp.id = cr.provider_id
-  JOIN public.users u ON u.id = sp.user_id
-  WHERE cr.id = p_request_id;
+  FROM   public.category_requests cr
+  JOIN   public.service_providers sp ON sp.id = cr.provider_id
+  JOIN   public.users u              ON u.id  = sp.user_id
+  WHERE  cr.id = p_request_id;
 
   PERFORM public._cat_notify(
     v_prov_user,
@@ -181,7 +200,7 @@ DECLARE
   v_prov_user UUID;
 BEGIN
   SELECT requested_name INTO v_req_name
-  FROM public.category_requests WHERE id = p_request_id;
+  FROM   public.category_requests WHERE id = p_request_id;
 
   UPDATE public.category_requests SET
     status      = 'rejected',
@@ -192,10 +211,10 @@ BEGIN
   WHERE id = p_request_id;
 
   SELECT u.id INTO v_prov_user
-  FROM public.category_requests cr
-  JOIN public.service_providers sp ON sp.id = cr.provider_id
-  JOIN public.users u ON u.id = sp.user_id
-  WHERE cr.id = p_request_id;
+  FROM   public.category_requests cr
+  JOIN   public.service_providers sp ON sp.id = cr.provider_id
+  JOIN   public.users u              ON u.id  = sp.user_id
+  WHERE  cr.id = p_request_id;
 
   PERFORM public._cat_notify(
     v_prov_user,
@@ -210,7 +229,6 @@ $$;
 GRANT EXECUTE ON FUNCTION public.reject_category_request TO authenticated;
 
 -- ── RPC: retag_category_request ───────────────────────────────────────────────
--- Admin maps the request to an existing category; provider must confirm.
 
 CREATE OR REPLACE FUNCTION public.retag_category_request(
   p_request_id    UUID,
@@ -225,10 +243,10 @@ DECLARE
   v_prov_user     UUID;
 BEGIN
   SELECT requested_name INTO v_req_name
-  FROM public.category_requests WHERE id = p_request_id;
+  FROM   public.category_requests WHERE id = p_request_id;
 
   SELECT name INTO v_existing_name
-  FROM public.class_categories WHERE id = p_retag_cat_id;
+  FROM   public.class_categories WHERE id = p_retag_cat_id;
 
   UPDATE public.category_requests SET
     status            = 'retag_pending',
@@ -240,15 +258,15 @@ BEGIN
   WHERE id = p_request_id;
 
   SELECT u.id INTO v_prov_user
-  FROM public.category_requests cr
-  JOIN public.service_providers sp ON sp.id = cr.provider_id
-  JOIN public.users u ON u.id = sp.user_id
-  WHERE cr.id = p_request_id;
+  FROM   public.category_requests cr
+  JOIN   public.service_providers sp ON sp.id = cr.provider_id
+  JOIN   public.users u              ON u.id  = sp.user_id
+  WHERE  cr.id = p_request_id;
 
   PERFORM public._cat_notify(
     v_prov_user,
     'Category Re-tag Suggestion',
-    'Admin suggests mapping "' || v_req_name || '" → existing category "' || v_existing_name || '". Visit My Category Requests to Accept or Decline.',
+    'Admin suggests mapping "' || v_req_name || '" → existing "' || v_existing_name || '". Visit My Category Requests to Accept or Decline.',
     'category_retag_suggested',
     p_request_id
   );
@@ -258,9 +276,6 @@ $$;
 GRANT EXECUTE ON FUNCTION public.retag_category_request TO authenticated;
 
 -- ── RPC: respond_to_category_retag ────────────────────────────────────────────
--- Provider accepts → request approved, points created_category_id at the
--- existing category.  Provider declines → status = retag_declined, provider
--- may submit a new request.
 
 CREATE OR REPLACE FUNCTION public.respond_to_category_retag(
   p_request_id UUID,
@@ -271,7 +286,7 @@ BEGIN
   IF p_accepted THEN
     UPDATE public.category_requests SET
       status              = 'approved',
-      created_category_id = retag_category_id, -- point at the existing cat
+      created_category_id = retag_category_id,
       updated_at          = NOW()
     WHERE id = p_request_id;
   ELSE
