@@ -1,241 +1,213 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// ── Provider hooks ────────────────────────────────────────────────────────────
 
-export type CategoryRequest = {
-  id: string;
-  provider_id: string;
-  name: string;
-  description: string | null;
-  icon: string | null;
-  parent_category_id: string | null;
-  status: "pending" | "approved" | "rejected";
-  rejection_reason: string | null;
-  requested_at: string;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  service_providers?: { business_name: string | null } | null;
-  class_categories?: { name: string } | null;
-};
-
-// ── Provider: own requests ─────────────────────────────────────────────────────
-
-export function useProviderCategoryRequests(providerId: string | undefined) {
+/** Fetch all category requests submitted by this provider. */
+export function useMyCategoryRequests(providerId: string | undefined) {
   return useQuery({
-    queryKey: ["category-requests", "provider", providerId],
+    queryKey: ["category-requests", providerId],
     enabled: !!providerId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("category_requests")
-        .select(
-          "id, name, description, icon, parent_category_id, status, rejection_reason, requested_at, reviewed_at, class_categories(name)"
-        )
+        .select(`
+          id, request_type, requested_name, requested_icon, description,
+          status, admin_notes, parent_category_id, retag_category_id, requested_at,
+          parent_cat:class_categories!category_requests_parent_category_id_fkey(id, name, icon),
+          retag_cat:class_categories!category_requests_retag_category_id_fkey(id, name, icon)
+        `)
         .eq("provider_id", providerId!)
         .order("requested_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as CategoryRequest[];
+      return data;
     },
   });
 }
 
+/**
+ * Dashboard-friendly alias — returns pending + rejected requests with
+ * `requested_name` and `admin_notes` (matches the shape ProviderDashboard uses).
+ * Internally identical to useMyCategoryRequests.
+ */
+export const useProviderCategoryRequests = useMyCategoryRequests;
+
+/** Platform admin: count of pending category requests (for dashboard badge). */
+export function usePendingCategoryRequestCount() {
+  return useQuery({
+    queryKey: ["category-requests-admin-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("category_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+}
+
+/** Submit a new category / sub-category request. Returns { id }. */
 export function useSubmitCategoryRequest() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
       providerId: string;
+      requestType: "new_category" | "new_subcategory";
       name: string;
       description?: string;
       icon?: string;
-      parentCategoryId?: string | null;
+      parentCategoryId: string | null;
     }) => {
-      const { data, error } = await (supabase as any)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase
         .from("category_requests")
         .insert({
-          provider_id: input.providerId,
-          name: input.name.trim(),
-          description: input.description?.trim() || null,
-          icon: input.icon?.trim() || null,
-          parent_category_id: input.parentCategoryId || null,
-          status: "pending",
+          provider_id:        input.providerId,
+          requested_by:       user.id,
+          request_type:       input.requestType,
+          requested_name:     input.name,
+          requested_icon:     input.icon ?? null,
+          description:        input.description ?? null,
+          parent_category_id: input.parentCategoryId,
         })
         .select("id")
         .single();
       if (error) throw error;
       return data as { id: string };
     },
-    onSuccess: (_, input) => {
-      qc.invalidateQueries({ queryKey: ["category-requests", "provider", input.providerId] });
-      qc.invalidateQueries({ queryKey: ["category-requests", "count"] });
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["category-requests", vars.providerId] });
     },
   });
 }
 
-// ── Platform Admin: all requests ───────────────────────────────────────────────
+/** Provider responds to an admin retag suggestion (accepted = true / declined = false). */
+export function useRespondToRetag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ requestId, accepted }: { requestId: string; accepted: boolean }) => {
+      const { error } = await supabase.rpc("respond_to_category_retag", {
+        p_request_id: requestId,
+        p_accepted:   accepted,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["category-requests"] });
+      qc.invalidateQueries({ queryKey: ["categories"] });
+    },
+  });
+}
 
-export function usePlatformCategoryRequests(statusFilter?: string) {
+// ── Platform-admin hooks ──────────────────────────────────────────────────────
+
+/** Fetch all category requests (admin view). Pass "all" for no status filter. */
+export function usePlatformCategoryRequests(status: string = "pending") {
   return useQuery({
-    queryKey: ["category-requests", "platform", statusFilter ?? "all"],
+    queryKey: ["category-requests-admin", status],
     queryFn: async () => {
-      let query = (supabase as any)
+      let query = supabase
         .from("category_requests")
-        .select(
-          `id, name, description, icon, parent_category_id, status,
-           rejection_reason, requested_at, reviewed_at,
-           service_providers(business_name),
-           class_categories(name)`
-        );
+        .select(`
+          id, request_type, requested_name, requested_icon, description,
+          status, admin_notes, admin_modified_name, admin_modified_icon,
+          retag_category_id, parent_category_id, requested_at,
+          service_providers(business_name),
+          parent_cat:class_categories!category_requests_parent_category_id_fkey(id, name, icon),
+          retag_cat:class_categories!category_requests_retag_category_id_fkey(id, name, icon)
+        `)
+        .order("requested_at", { ascending: false });
 
-      if (statusFilter && statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
+      if (status !== "all") {
+        query = query.eq("status", status);
       }
 
-      const { data, error } = await query.order("requested_at", { ascending: true });
+      const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []) as CategoryRequest[];
+      return data;
     },
   });
 }
 
-export function usePendingCategoryRequestCount() {
-  return useQuery({
-    queryKey: ["category-requests", "count"],
-    queryFn: async () => {
-      const { count, error } = await (supabase as any)
-        .from("category_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pending");
-      if (error) throw error;
-      return (count ?? 0) as number;
-    },
-  });
-}
-
+/**
+ * Approve a request: calls the approve_category_request RPC which atomically
+ * creates the category in class_categories and notifies the provider.
+ */
 export function useApproveCategoryRequest() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
-      requestId: string;
-      name: string;
-      icon?: string | null;
-      parentCategoryId?: string | null;
+      requestId:   string;
+      finalName:   string;
+      finalIcon?:  string;
+      parentId?:   string;
       adminUserId: string;
     }) => {
-      // 1. Fetch request info for notification later
-      const { data: req } = await (supabase as any)
-        .from("category_requests")
-        .select("provider_id, service_providers(user_id)")
-        .eq("id", input.requestId)
-        .single();
-
-      // 2. Create category in class_categories
-      const slug = input.name
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, "-")
-        .replace(/[^a-z0-9-]/g, "");
-
-      const { data: cat, error: catErr } = await supabase
-        .from("class_categories")
-        .insert({
-          name: input.name.trim(),
-          slug,
-          icon: input.icon || null,
-          parent_id: input.parentCategoryId || null,
-          sort_order: 999,
-          is_active: true,
-        } as any)
-        .select("id")
-        .single();
-      if (catErr) throw catErr;
-
-      const newCategoryId = (cat as any).id as string;
-
-      // 3. Update classes that referenced this pending request
-      await (supabase as any)
-        .from("classes")
-        .update({
-          category_id: newCategoryId,
-          pending_category_request_id: null,
-        })
-        .eq("pending_category_request_id", input.requestId);
-
-      // 4. Mark request approved
-      const { error: reqErr } = await (supabase as any)
-        .from("category_requests")
-        .update({
-          status: "approved",
-          reviewed_by: input.adminUserId,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq("id", input.requestId);
-      if (reqErr) throw reqErr;
-
-      // 5. Notify provider
-      const providerUserId = (req as any)?.service_providers?.user_id;
-      if (providerUserId) {
-        await supabase.rpc("send_notification" as any, {
-          p_user_id: providerUserId,
-          p_title: "Category Approved!",
-          p_body: `Your category request "${input.name}" was approved and is now live.`,
-          p_type: "category_approved",
-          p_ref_type: "category_request",
-          p_ref_id: input.requestId,
-        });
-      }
-
-      return { categoryId: newCategoryId };
+      const { data, error } = await supabase.rpc("approve_category_request", {
+        p_request_id:    input.requestId,
+        p_admin_user_id: input.adminUserId,
+        p_final_name:    input.finalName,
+        p_final_icon:    input.finalIcon ?? null,
+        p_parent_id:     input.parentId ?? null,
+      });
+      if (error) throw error;
+      return data as string; // new category UUID
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["category-requests"] });
-      qc.invalidateQueries({ queryKey: ["categories-all"] });
-      qc.invalidateQueries({ queryKey: ["platform-categories"] });
+      qc.invalidateQueries({ queryKey: ["category-requests-admin"] });
+      qc.invalidateQueries({ queryKey: ["categories"] });
     },
   });
 }
 
+/** Reject a request with a reason (shown to the provider). */
 export function useRejectCategoryRequest() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
-      requestId: string;
-      reason: string;
+      requestId:   string;
+      reason:      string;
       adminUserId: string;
     }) => {
-      // Fetch request info for notification
-      const { data: req } = await (supabase as any)
-        .from("category_requests")
-        .select("name, service_providers(user_id)")
-        .eq("id", input.requestId)
-        .single();
-
-      const { error } = await (supabase as any)
-        .from("category_requests")
-        .update({
-          status: "rejected",
-          rejection_reason: input.reason.trim(),
-          reviewed_by: input.adminUserId,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq("id", input.requestId);
+      const { error } = await supabase.rpc("reject_category_request", {
+        p_request_id:    input.requestId,
+        p_admin_user_id: input.adminUserId,
+        p_reason:        input.reason,
+      });
       if (error) throw error;
-
-      // Notify provider
-      const providerUserId = (req as any)?.service_providers?.user_id;
-      if (providerUserId) {
-        await supabase.rpc("send_notification" as any, {
-          p_user_id: providerUserId,
-          p_title: "Category Request Not Approved",
-          p_body: `Your request for "${(req as any)?.name}" wasn't approved: ${input.reason}`,
-          p_type: "category_rejected",
-          p_ref_type: "category_request",
-          p_ref_id: input.requestId,
-        });
-      }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["category-requests"] });
-      qc.invalidateQueries({ queryKey: ["category-requests", "count"] });
+      qc.invalidateQueries({ queryKey: ["category-requests-admin"] });
+    },
+  });
+}
+
+/**
+ * Suggest an existing category as a re-tag.
+ * Provider receives a notification and must Accept or Decline.
+ */
+export function useRetagCategoryRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      requestId:       string;
+      retagCategoryId: string;
+      notes?:          string;
+      adminUserId:     string;
+    }) => {
+      const { error } = await supabase.rpc("retag_category_request", {
+        p_request_id:    input.requestId,
+        p_admin_user_id: input.adminUserId,
+        p_retag_cat_id:  input.retagCategoryId,
+        p_notes:         input.notes ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["category-requests-admin"] });
     },
   });
 }

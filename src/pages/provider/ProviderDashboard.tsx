@@ -283,7 +283,7 @@ const ProviderDashboard = () => {
                 <Card key={r.id} className="flex items-center gap-3 p-3 border-amber-200 bg-amber-50/50">
                   <Clock size={16} className="text-amber-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{r.name}</p>
+                    <p className="text-sm font-medium">{r.requested_name}</p>
                     <p className="text-xs text-muted-foreground">Awaiting review</p>
                   </div>
                   <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">Pending</Badge>
@@ -293,9 +293,9 @@ const ProviderDashboard = () => {
                 <Card key={r.id} className="flex items-center gap-3 p-3 border-red-200 bg-red-50/50">
                   <XCircle size={16} className="text-red-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{r.name}</p>
-                    {r.rejection_reason && (
-                      <p className="text-xs text-red-600 line-clamp-1">{r.rejection_reason}</p>
+                    <p className="text-sm font-medium">{r.requested_name}</p>
+                    {r.admin_notes && (
+                      <p className="text-xs text-red-600 line-clamp-1">{r.admin_notes}</p>
                     )}
                   </div>
                   <Badge variant="outline" className="text-red-600 border-red-300 text-xs">Rejected</Badge>
