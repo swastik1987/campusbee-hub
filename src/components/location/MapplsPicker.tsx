@@ -25,6 +25,7 @@
 
 import * as React from "react";
 import { Loader2, MapPin, Navigation2, Search, X } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   loadMappls,
@@ -125,6 +126,8 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
     const [mapInitialized, setMapInitialized] = React.useState(false);
     const mapplsSdkRef  = React.useRef<any>(null);
     const gpsDotRef     = React.useRef<any>(null);
+    const [gpsLoading,  setGpsLoading]       = React.useState(false);  // button spinner
+    const [gpsDenied,   setGpsDenied]        = React.useState(false);  // permission denied
 
     const [sdkLoading,      setSdkLoading]      = React.useState(true);
     const [sdkError,        setSdkError]        = React.useState<string | null>(null);
@@ -177,9 +180,10 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
         // GPS dot unavailable — map still functions normally
       }
 
-      // Pan to GPS if no value has been selected yet (triggers moveend → reverse-geocode)
+      // Pan + zoom to z=18 if no value has been selected yet (triggers moveend → reverse-geocode)
       if (!value) {
         mapAny?.setCenter?.({ lat, lng });
+        mapAny?.setZoom?.(ZOOM_SELECTED);
       }
     }, [gpsCoords, mapInitialized, value]);
 
@@ -278,6 +282,44 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
       abortRef.current?.abort();
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
+
+    /* ── "Use my location" button handler ──────────────────────────────── */
+    const handleUseMyLocation = React.useCallback(() => {
+      if (!navigator.geolocation) {
+        toast.error("Geolocation is not supported by your browser.");
+        return;
+      }
+      // If previously denied, re-attempt and let the browser decide;
+      // on second failure we'll show the toast again.
+      setGpsLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setGpsLoading(false);
+          setGpsDenied(false);
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setGpsCoords([lat, lng]);
+
+          // Clear locationRef so moveend dedup doesn't skip the reverse-geocode
+          locationRef.current = null;
+
+          const mapAny = mapInstanceRef.current as any;
+          mapAny?.setCenter?.({ lat, lng });
+          mapAny?.setZoom?.(ZOOM_SELECTED);
+        },
+        (err) => {
+          setGpsLoading(false);
+          if (err.code === 1 /* PERMISSION_DENIED */) {
+            setGpsDenied(true);
+            toast.error("Location access denied — enable it in your browser settings and try again.");
+          } else {
+            toast.error("Couldn't get your location. Please try again.");
+          }
+        },
+        { timeout: 8000, maximumAge: 0, enableHighAccuracy: true },
+      );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     /* ── Close dropdown on outside click ───────────────────────────────── */
     React.useEffect(() => {
@@ -541,6 +583,27 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
                   Drag map to reposition pin
                 </span>
               </div>
+            )}
+
+            {/* Use My Location button — floating bottom-right of map */}
+            {!sdkLoading && !sdkError && (
+              <button
+                type="button"
+                onClick={handleUseMyLocation}
+                disabled={gpsLoading}
+                title="Use my current location"
+                className="absolute bottom-10 right-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-background shadow-md border border-border hover:bg-muted transition-colors active:scale-95 disabled:opacity-60"
+                style={{ pointerEvents: "all" }}
+              >
+                {gpsLoading ? (
+                  <Loader2 size={16} className="animate-spin text-primary" />
+                ) : (
+                  <Navigation2
+                    size={16}
+                    className={gpsDenied ? "text-muted-foreground" : "text-primary"}
+                  />
+                )}
+              </button>
             )}
 
             {/* Loading / error overlay */}
