@@ -47,10 +47,30 @@ export function useSubmitCategoryRequest() {
       /** Sub-category names to auto-create on approval (new_category only) */
       subcategories?: string[];
     }) => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error("You must be signed in to submit a category request.");
+      }
+
+      const { data: provider, error: providerErr } = await supabase
+        .from("service_providers")
+        .select("id")
+        .eq("user_id", user.id)
+        .limit(1);
+      if (providerErr) throw providerErr;
+
+      const resolvedProviderId = provider?.[0]?.id ?? input.providerId;
+      if (!resolvedProviderId) {
+        throw new Error("Provider profile not found for this account.");
+      }
+
       const { data, error } = await supabase
         .from("category_requests")
         .insert({
-          provider_id:             input.providerId,
+          provider_id:             resolvedProviderId,
           request_type:            input.requestType,
           requested_name:          input.name,
           requested_icon:          input.icon ?? null,

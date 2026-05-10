@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+export const DUPLICATE_BATCH_NAME_ERROR = "DUPLICATE_BATCH_NAME_ERROR";
+
+const normalizeBatchName = (name: string) =>
+  name.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+
 // ---- Categories ----
 
 export function useCategories() {
@@ -339,6 +344,22 @@ export function useCreateBatch() {
       status: string;
       schedules: { dayOfWeek: number; startTime: string; endTime: string }[];
     }) => {
+      const normalizedBatchName = normalizeBatchName(input.batchName);
+      const { data: existingBatches, error: dupErr } = await supabase
+        .from("batches")
+        .select("id, batch_name")
+        .eq("class_id", input.classId);
+      if (dupErr) throw dupErr;
+
+      const hasDuplicateName = (existingBatches ?? []).some(
+        (batch) => normalizeBatchName(batch.batch_name ?? "") === normalizedBatchName
+      );
+      if (hasDuplicateName) {
+        const error = new Error("A batch with this name already exists for this class.");
+        error.name = DUPLICATE_BATCH_NAME_ERROR;
+        throw error;
+      }
+
       const { data: batch, error: bErr } = await supabase
         .from("batches")
         .insert({
@@ -424,6 +445,33 @@ export function useUpdateBatch() {
       schedules?: { dayOfWeek: number; startTime: string; endTime: string }[];
     }) => {
       const { batchId, schedules, ...fields } = input;
+
+      if (fields.batchName !== undefined) {
+        const normalizedBatchName = normalizeBatchName(fields.batchName);
+        const { data: targetBatch, error: targetErr } = await supabase
+          .from("batches")
+          .select("class_id")
+          .eq("id", batchId)
+          .single();
+        if (targetErr) throw targetErr;
+
+        const { data: existingBatches, error: dupErr } = await supabase
+          .from("batches")
+          .select("id, batch_name")
+          .eq("class_id", targetBatch.class_id)
+          .neq("id", batchId);
+        if (dupErr) throw dupErr;
+
+        const hasDuplicateName = (existingBatches ?? []).some(
+          (batch) => normalizeBatchName(batch.batch_name ?? "") === normalizedBatchName
+        );
+        if (hasDuplicateName) {
+          const error = new Error("A batch with this name already exists for this class.");
+          error.name = DUPLICATE_BATCH_NAME_ERROR;
+          throw error;
+        }
+      }
+
       const updateObj: any = {};
       if (fields.batchName !== undefined) updateObj.batch_name = fields.batchName;
       if (fields.batchType !== undefined) updateObj.batch_type = fields.batchType;

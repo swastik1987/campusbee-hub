@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useCreateBatch } from "@/hooks/useClasses";
+import { DUPLICATE_BATCH_NAME_ERROR, useCreateBatch } from "@/hooks/useClasses";
 import { useTrainers } from "@/hooks/useProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,7 +104,11 @@ const CreateBatch = () => {
       });
       toast.success(status === "active" ? "Batch activated!" : "Draft saved!");
       navigate(-1);
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.name === DUPLICATE_BATCH_NAME_ERROR) {
+        toast.error("Batch name already exists for this class. Please choose a different name.");
+        return;
+      }
       toast.error("Failed to create batch");
     }
   };

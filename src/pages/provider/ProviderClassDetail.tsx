@@ -10,6 +10,7 @@ import {
   useUpdateClass,
   useUpdateBatchStatus,
   useUpdateBatch,
+  DUPLICATE_BATCH_NAME_ERROR,
   useCreateAddon,
   useDeleteAddon,
 } from "@/hooks/useClasses";
@@ -337,7 +338,11 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
       });
       toast.success("Batch updated");
       setEditBatchOpen(false);
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.name === DUPLICATE_BATCH_NAME_ERROR) {
+        toast.error("Batch name already exists for this class. Please choose a different name.");
+        return;
+      }
       toast.error("Failed to update batch");
     }
   };
