@@ -59,13 +59,18 @@ export function useSubmitCategoryRequest() {
         .from("service_providers")
         .select("id")
         .eq("user_id", user.id)
-        .single();
+        .limit(1);
       if (providerErr) throw providerErr;
+
+      const resolvedProviderId = provider?.[0]?.id ?? input.providerId;
+      if (!resolvedProviderId) {
+        throw new Error("Provider profile not found for this account.");
+      }
 
       const { data, error } = await supabase
         .from("category_requests")
         .insert({
-          provider_id:             provider.id,
+          provider_id:             resolvedProviderId,
           request_type:            input.requestType,
           requested_name:          input.name,
           requested_icon:          input.icon ?? null,
