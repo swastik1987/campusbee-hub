@@ -93,7 +93,7 @@ export type MapplsPickerProps = {
 };
 
 const DEFAULT_CENTER: [number, number] = [12.9716, 77.5946]; // Bengaluru
-const ZOOM_SELECTED   = 18;   // ~180 m view ≈ 30 m radius
+const ZOOM_SELECTED   = 17;   // ~350 m view ≈ neighbourhood radius
 const ZOOM_DEFAULT    = 12;
 const SEARCH_DEBOUNCE = 500;  // ms — respects Nominatim 1 req/s limit
 const MIN_CHARS       = 3;
@@ -518,6 +518,25 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
           )}
         </div>
 
+        {/* ── Use My Location — standalone button above the map ───── */}
+        {showMap && !sdkLoading && !sdkError && (
+          <button
+            type="button"
+            onClick={handleUseMyLocation}
+            disabled={gpsLoading}
+            className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-border bg-background hover:bg-muted transition-colors active:scale-95 disabled:opacity-60 text-sm"
+          >
+            {gpsLoading ? (
+              <Loader2 size={15} className="animate-spin text-primary" />
+            ) : (
+              <Navigation2 size={15} className={gpsDenied ? "text-muted-foreground" : "text-primary"} />
+            )}
+            <span className={`font-medium ${gpsDenied ? "text-muted-foreground" : "text-primary"}`}>
+              {gpsLoading ? "Getting your location…" : "Use my current location"}
+            </span>
+          </button>
+        )}
+
         {/* ── Map with CSS overlay pin ─────────────────────────────── */}
         {showMap && (
           <div className="relative w-full rounded-xl overflow-hidden border border-border bg-muted" style={{ height: 256 }}>
@@ -583,27 +602,6 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
                   Drag map to reposition pin
                 </span>
               </div>
-            )}
-
-            {/* Use My Location button — floating bottom-right of map */}
-            {!sdkLoading && !sdkError && (
-              <button
-                type="button"
-                onClick={handleUseMyLocation}
-                disabled={gpsLoading}
-                title="Use my current location"
-                className="absolute bottom-10 right-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-background shadow-md border border-border hover:bg-muted transition-colors active:scale-95 disabled:opacity-60"
-                style={{ pointerEvents: "all" }}
-              >
-                {gpsLoading ? (
-                  <Loader2 size={16} className="animate-spin text-primary" />
-                ) : (
-                  <Navigation2
-                    size={16}
-                    className={gpsDenied ? "text-muted-foreground" : "text-primary"}
-                  />
-                )}
-              </button>
             )}
 
             {/* Loading / error overlay */}
