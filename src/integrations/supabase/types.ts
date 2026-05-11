@@ -276,45 +276,73 @@ export type Database = {
       }
       category_requests: {
         Row: {
+          admin_modified_icon: string | null
+          admin_modified_name: string | null
+          admin_notes: string | null
+          created_category_id: string | null
           description: string | null
-          icon: string | null
           id: string
-          name: string
           parent_category_id: string | null
           provider_id: string
-          rejection_reason: string | null
-          requested_at: string
+          request_type: string
+          requested_at: string | null
+          requested_icon: string | null
+          requested_name: string
+          requested_subcategories: string[] | null
+          retag_category_id: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           status: string
+          updated_at: string | null
         }
         Insert: {
+          admin_modified_icon?: string | null
+          admin_modified_name?: string | null
+          admin_notes?: string | null
+          created_category_id?: string | null
           description?: string | null
-          icon?: string | null
           id?: string
-          name: string
           parent_category_id?: string | null
           provider_id: string
-          rejection_reason?: string | null
-          requested_at?: string
+          request_type: string
+          requested_at?: string | null
+          requested_icon?: string | null
+          requested_name: string
+          requested_subcategories?: string[] | null
+          retag_category_id?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          updated_at?: string | null
         }
         Update: {
+          admin_modified_icon?: string | null
+          admin_modified_name?: string | null
+          admin_notes?: string | null
+          created_category_id?: string | null
           description?: string | null
-          icon?: string | null
           id?: string
-          name?: string
           parent_category_id?: string | null
           provider_id?: string
-          rejection_reason?: string | null
-          requested_at?: string
+          request_type?: string
+          requested_at?: string | null
+          requested_icon?: string | null
+          requested_name?: string
+          requested_subcategories?: string[] | null
+          retag_category_id?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "category_requests_created_category_id_fkey"
+            columns: ["created_category_id"]
+            isOneToOne: false
+            referencedRelation: "class_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "category_requests_parent_category_id_fkey"
             columns: ["parent_category_id"]
@@ -327,6 +355,13 @@ export type Database = {
             columns: ["provider_id"]
             isOneToOne: false
             referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_requests_retag_category_id_fkey"
+            columns: ["retag_category_id"]
+            isOneToOne: false
+            referencedRelation: "class_categories"
             referencedColumns: ["id"]
           },
           {
@@ -781,13 +816,6 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "class_categories"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "classes_pending_category_request_id_fkey"
-            columns: ["pending_category_request_id"]
-            isOneToOne: false
-            referencedRelation: "category_requests"
             referencedColumns: ["id"]
           },
           {
@@ -2027,6 +2055,18 @@ export type Database = {
         }
         Relationships: []
       }
+      v_caller_id: {
+        Row: {
+          id: string | null
+        }
+        Insert: {
+          id?: string | null
+        }
+        Update: {
+          id?: string | null
+        }
+        Relationships: []
+      }
       waitlist_entries: {
         Row: {
           batch_id: string
@@ -2121,6 +2161,16 @@ export type Database = {
       }
     }
     Functions: {
+      _cat_notify: {
+        Args: {
+          p_body: string
+          p_ref_id: string
+          p_title: string
+          p_type: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       _mirror_moderation_status: {
         Args: { p_ref_id: string; p_ref_type: string; p_status: string }
         Returns: undefined
@@ -2252,6 +2302,16 @@ export type Database = {
             }
             Returns: string
           }
+      approve_category_request: {
+        Args: {
+          p_admin_user_id: string
+          p_final_icon?: string
+          p_final_name: string
+          p_parent_id?: string
+          p_request_id: string
+        }
+        Returns: string
+      }
       approve_subscription_request: {
         Args: { p_request_id: string; p_valid_until: string }
         Returns: undefined
@@ -2302,6 +2362,10 @@ export type Database = {
         Returns: unknown
       }
       enablelongtransactions: { Args: never; Returns: string }
+      ensure_self_family_member: {
+        Args: { p_family_id: string; p_full_name: string }
+        Returns: string
+      }
       equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
       expire_premium_subscriptions: { Args: never; Returns: number }
       geometry: { Args: { "": string }; Returns: unknown }
@@ -2403,12 +2467,29 @@ export type Database = {
       }
       geomfromewkt: { Args: { "": string }; Returns: unknown }
       get_pending_moderation_count: { Args: never; Returns: number }
+      get_provider_student_names: {
+        Args: { p_batch_ids: string[] }
+        Returns: {
+          enrollment_id: string
+          seeker_avatar: string
+          seeker_id: string
+          seeker_name: string
+          student_age_grp: string
+          student_dob: string
+          student_name: string
+          student_relation: string
+        }[]
+      }
       gettransactionid: { Args: never; Returns: unknown }
       is_chat_participant: {
         Args: { p_conversation_id: string }
         Returns: boolean
       }
       is_class_owner: { Args: { p_class_id: string }; Returns: boolean }
+      is_enrolled_by_my_provider: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
       is_in_family: { Args: { p_family_id: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
       is_premium: { Args: { p_provider_id: string }; Returns: boolean }
@@ -2509,6 +2590,14 @@ export type Database = {
         Args: { p_enrollment_id: string }
         Returns: boolean
       }
+      reject_category_request: {
+        Args: {
+          p_admin_user_id: string
+          p_reason: string
+          p_request_id: string
+        }
+        Returns: undefined
+      }
       reject_subscription_request: {
         Args: { p_reason: string; p_request_id: string }
         Returns: undefined
@@ -2523,6 +2612,19 @@ export type Database = {
       }
       resolve_moderation_flag: {
         Args: { p_flag_id: string; p_notes?: string; p_status: string }
+        Returns: undefined
+      }
+      respond_to_category_retag: {
+        Args: { p_accepted: boolean; p_request_id: string }
+        Returns: undefined
+      }
+      retag_category_request: {
+        Args: {
+          p_admin_user_id: string
+          p_notes?: string
+          p_request_id: string
+          p_retag_cat_id: string
+        }
         Returns: undefined
       }
       send_notification: {
