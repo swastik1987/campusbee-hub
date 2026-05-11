@@ -43,60 +43,7 @@ const platformAdminTabs = [
 ];
 
 const BottomNav = React.forwardRef<HTMLElement, { persona?: Persona }>(
-  ({ persona = "seeker" }, ref) => {
-    const location = useLocation();
-    const navigate = useNavigate();
-
-    const tabs: NavTab[] =
-      persona === "platform_admin"
-        ? platformAdminTabs
-        : persona === "provider"
-        ? providerTabs
-        : seekerTabs;
-
-    const accentColor =
-      persona === "platform_admin"
-        ? "hsl(215, 20%, 35%)" // slate
-        : persona === "provider"
-        ? "hsl(239, 84%, 67%)" // indigo
-        : "hsl(245, 65%, 55%)";
-
-    return (
-      <nav
-        ref={ref}
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card safe-bottom"
-      >
-        <div className="mx-auto flex max-w-lg items-center justify-around">
-          {tabs.map((tab) => {
-            const active = tab.activePaths.some((p) => location.pathname === p);
-            return (
-              <button
-                key={tab.path}
-                onClick={() => navigate(tab.path)}
-                className="flex min-h-[56px] min-w-[56px] flex-1 flex-col items-center justify-center gap-0.5 transition-colors active:scale-95"
-              >
-                <tab.icon
-                  size={22}
-                  className={active ? "" : "text-muted-foreground"}
-                  style={active ? { color: accentColor } : undefined}
-                  fill={active ? accentColor : "none"}
-                  strokeWidth={active ? 2.2 : 1.8}
-                />
-                {active && (
-                  <span
-                    className="text-[10px] font-semibold leading-none"
-                    style={{ color: accentColor }}
-                  >
-                    {tab.label}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
-    );
-  }
+  (_props, _ref) => null
 );
 
 BottomNav.displayName = "BottomNav";
