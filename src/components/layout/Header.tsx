@@ -36,20 +36,16 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate("/")}
-              className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
-              title="Home"
-            >
-              <Home size={18} className="text-muted-foreground" />
-            </button>
-            <button
-              onClick={() => navigate("/")}
               className="flex items-center gap-2 transition-opacity active:opacity-70"
+              title="CampusBee Home"
             >
-              <img src="/logo-icon.png" alt="CampusBee" className="h-8 w-8 object-contain" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-[oklch(0.78_0.18_250)] to-[oklch(0.62_0.20_250)] text-base font-extrabold text-white">
+                C
+              </div>
               <div className="leading-tight text-left">
-                <h1 className="text-sm font-extrabold gradient-primary-text">CampusBee</h1>
+                <h1 className="text-sm font-extrabold">CampusBee</h1>
                 {locationLabel && (
-                  <p className="flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-[140px]">
+                  <p className="flex max-w-[140px] items-center gap-1 truncate text-[10px] text-muted-foreground">
                     <MapPin size={9} />
                     <span className="truncate">{locationLabel}</span>
                   </p>
@@ -60,6 +56,13 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
           </div>
 
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => navigate("/")}
+              className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
+              title="Home"
+            >
+              <Home size={18} className="text-muted-foreground" />
+            </button>
             <button
               onClick={() => navigate("/chat")}
               className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
@@ -80,7 +83,7 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
               ) : null}
             </button>
             <button
-              onClick={() => navigate('/profile')}
+              onClick={() => navigate("/profile")}
               className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
               title="Profile"
             >
