@@ -139,6 +139,22 @@ const Explore = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Auto-collapse categories when scrolled down; expand at top
+  useEffect(() => {
+    const COLLAPSE_THRESHOLD = 80;
+    let lastCollapsed: boolean | null = null;
+    const onScroll = () => {
+      const shouldCollapse = window.scrollY > COLLAPSE_THRESHOLD;
+      if (shouldCollapse !== lastCollapsed) {
+        lastCollapsed = shouldCollapse;
+        setPillsExpanded(!shouldCollapse);
+      }
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   const isSearching = !!debouncedSearch;
 
   // Primary query: title/description + category filter
