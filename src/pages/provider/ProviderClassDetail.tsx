@@ -130,6 +130,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
   // Edit class state
   const [editClassOpen, setEditClassOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
+  const [editClassType, setEditClassType] = useState("recurring");
   const [editShortDesc, setEditShortDesc] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editVenue, setEditVenue] = useState("");
@@ -217,6 +218,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
   const openEditClass = () => {
     if (!cls) return;
     setEditTitle(cls.title || "");
+    setEditClassType(cls.class_type || "recurring");
     setEditShortDesc(cls.short_description || "");
     setEditDesc(cls.description || "");
     setEditVenue(cls.venue_details || "");
@@ -246,6 +248,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
       await updateClass.mutateAsync({
         classId: cls.id,
         title: editTitle,
+        classType: editClassType,
         shortDescription: editShortDesc,
         description: editDesc,
         venueDetails: editVenue,
@@ -726,32 +729,70 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
         <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
           <SheetHeader><SheetTitle>Edit Class</SheetTitle></SheetHeader>
           <div className="space-y-3 py-4">
+            {/* Title */}
             <div className="space-y-1">
               <Label className="text-xs">Title</Label>
               <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="h-10 rounded-lg" />
             </div>
+
+            {/* Class Type */}
+            <div className="space-y-1">
+              <Label className="text-xs">Class Type</Label>
+              <Select value={editClassType} onValueChange={setEditClassType}>
+                <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recurring">Recurring (ongoing batches)</SelectItem>
+                  <SelectItem value="fixed_duration">Fixed Duration (e.g. 3-month course)</SelectItem>
+                  <SelectItem value="one_time">One-Time (single session)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* What to Bring */}
+            <div className="space-y-1">
+              <Label className="text-xs">What to Bring</Label>
+              <Input value={editWhatToBring} onChange={(e) => setEditWhatToBring(e.target.value)} placeholder="e.g. Racquet, sportswear" className="h-10 rounded-lg" />
+            </div>
+
+            {/* Short Description */}
             <div className="space-y-1">
               <Label className="text-xs">Short Description</Label>
               <Input value={editShortDesc} onChange={(e) => setEditShortDesc(e.target.value.slice(0, 300))} className="h-10 rounded-lg" />
               <p className="text-[10px] text-muted-foreground text-right">{editShortDesc.length}/300</p>
             </div>
+
+            {/* Full Description */}
             <div className="space-y-1">
               <Label className="text-xs">Full Description</Label>
               <Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={4} className="rounded-lg" />
             </div>
-            <div className="space-y-1">
+
+            {/* Trial */}
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Offer trial / demo classes?</Label>
+              <Switch checked={editTrialAvailable} onCheckedChange={setEditTrialAvailable} />
+            </div>
+            {editTrialAvailable && (
+              <div className="space-y-1">
+                <Label className="text-xs">Trial Fee (₹)</Label>
+                <Input type="number" value={editTrialFee} onChange={(e) => setEditTrialFee(e.target.value)} placeholder="0 for free" className="h-10 rounded-lg" />
+              </div>
+            )}
+
+            {/* Venue Details */}
+            <div className="space-y-1 pt-2 border-t">
               <Label className="text-xs">Venue Details</Label>
               <Input value={editVenue} onChange={(e) => setEditVenue(e.target.value)} placeholder="e.g. Community Hall, Block A" className="h-10 rounded-lg" />
             </div>
 
-            {/* Location section — directly below Venue */}
+            {/* Location section */}
             <div className="space-y-2 pt-2 border-t">
               <div className="flex items-center justify-between">
-                <Label className="text-xs">Class Location</Label>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-muted-foreground">Home-based</span>
-                  <Switch checked={editIsHomeBased} onCheckedChange={setEditIsHomeBased} />
-                </div>
+                <Label className="text-xs">Home-based / I travel to students</Label>
+                <Switch checked={editIsHomeBased} onCheckedChange={setEditIsHomeBased} />
+              </div>
+              <div>
+                <Label className="text-xs">Class Location <span className="text-red-500">*</span></Label>
               </div>
               <ClassLocationPicker
                 isHomeBased={editIsHomeBased}
@@ -761,22 +802,6 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
                 onRadiusChange={setEditHomeRadiusKm}
               />
             </div>
-
-            {/* Optional details — at the end */}
-            <div className="space-y-1 pt-2 border-t">
-              <Label className="text-xs">What to Bring</Label>
-              <Input value={editWhatToBring} onChange={(e) => setEditWhatToBring(e.target.value)} placeholder="e.g. Racquet, sportswear" className="h-10 rounded-lg" />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">Trial Available?</Label>
-              <Switch checked={editTrialAvailable} onCheckedChange={setEditTrialAvailable} />
-            </div>
-            {editTrialAvailable && (
-              <div className="space-y-1">
-                <Label className="text-xs">Trial Fee (₹)</Label>
-                <Input type="number" value={editTrialFee} onChange={(e) => setEditTrialFee(e.target.value)} placeholder="0 for free" className="h-10 rounded-lg" />
-              </div>
-            )}
 
             {/* Social Media */}
             <div className="space-y-2 pt-2 border-t">
@@ -807,7 +832,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
               </div>
             </div>
 
-            <Button onClick={handleSaveClass} disabled={!editTitle.trim() || updateClass.isPending} className="w-full bg-provider text-white rounded-lg">
+            <Button onClick={handleSaveClass} disabled={!editTitle.trim() || !editClassLocation || updateClass.isPending} className="w-full bg-provider text-white rounded-lg">
               {updateClass.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save Changes"}
             </Button>
           </div>

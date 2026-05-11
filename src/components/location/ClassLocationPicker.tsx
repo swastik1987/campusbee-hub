@@ -35,17 +35,6 @@ const ClassLocationPicker = React.forwardRef<HTMLDivElement, ClassLocationPicker
   ({ isHomeBased, location, homeRadiusKm, onLocationChange, onRadiusChange, className }, ref) => {
     return (
       <div ref={ref} className={`space-y-4 ${className ?? ""}`}>
-        <MapplsPicker
-          value={location}
-          onChange={onLocationChange}
-          showMap={true}
-          placeholder={
-            isHomeBased
-              ? "Enter your home base / starting location"
-              : "Search class venue address"
-          }
-        />
-
         {isHomeBased && (
           <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-4">
             <div className="flex items-center justify-between">
@@ -76,11 +65,22 @@ const ClassLocationPicker = React.forwardRef<HTMLDivElement, ClassLocationPicker
             <div className="flex items-start gap-2 rounded-lg bg-primary/5 px-3 py-2">
               <MapPin size={13} className="mt-0.5 shrink-0 text-primary" />
               <p className="text-xs text-muted-foreground leading-relaxed">
-                You'll travel to students within <span className="font-semibold text-foreground">{homeRadiusKm} km</span> of the address above. Students outside this range won't see your class.
+                You'll travel to students within <span className="font-semibold text-foreground">{homeRadiusKm} km</span> of the address below. Students outside this range won't see your class.
               </p>
             </div>
           </div>
         )}
+
+        <MapplsPicker
+          value={location}
+          onChange={onLocationChange}
+          showMap={true}
+          placeholder={
+            isHomeBased
+              ? "Enter your home base / starting location"
+              : "Search class venue address"
+          }
+        />
       </div>
     );
   }

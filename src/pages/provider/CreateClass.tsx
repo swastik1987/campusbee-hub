@@ -401,6 +401,30 @@ const CreateClass = () => {
               />
             </div>
 
+            {/* Class Type */}
+            <div className="space-y-2">
+              <Label>Class Type<Req /></Label>
+              <Select value={classType} onValueChange={setClassType}>
+                <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recurring">Recurring (ongoing batches)</SelectItem>
+                  <SelectItem value="fixed_duration">Fixed Duration (e.g. 3-month course)</SelectItem>
+                  <SelectItem value="one_time">One-Time (single session)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* What to Bring */}
+            <div className="space-y-2">
+              <Label>What to Bring<Opt /></Label>
+              <Input
+                value={whatToBring}
+                onChange={(e) => setWhatToBring(e.target.value)}
+                placeholder="e.g. Racquet, sportswear, water bottle"
+                className="h-11 rounded-xl"
+              />
+            </div>
+
             {/* Short Description */}
             <div className="space-y-2">
               <Label>
@@ -426,30 +450,6 @@ const CreateClass = () => {
                 placeholder="What will students learn? Who is this for? What's special about your class?"
                 rows={4}
                 className="rounded-xl"
-              />
-            </div>
-
-            {/* Class Type */}
-            <div className="space-y-2">
-              <Label>Class Type<Req /></Label>
-              <Select value={classType} onValueChange={setClassType}>
-                <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="recurring">Recurring (ongoing batches)</SelectItem>
-                  <SelectItem value="fixed_duration">Fixed Duration (e.g. 3-month course)</SelectItem>
-                  <SelectItem value="one_time">One-Time (single session)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* What to Bring */}
-            <div className="space-y-2">
-              <Label>What to Bring<Opt /></Label>
-              <Input
-                value={whatToBring}
-                onChange={(e) => setWhatToBring(e.target.value)}
-                placeholder="e.g. Racquet, sportswear, water bottle"
-                className="h-11 rounded-xl"
               />
             </div>
 
@@ -499,6 +499,32 @@ const CreateClass = () => {
               </p>
             </div>
 
+            {/* Home-based toggle */}
+            <div className="flex items-center justify-between p-3 rounded-xl border">
+              <div>
+                <p className="text-sm font-medium">Home-based / I travel to students</p>
+                <p className="text-xs text-muted-foreground">
+                  Enter your base location + service radius
+                </p>
+              </div>
+              <Switch checked={isHomeBased} onCheckedChange={setIsHomeBased} />
+            </div>
+
+            {/* Map picker — mandatory */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <MapPin size={13} className="text-provider" />
+                Class Location<Req />
+              </Label>
+              <ClassLocationPicker
+                isHomeBased={isHomeBased}
+                location={classLocation}
+                homeRadiusKm={homeRadiusKm}
+                onLocationChange={setClassLocation}
+                onRadiusChange={setHomeRadiusKm}
+              />
+            </div>
+
             {/* Venue Details */}
             <div className="space-y-2">
               <Label>Venue / Landmark<Opt /></Label>
@@ -513,34 +539,9 @@ const CreateClass = () => {
               </p>
             </div>
 
-            {/* Home-based toggle */}
-            <div className="flex items-center justify-between p-3 rounded-xl border">
-              <div>
-                <p className="text-sm font-medium">Home-based / I travel to students</p>
-                <p className="text-xs text-muted-foreground">
-                  Enter your base location + service radius
-                </p>
-              </div>
-              <Switch checked={isHomeBased} onCheckedChange={setIsHomeBased} />
-            </div>
-
-            {/* Map picker */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1.5">
-                <MapPin size={13} className="text-provider" />
-                Class Location<Opt />
-              </Label>
-              <ClassLocationPicker
-                isHomeBased={isHomeBased}
-                location={classLocation}
-                homeRadiusKm={homeRadiusKm}
-                onLocationChange={setClassLocation}
-                onRadiusChange={setHomeRadiusKm}
-              />
-            </div>
-
             <Button
               onClick={() => setStep(3)}
+              disabled={!classLocation}
               className="w-full h-12 bg-provider hover:bg-provider/90 text-white font-semibold rounded-xl"
             >
               Continue
