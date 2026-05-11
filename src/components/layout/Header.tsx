@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
 import PersonaSwitcher from "./PersonaSwitcher";
@@ -17,7 +17,17 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
   ({ showPersonaSwitcher = true }, ref) => {
     const { profile } = useUser();
     const navigate = useNavigate();
+    const location = useLocation();
     const { data: unreadCount } = useUnreadNotificationCount(profile?.id);
+
+    const hidePersonaSwitcherOnRoutes = new Set([
+      "/profile",
+      "/family",
+      "/chat",
+      "/notifications",
+    ]);
+    const shouldShowPersonaSwitcher =
+      showPersonaSwitcher && !hidePersonaSwitcherOnRoutes.has(location.pathname);
 
     return (
       <header
@@ -33,7 +43,7 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
             >
               C
             </button>
-            {showPersonaSwitcher && <PersonaSwitcher />}
+            {shouldShowPersonaSwitcher && <PersonaSwitcher />}
           </div>
 
           <div className="flex items-center gap-1">
