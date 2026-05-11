@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useExploreClasses, usePlatformSettings, useActiveSponsoredClassIds } from "@/hooks/useSeeker";
+import { useMyEnrollments } from "@/hooks/useSeeker";
 import { useActiveFeaturedListings } from "@/hooks/useFeatured";
 import { useIncomingInvites } from "@/hooks/useFamilyLinking";
 import { useCategories } from "@/hooks/useClasses";
@@ -44,6 +45,7 @@ import {
   Pencil,
   Navigation2,
   ChevronRight,
+  BookMarked,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -251,6 +253,12 @@ const Explore = () => {
   );
   const pendingInviteCount = incomingInvites?.length ?? 0;
 
+  // Show "My Classes" shortcut only if seeker has any active/pending enrollments
+  const { data: myEnrollments } = useMyEnrollments(profile?.id);
+  const hasEnrollments = (myEnrollments ?? []).some(
+    (e: any) => e.status === "active" || e.status === "pending",
+  );
+
   // Auto-advancing featured carousel
   const carouselRef = useRef<HTMLDivElement>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -317,9 +325,10 @@ const Explore = () => {
             </button>
           )}
 
-          {/* Location card */}
+          {/* Location card + (optional) My Classes shortcut */}
+          <div className="flex items-stretch gap-2">
           <div
-            className="flex items-center justify-between rounded-2xl px-4 py-3"
+            className="flex flex-1 items-center justify-between rounded-2xl px-4 py-3 min-w-0"
             style={{ background: "linear-gradient(135deg, oklch(0.97 0.04 250), oklch(0.93 0.08 250))" }}
           >
             <div className="flex items-center gap-2.5 min-w-0">
@@ -328,7 +337,7 @@ const Explore = () => {
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] font-medium text-muted-foreground leading-none mb-0.5">Classes near</p>
-                <p className="text-sm font-bold leading-tight truncate max-w-[160px]">
+                <p className="text-sm font-bold leading-tight truncate max-w-[120px]">
                   {profile?.seeker_home_address
                     ? (profile.seeker_home_address.split(",")[0]?.trim() ?? profile.seeker_home_address)
                     : "Set your location"}
@@ -351,6 +360,17 @@ const Explore = () => {
                 Edit
               </button>
             </div>
+          </div>
+          {hasEnrollments && (
+            <button
+              onClick={() => navigate("/my-classes")}
+              className="flex shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border border-primary/20 bg-card px-3 py-2 text-primary transition-colors hover:bg-primary/5 active:scale-95"
+              aria-label="My Classes"
+            >
+              <BookMarked size={18} />
+              <span className="text-[10px] font-semibold leading-none">My Classes</span>
+            </button>
+          )}
           </div>
 
           {/* Featured / sponsored carousel */}
