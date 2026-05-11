@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
 import PersonaSwitcher from "./PersonaSwitcher";
-import { Bell, Home, MapPin, MessageCircle, User } from "lucide-react";
+import { Bell, Home, MessageCircle, User } from "lucide-react";
 
 interface HeaderProps {
   showPersonaSwitcher?: boolean;
@@ -19,14 +19,6 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
     const navigate = useNavigate();
     const { data: unreadCount } = useUnreadNotificationCount(profile?.id);
 
-    const locationLabel = React.useMemo(() => {
-      const addr = profile?.seeker_home_address;
-      if (!addr) return null;
-      // Trim to a short locality-ish label (first comma segment, max 24 chars)
-      const first = addr.split(",")[0]?.trim() ?? addr;
-      return first.length > 24 ? first.slice(0, 22) + "…" : first;
-    }, [profile?.seeker_home_address]);
-
     return (
       <header
         ref={ref}
@@ -36,21 +28,10 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate("/")}
-              className="flex items-center gap-2 transition-opacity active:opacity-70"
+              className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-[oklch(0.78_0.18_250)] to-[oklch(0.62_0.20_250)] text-base font-extrabold text-white transition-opacity active:opacity-70"
               title="CampusBee Home"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-[oklch(0.78_0.18_250)] to-[oklch(0.62_0.20_250)] text-base font-extrabold text-white">
-                C
-              </div>
-              <div className="leading-tight text-left">
-                <h1 className="text-sm font-extrabold">CampusBee</h1>
-                {locationLabel && (
-                  <p className="flex max-w-[140px] items-center gap-1 truncate text-[10px] text-muted-foreground">
-                    <MapPin size={9} />
-                    <span className="truncate">{locationLabel}</span>
-                  </p>
-                )}
-              </div>
+              C
             </button>
             {showPersonaSwitcher && <PersonaSwitcher />}
           </div>
