@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useUser, Persona } from "@/contexts/UserContext";
 import {
   Sheet,
@@ -50,11 +50,24 @@ const PERSONA_CONFIG: Record<
 const PersonaSwitcher = () => {
   const { profile, activePersona, activatePersona } = useUser();
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
 
   if (!profile) return null;
 
-  const current = PERSONA_CONFIG[activePersona];
+  const path = location.pathname;
+  const pathPersona: Persona | null =
+    path === "/explore" || path === "/my-classes"
+      ? "seeker"
+      : path === "/provider/dashboard" ||
+        path === "/provider/classes" ||
+        path === "/provider/students" ||
+        path === "/provider/payments"
+      ? "provider"
+      : null;
+
+  const displayPersona = pathPersona ?? activePersona;
+  const current = PERSONA_CONFIG[displayPersona];
   const CurrentIcon = current.icon;
 
   const availablePersonas: Persona[] = ["seeker"];
@@ -85,7 +98,7 @@ const PersonaSwitcher = () => {
           {availablePersonas.map((persona) => {
             const config = PERSONA_CONFIG[persona];
             const Icon = config.icon;
-            const isActive = persona === activePersona;
+            const isActive = persona === displayPersona;
 
             return (
               <button
