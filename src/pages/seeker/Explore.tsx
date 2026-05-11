@@ -324,54 +324,6 @@ const Explore = () => {
             </button>
           )}
 
-          {/* Location card + (optional) My Classes shortcut */}
-          <div className="flex items-stretch gap-2">
-          <div
-            className="flex flex-1 items-center justify-between rounded-2xl px-4 py-3 min-w-0"
-            style={{ background: "linear-gradient(135deg, oklch(0.97 0.04 250), oklch(0.93 0.08 250))" }}
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15">
-                <MapPin size={16} className="text-primary" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-muted-foreground leading-none mb-0.5">Classes near</p>
-                <p className="text-sm font-bold leading-tight truncate max-w-[120px]">
-                  {profile?.seeker_home_address
-                    ? (profile.seeker_home_address.split(",")[0]?.trim() ?? profile.seeker_home_address)
-                    : "Set your location"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={() => setRadiusSheet(true)}
-                className="flex items-center gap-1 rounded-full bg-primary/15 px-3 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/25 active:scale-95"
-              >
-                <Navigation2 size={11} />
-                {searchRadius} km
-              </button>
-              <button
-                onClick={() => setShowLocationSheet(true)}
-                className="flex items-center gap-1 rounded-full bg-primary/15 px-3 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/25 active:scale-95"
-              >
-                <Pencil size={11} />
-                Edit
-              </button>
-            </div>
-          </div>
-          {hasEnrollments && (
-            <button
-              onClick={() => navigate("/my-classes")}
-              className="flex shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border border-primary/20 bg-card px-3 py-2 text-primary transition-colors hover:bg-primary/5 active:scale-95"
-              aria-label="My Classes"
-            >
-              <BookMarked size={18} />
-              <span className="text-[10px] font-semibold leading-none">My Classes</span>
-            </button>
-          )}
-          </div>
-
           {/* Featured / sponsored carousel */}
           {!isSearching && featuredListings && featuredListings.length > 0 && (
             <div className="space-y-2">
@@ -432,6 +384,54 @@ const Explore = () => {
         <div className="sticky top-14 z-30 border-b border-border/40 bg-background/95 backdrop-blur-sm">
           <div className="space-y-2.5 px-4 pb-3 pt-3">
 
+            {/* Location card + (optional) My Classes shortcut — always visible */}
+            <div className="flex items-stretch gap-2">
+              <div
+                className="flex flex-1 items-center justify-between rounded-2xl px-4 py-3 min-w-0"
+                style={{ background: "linear-gradient(135deg, oklch(0.97 0.04 250), oklch(0.93 0.08 250))" }}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15">
+                    <MapPin size={16} className="text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-medium text-muted-foreground leading-none mb-0.5">Classes near</p>
+                    <p className="text-sm font-bold leading-tight truncate max-w-[120px]">
+                      {profile?.seeker_home_address
+                        ? (profile.seeker_home_address.split(",")[0]?.trim() ?? profile.seeker_home_address)
+                        : "Set your location"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => setRadiusSheet(true)}
+                    className="flex items-center gap-1 rounded-full bg-primary/15 px-3 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/25 active:scale-95"
+                  >
+                    <Navigation2 size={11} />
+                    {searchRadius} km
+                  </button>
+                  <button
+                    onClick={() => setShowLocationSheet(true)}
+                    className="flex items-center gap-1 rounded-full bg-primary/15 px-3 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/25 active:scale-95"
+                  >
+                    <Pencil size={11} />
+                    Edit
+                  </button>
+                </div>
+              </div>
+              {hasEnrollments && (
+                <button
+                  onClick={() => navigate("/my-classes")}
+                  className="flex shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border border-primary/20 bg-card px-3 py-2 text-primary transition-colors hover:bg-primary/5 active:scale-95"
+                  aria-label="My Classes"
+                >
+                  <BookMarked size={18} />
+                  <span className="text-[10px] font-semibold leading-none">My Classes</span>
+                </button>
+              )}
+            </div>
+
             {/* Search row — full-width, white card */}
             <div className="relative">
               <Search
@@ -454,8 +454,21 @@ const Explore = () => {
               )}
             </div>
 
-            {/* Categories header + collapse toggle */}
-            <div className="flex items-center justify-between gap-2 px-0.5">
+            {/* Categories header + collapse toggle (entire row clickable) */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setPillsExpanded((v) => !v)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setPillsExpanded((v) => !v);
+                }
+              }}
+              aria-expanded={pillsExpanded}
+              aria-label={pillsExpanded ? "Collapse categories" : "Expand categories"}
+              className="flex cursor-pointer select-none items-center justify-between gap-2 rounded-md px-0.5 py-1 transition-colors hover:bg-muted/40"
+            >
               <div className="flex min-w-0 items-center gap-2">
                 <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {!pillsExpanded && activeCat ? "Selected Category" : "Categories"}
@@ -474,13 +487,9 @@ const Explore = () => {
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => setPillsExpanded((v) => !v)}
-                className="flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
-                aria-label={pillsExpanded ? "Collapse categories" : "Expand categories"}
-              >
+              <span className="flex shrink-0 items-center text-muted-foreground">
                 {pillsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
+              </span>
             </div>
 
             {/* Category icon + label pills — collapsible */}
