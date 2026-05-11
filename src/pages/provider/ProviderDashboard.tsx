@@ -24,6 +24,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Users,
   BookOpen,
   Wallet,
@@ -38,6 +43,7 @@ import {
   FolderTree,
   Crown,
   ArrowRight,
+  ChevronDown,
 } from "lucide-react";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -58,6 +64,7 @@ const ProviderDashboard = () => {
   const [showBatchPicker, setShowBatchPicker] = useState(false);
   const [showCerts, setShowCerts] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upcomingOpen, setUpcomingOpen] = useState(false);
 
   const actionCount = pendingEnrollments?.length ?? 0;
   const pendingCatRequests = (catRequests ?? []).filter((r) => r.status === "pending");
@@ -109,34 +116,54 @@ const ProviderDashboard = () => {
           </div>
         )}
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-3 gap-3">
-          {statsLoading ? (
-            Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)
-          ) : (
-            <>
-              <Card className="flex flex-col items-center justify-center gap-1 p-3">
-                <Users size={20} className="text-provider" />
-                <span className="text-lg font-bold">{stats?.activeStudents ?? 0}</span>
-                <span className="text-[10px] text-muted-foreground">Students</span>
-              </Card>
-              <Card className="flex flex-col items-center justify-center gap-1 p-3">
-                <BookOpen size={20} className="text-provider" />
-                <span className="text-lg font-bold">{stats?.activeClasses ?? 0}</span>
-                <span className="text-[10px] text-muted-foreground">Classes</span>
-              </Card>
-              <Card className="flex flex-col items-center justify-center gap-1 p-3 relative">
-                <Wallet size={20} className="text-provider" />
-                <span className="text-lg font-bold">{stats?.pendingPayments ?? 0}</span>
-                <span className="text-[10px] text-muted-foreground">Pending Pay</span>
-                {(stats?.pendingPayments ?? 0) > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] text-white font-bold">
-                    {stats?.pendingPayments}
-                  </span>
-                )}
-              </Card>
-            </>
-          )}
+        {/* Quick Stats — sticky, clickable */}
+        <div className="sticky top-14 z-30 -mx-4 border-b border-border/40 bg-background/95 px-4 py-2 backdrop-blur-sm">
+          <div className="grid grid-cols-3 gap-3">
+            {statsLoading ? (
+              Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)
+            ) : (
+              <>
+                <Card
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate("/provider/classes")}
+                  onKeyDown={(e) => { if (e.key === "Enter") navigate("/provider/classes"); }}
+                  className="flex cursor-pointer flex-col items-center justify-center gap-1 p-3 transition-all hover:border-provider/40 hover:shadow-md active:scale-95"
+                >
+                  <BookOpen size={20} className="text-provider" />
+                  <span className="text-lg font-bold">{stats?.activeClasses ?? 0}</span>
+                  <span className="text-[10px] text-muted-foreground">Classes</span>
+                </Card>
+                <Card
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate("/provider/students")}
+                  onKeyDown={(e) => { if (e.key === "Enter") navigate("/provider/students"); }}
+                  className="flex cursor-pointer flex-col items-center justify-center gap-1 p-3 transition-all hover:border-provider/40 hover:shadow-md active:scale-95"
+                >
+                  <Users size={20} className="text-provider" />
+                  <span className="text-lg font-bold">{stats?.activeStudents ?? 0}</span>
+                  <span className="text-[10px] text-muted-foreground">Students</span>
+                </Card>
+                <Card
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate("/provider/payments")}
+                  onKeyDown={(e) => { if (e.key === "Enter") navigate("/provider/payments"); }}
+                  className="relative flex cursor-pointer flex-col items-center justify-center gap-1 p-3 transition-all hover:border-provider/40 hover:shadow-md active:scale-95"
+                >
+                  <Wallet size={20} className="text-provider" />
+                  <span className="text-lg font-bold">{stats?.pendingPayments ?? 0}</span>
+                  <span className="text-[10px] text-muted-foreground">Payments</span>
+                  {(stats?.pendingPayments ?? 0) > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] text-white font-bold">
+                      {stats?.pendingPayments}
+                    </span>
+                  )}
+                </Card>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Subscription tier banner */}
@@ -236,12 +263,19 @@ const ProviderDashboard = () => {
 
         {/* Upcoming 3-Day Schedule */}
         {upcomingSchedule && upcomingSchedule.some((d) => d.schedules.length > 0) && (
-          <div>
-            <h2 className="mb-3 text-base font-bold flex items-center gap-2">
-              <CalendarDays size={18} className="text-provider" />
-              Upcoming Schedule
-            </h2>
-            <div className="space-y-3">
+          <Collapsible open={upcomingOpen} onOpenChange={setUpcomingOpen}>
+            <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg py-1 text-left">
+              <h2 className="text-base font-bold flex items-center gap-2">
+                <CalendarDays size={18} className="text-provider" />
+                Upcoming Schedule
+              </h2>
+              <ChevronDown
+                size={18}
+                className={`text-muted-foreground transition-transform ${upcomingOpen ? "rotate-180" : ""}`}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3">
+              <div className="space-y-3">
               {upcomingSchedule.map((day) => {
                 const label = day.date.toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" });
                 return (
@@ -268,8 +302,9 @@ const ProviderDashboard = () => {
                   </div>
                 );
               })}
-            </div>
-          </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         )}
         {/* Category Requests Status */}
         {((pendingCatRequests.length > 0) || (rejectedCatRequests.length > 0)) && (
