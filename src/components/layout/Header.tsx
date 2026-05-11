@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
 import PersonaSwitcher from "./PersonaSwitcher";
-import { Bell, Home, MapPin } from "lucide-react";
+import { Bell, Home, MapPin, MessageCircle, User } from "lucide-react";
 
 interface HeaderProps {
   showPersonaSwitcher?: boolean;
@@ -33,23 +33,29 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
         className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80"
       >
         <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4">
-          <button
-            onClick={() => navigate("/")}
-            className="flex items-center gap-2 transition-opacity active:opacity-70"
-          >
-            <img src="/logo-icon.png" alt="CampusBee" className="h-8 w-8 object-contain" />
-            <div className="leading-tight text-left">
-              <h1 className="text-sm font-extrabold gradient-primary-text">CampusBee</h1>
-              {locationLabel && (
-                <p className="flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-[160px]">
-                  <MapPin size={9} />
-                  <span className="truncate">{locationLabel}</span>
-                </p>
-              )}
-            </div>
-          </button>
-
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate("/")}
+              className="flex items-center gap-2 transition-opacity active:opacity-70"
+              title="CampusBee Home"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-[oklch(0.78_0.18_250)] to-[oklch(0.62_0.20_250)] text-base font-extrabold text-white">
+                C
+              </div>
+              <div className="leading-tight text-left">
+                <h1 className="text-sm font-extrabold">CampusBee</h1>
+                {locationLabel && (
+                  <p className="flex max-w-[140px] items-center gap-1 truncate text-[10px] text-muted-foreground">
+                    <MapPin size={9} />
+                    <span className="truncate">{locationLabel}</span>
+                  </p>
+                )}
+              </div>
+            </button>
+            {showPersonaSwitcher && <PersonaSwitcher />}
+          </div>
+
+          <div className="flex items-center gap-1">
             <button
               onClick={() => navigate("/")}
               className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
@@ -57,10 +63,17 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
             >
               <Home size={18} className="text-muted-foreground" />
             </button>
-            {showPersonaSwitcher && <PersonaSwitcher />}
+            <button
+              onClick={() => navigate("/chat")}
+              className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
+              title="Chat"
+            >
+              <MessageCircle size={18} className="text-muted-foreground" />
+            </button>
             <button
               onClick={() => navigate("/notifications")}
               className="relative flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
+              title="Notifications"
             >
               <Bell size={18} className="text-muted-foreground" />
               {unreadCount && unreadCount > 0 ? (
@@ -68,6 +81,13 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               ) : null}
+            </button>
+            <button
+              onClick={() => navigate("/profile")}
+              className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
+              title="Profile"
+            >
+              <User size={18} className="text-muted-foreground" />
             </button>
           </div>
         </div>

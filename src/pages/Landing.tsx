@@ -15,7 +15,6 @@ import {
   Home,
   IndianRupee,
   LayoutDashboard,
-  LogOut,
   MapPin,
   MessageCircle,
   Music,
@@ -399,11 +398,6 @@ const LoggedInLanding = () => {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/", { replace: true });
-    toast.success("Logged out");
-  };
 
   const initials = profile?.full_name
     ?.split(" ")
@@ -574,33 +568,6 @@ const LoggedInLanding = () => {
               <ChevronRight size={16} style={{ color: MUTED, flexShrink: 0 }} />
             </button>
           )}
-        </div>
-
-        {/* ── Quick links ───────────────────────────────────────────── */}
-        <div style={{ background: "#fff", border: `1px solid ${HAIR}`, borderRadius: 16, overflow: "hidden" }}>
-          <button
-            onClick={() => navigate("/profile")}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", textAlign: "left", cursor: "pointer", background: "transparent", border: "none", borderBottom: `1px solid ${HAIR}` }}
-          >
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(100,116,139,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Users size={17} style={{ color: MUTED }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: INK }}>Your profile & family</div>
-            </div>
-            <ChevronRight size={15} style={{ color: MUTED }} />
-          </button>
-          <button
-            onClick={handleLogout}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", textAlign: "left", cursor: "pointer", background: "transparent", border: "none" }}
-          >
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(225,29,72,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <LogOut size={17} style={{ color: "#e11d48" }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#e11d48" }}>Log out</div>
-            </div>
-          </button>
         </div>
 
         {/* spacer */}
