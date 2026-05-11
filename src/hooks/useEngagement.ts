@@ -302,6 +302,33 @@ export function useChatConversations(userId: string | undefined) {
   });
 }
 
+export function useUnreadChatCount(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["unread-chat-count", userId],
+    enabled: !!userId,
+    refetchInterval: 30000,
+    queryFn: async () => {
+      // Step 1: get conversation IDs the user participates in
+      const { data: convs, error: convErr } = await supabase
+        .from("chat_conversations")
+        .select("id")
+        .or(`participant_1.eq.${userId},participant_2.eq.${userId}`);
+      if (convErr) throw convErr;
+      const convIds = (convs ?? []).map((c: any) => c.id);
+      if (convIds.length === 0) return 0;
+      // Step 2: count unread messages where the user is NOT the sender
+      const { count, error } = await supabase
+        .from("chat_messages")
+        .select("id", { count: "exact", head: true })
+        .in("conversation_id", convIds)
+        .neq("sender_id", userId!)
+        .eq("is_read", false);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+}
+
 export function useChatMessages(conversationId: string | undefined) {
   return useQuery({
     queryKey: ["chat-messages", conversationId],
