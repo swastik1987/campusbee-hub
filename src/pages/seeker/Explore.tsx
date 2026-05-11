@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useExploreClasses, usePlatformSettings, useActiveSponsoredClassIds } from "@/hooks/useSeeker";
-import { useMyEnrollments } from "@/hooks/useSeeker";
+import { useExploreClasses, usePlatformSettings, useActiveSponsoredClassIds, useMyEnrollments } from "@/hooks/useSeeker";
 import { useActiveFeaturedListings } from "@/hooks/useFeatured";
 import { useIncomingInvites } from "@/hooks/useFamilyLinking";
 import { useCategories } from "@/hooks/useClasses";
