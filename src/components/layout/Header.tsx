@@ -2,6 +2,7 @@ import * as React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
+import { useUnreadChatCount } from "@/hooks/useEngagement";
 import PersonaSwitcher from "./PersonaSwitcher";
 import { Bell, Home, MessageCircle, User } from "lucide-react";
 
@@ -19,6 +20,7 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
     const navigate = useNavigate();
     const location = useLocation();
     const { data: unreadCount } = useUnreadNotificationCount(profile?.id);
+    const { data: unreadChatCount } = useUnreadChatCount(profile?.id);
 
     const hidePersonaSwitcherOnRoutes = new Set([
       "/profile",
@@ -56,10 +58,15 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
             </button>
             <button
               onClick={() => navigate("/chat")}
-              className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
               title="Chat"
             >
               <MessageCircle size={18} className="text-muted-foreground" />
+              {unreadChatCount && unreadChatCount > 0 ? (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+                  {unreadChatCount > 9 ? "9+" : unreadChatCount}
+                </span>
+              ) : null}
             </button>
             <button
               onClick={() => navigate("/notifications")}

@@ -7,6 +7,7 @@
 
 import * as React from "react";
 import {
+  type LucideIcon,
   Activity, Apple, Atom, Baby, Bell, Bike, BookOpen, Bot,
   Brain, Calculator, Camera, Cake, ChefHat, Clock, Code, Code2,
   Coffee, Compass, Cpu, Dumbbell, Eye, Film, Flame, FlaskConical,
@@ -22,10 +23,7 @@ import { cn } from "@/lib/utils";
 
 // ── Curated icon map (66 icons across 7 categories) ──────────────────────────
 
-export const ICON_MAP: Record<
-  string,
-  React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }>
-> = {
+export const ICON_MAP: Record<string, LucideIcon> = {
   // Sports & Fitness
   Dumbbell, Trophy, Target, Timer, Bike, Waves, Mountain,
   Zap, Medal, Flame, Sword, Shield,
