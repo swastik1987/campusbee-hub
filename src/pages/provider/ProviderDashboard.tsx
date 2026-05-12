@@ -44,6 +44,7 @@ import {
   Crown,
   ArrowRight,
   ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
