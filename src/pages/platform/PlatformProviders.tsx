@@ -73,7 +73,7 @@ const PlatformProviders = () => {
   const handleVerify = async (providerId: string, current: boolean) => {
     try {
       await verify.mutateAsync({ providerId, isVerified: !current });
-      toast.success(current ? "Verification removed" : "Provider verified");
+      toast.success(current ? "Verification removed" : "Instructor verified");
     } catch {
       toast.error("Failed to update verification");
     }
@@ -103,7 +103,7 @@ const PlatformProviders = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold">Providers Directory</h2>
+        <h2 className="text-xl font-bold">Instructors Directory</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
           Manage provider verification, subscription tiers, and account status
         </p>
@@ -145,7 +145,7 @@ const PlatformProviders = () => {
         </div>
       ) : error ? (
         <div className="text-center py-12">
-          <p className="text-sm text-muted-foreground">Failed to load providers</p>
+          <p className="text-sm text-muted-foreground">Failed to load instructors</p>
           <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>
             Retry
           </Button>
@@ -153,7 +153,7 @@ const PlatformProviders = () => {
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center py-16 gap-3">
           <Users size={44} className="text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">No providers found</p>
+          <p className="text-sm text-muted-foreground">No instructors found</p>
         </div>
       ) : (
         <div className="space-y-3">

@@ -299,7 +299,7 @@ const REQ_STATUS: Record<
   pending:       { label: "Pending",               classes: "border-amber-300 text-amber-700" },
   approved:      { label: "Approved",              classes: "border-green-300 text-green-700" },
   rejected:      { label: "Rejected",              classes: "border-red-300 text-red-700" },
-  retag_pending: { label: "Awaiting Provider",     classes: "border-blue-300 text-blue-700" },
+  retag_pending: { label: "Awaiting Instructor",     classes: "border-blue-300 text-blue-700" },
   retag_declined:{ label: "Retag Declined",        classes: "border-slate-300 text-slate-600" },
 };
 
@@ -974,7 +974,7 @@ const PlatformCategories = () => {
             {retagTarget && (
               <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5">
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
-                  Provider requested
+                  Instructor requested
                 </p>
                 <p className="text-sm font-semibold">
                   {retagTarget.requested_name}

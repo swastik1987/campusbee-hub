@@ -90,7 +90,7 @@ const PlatformSponsored = () => {
       <div>
         <h2 className="text-xl font-bold">Sponsored Listings</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Approve featured slot requests from Premium providers (top-3 spots in Explore)
+          Approve featured slot requests from Premium instructors (top-3 spots in Explore)
         </p>
       </div>
 

@@ -49,7 +49,7 @@ const PlatformDashboard = () => {
       ) : stats ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
-            label="Providers"
+            label="Instructors"
             value={stats.totalProviders}
             icon={<UserCheck size={20} className="text-indigo-600" />}
             color="bg-indigo-50"
@@ -92,7 +92,7 @@ const PlatformDashboard = () => {
           />
           <QuickLinkCard
             title="Subscription Requests"
-            description="Approve or reject Premium upgrade requests from providers"
+            description="Approve or reject Premium upgrade requests from instructors"
             icon={<Crown size={20} className="text-amber-600" />}
             iconBg="bg-amber-50"
             onClick={() => navigate("/platform/subscriptions")}
@@ -109,7 +109,7 @@ const PlatformDashboard = () => {
             badgeColor="bg-indigo-500"
           />
           <QuickLinkCard
-            title="Providers Directory"
+            title="Instructors Directory"
             description="Verify badges, suspend / reinstate, manage tiers"
             icon={<UserCheck size={20} className="text-blue-600" />}
             iconBg="bg-blue-50"

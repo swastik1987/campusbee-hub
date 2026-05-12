@@ -12,10 +12,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Check, CheckCheck, Loader2, X } from "lucide-react";
+import { ArrowLeft, CalendarIcon, CheckCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 type AttendanceStatus = "present" | "absent" | "late";
 
@@ -30,8 +33,12 @@ const TakeAttendance = () => {
   const navigate = useNavigate();
   const { profile } = useUser();
 
-  const today = new Date().toISOString().split("T")[0];
-  const [date, setDate] = useState(today);
+  const todayDate = new Date();
+  todayDate.setHours(0, 0, 0, 0);
+  const today = todayDate.toISOString().split("T")[0];
+  const [selectedDate, setSelectedDate] = useState<Date>(todayDate);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const date = selectedDate.toISOString().split("T")[0];
   const isPastDate = date < today;
 
   // Fetch batch info for header display
@@ -123,13 +130,35 @@ const TakeAttendance = () => {
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-4">
         {/* Date selector */}
         <div className="flex items-center gap-3">
-          <Input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            max={today}
-            className="h-10 rounded-lg flex-1"
-          />
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "h-10 flex-1 justify-start rounded-lg text-left font-normal",
+                  !selectedDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon size={16} className="mr-2" />
+                {format(selectedDate, "PPP")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(d) => {
+                  if (d) {
+                    setSelectedDate(d);
+                    setDatePickerOpen(false);
+                  }
+                }}
+                disabled={(d) => d > todayDate}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
           <Button size="sm" variant="outline" onClick={markAllPresent} className="text-xs whitespace-nowrap">
             <CheckCheck size={14} className="mr-1" /> All Present
           </Button>

@@ -21,7 +21,7 @@ const navItems = [
   { path: "/platform/moderation",    icon: ShieldAlert,     label: "Moderation"    },
   { path: "/platform/subscriptions", icon: Crown,           label: "Subscriptions" },
   { path: "/platform/sponsored",     icon: Megaphone,       label: "Sponsored"     },
-  { path: "/platform/providers",     icon: Users,           label: "Providers"     },
+  { path: "/platform/providers",     icon: Users,           label: "Instructors"     },
   { path: "/platform/categories",    icon: FolderTree,      label: "Categories"    },
   { path: "/platform/analytics",     icon: BarChart3,       label: "Analytics"     },
   { path: "/platform/settings",      icon: Settings,        label: "Settings"      },

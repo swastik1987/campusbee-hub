@@ -36,8 +36,8 @@ const STATUS_TABS: { label: string; value: FlagStatus }[] = [
 const REF_TYPE_LABELS: Record<string, string> = {
   class_image: "Class Image",
   class_text: "Class Text",
-  provider_avatar: "Provider Avatar",
-  provider_bio: "Provider Bio",
+  provider_avatar: "Instructor Avatar",
+  provider_bio: "Instructor Bio",
   banner: "Banner",
 };
 

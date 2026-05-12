@@ -44,6 +44,7 @@ import {
   Crown,
   ArrowRight,
   ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -128,33 +129,36 @@ const ProviderDashboard = () => {
                   tabIndex={0}
                   onClick={() => navigate("/provider/classes")}
                   onKeyDown={(e) => { if (e.key === "Enter") navigate("/provider/classes"); }}
-                  className="flex cursor-pointer flex-col items-center justify-center gap-1 p-3 transition-all hover:border-provider/40 hover:shadow-md active:scale-95"
+                  className="group relative flex cursor-pointer flex-col items-center justify-center gap-1 border-provider/30 bg-provider/5 p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-provider hover:bg-provider/10 hover:shadow-md active:scale-95"
                 >
                   <BookOpen size={20} className="text-provider" />
                   <span className="text-lg font-bold">{stats?.activeClasses ?? 0}</span>
-                  <span className="text-[10px] text-muted-foreground">Classes</span>
+                  <span className="text-[10px] font-medium text-muted-foreground">Classes</span>
+                  <ChevronRight size={12} className="absolute right-1.5 top-1.5 text-provider/60 transition-transform group-hover:translate-x-0.5" />
                 </Card>
                 <Card
                   role="button"
                   tabIndex={0}
                   onClick={() => navigate("/provider/students")}
                   onKeyDown={(e) => { if (e.key === "Enter") navigate("/provider/students"); }}
-                  className="flex cursor-pointer flex-col items-center justify-center gap-1 p-3 transition-all hover:border-provider/40 hover:shadow-md active:scale-95"
+                  className="group relative flex cursor-pointer flex-col items-center justify-center gap-1 border-provider/30 bg-provider/5 p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-provider hover:bg-provider/10 hover:shadow-md active:scale-95"
                 >
                   <Users size={20} className="text-provider" />
                   <span className="text-lg font-bold">{stats?.activeStudents ?? 0}</span>
-                  <span className="text-[10px] text-muted-foreground">Students</span>
+                  <span className="text-[10px] font-medium text-muted-foreground">Students</span>
+                  <ChevronRight size={12} className="absolute right-1.5 top-1.5 text-provider/60 transition-transform group-hover:translate-x-0.5" />
                 </Card>
                 <Card
                   role="button"
                   tabIndex={0}
                   onClick={() => navigate("/provider/payments")}
                   onKeyDown={(e) => { if (e.key === "Enter") navigate("/provider/payments"); }}
-                  className="relative flex cursor-pointer flex-col items-center justify-center gap-1 p-3 transition-all hover:border-provider/40 hover:shadow-md active:scale-95"
+                  className="group relative flex cursor-pointer flex-col items-center justify-center gap-1 border-provider/30 bg-provider/5 p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-provider hover:bg-provider/10 hover:shadow-md active:scale-95"
                 >
                   <Wallet size={20} className="text-provider" />
                   <span className="text-lg font-bold">{stats?.pendingPayments ?? 0}</span>
-                  <span className="text-[10px] text-muted-foreground">Payments</span>
+                  <span className="text-[10px] font-medium text-muted-foreground">Payments</span>
+                  <ChevronRight size={12} className="absolute right-1.5 top-1.5 text-provider/60 transition-transform group-hover:translate-x-0.5" />
                   {(stats?.pendingPayments ?? 0) > 0 && (
                     <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] text-white font-bold">
                       {stats?.pendingPayments}

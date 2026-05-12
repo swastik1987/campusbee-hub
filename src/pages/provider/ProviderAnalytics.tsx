@@ -363,7 +363,7 @@ const ProviderAnalytics = () => {
                     No competitors found in your categories yet
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Add specialisation categories to your provider profile to see competitors
+                    Add specialisation categories to your instructor profile to see competitors
                   </p>
                 </div>
               )}

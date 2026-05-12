@@ -73,12 +73,12 @@ const Onboarding = React.forwardRef<HTMLDivElement, Record<string, never>>((_pro
         businessName: data.businessName,
         bio: data.bio,
       });
-      toast.success("Welcome aboard! Your provider profile is live.");
+      toast.success("Welcome aboard! Your instructor profile is live.");
       await refreshProfile();
       navigate("/provider/dashboard", { replace: true });
     } catch (err) {
       console.error("[Onboarding] provider create failed", err);
-      toast.error("Failed to create provider profile");
+      toast.error("Failed to create instructor profile");
     }
   };
 
