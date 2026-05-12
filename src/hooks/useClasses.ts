@@ -343,6 +343,7 @@ export function useCreateBatch() {
       registrationFee?: number;
       status: string;
       schedules: { dayOfWeek: number; startTime: string; endTime: string }[];
+      grades?: string[];
     }) => {
       const normalizedBatchName = normalizeBatchName(input.batchName);
       const { data: existingBatches, error: dupErr } = await supabase
@@ -381,6 +382,7 @@ export function useCreateBatch() {
           notes: input.notes || null,
           registration_fee: input.registrationFee ?? 0,
           status: input.status,
+          grades: input.grades ?? [],
         })
         .select("id")
         .single();
