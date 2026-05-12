@@ -21,6 +21,7 @@ import { useTrainers } from "@/hooks/useProvider";
 import ClassLocationPicker from "@/components/location/ClassLocationPicker";
 import type { LocationValue } from "@/hooks/useLocation";
 import ClockTimePicker from "@/components/provider/ClockTimePicker";
+import GradeMultiSelect from "@/components/provider/GradeMultiSelect";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -163,6 +164,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
   const [editBatchSkillLevel, setEditBatchSkillLevel] = useState("");
   const [editBatchAgeMin, setEditBatchAgeMin] = useState("");
   const [editBatchAgeMax, setEditBatchAgeMax] = useState("");
+  const [editBatchGrades, setEditBatchGrades] = useState<string[]>([]);
   const [editBatchTrainerId, setEditBatchTrainerId] = useState("");
   const [editBatchCapacity, setEditBatchCapacity] = useState("");
   const [editBatchFee, setEditBatchFee] = useState("");
@@ -279,6 +281,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
     setEditBatchSkillLevel(batch.skill_level || "");
     setEditBatchAgeMin(batch.age_group_min ? String(batch.age_group_min) : "");
     setEditBatchAgeMax(batch.age_group_max ? String(batch.age_group_max) : "");
+    setEditBatchGrades(Array.isArray(batch.grades) ? batch.grades : []);
     setEditBatchTrainerId(batch.trainer_id || "");
     setEditBatchCapacity(String(batch.max_batch_size || ""));
     setEditBatchFee(String(batch.fee_amount || ""));
@@ -333,6 +336,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
         registrationMode: editBatchRegMode,
         autoWaitlist: editBatchAutoWaitlist,
         notes: editBatchNotes,
+        grades: editBatchType === "grade" ? editBatchGrades : [],
         schedules: editBatchDays.map((d) => ({
           dayOfWeek: d,
           startTime: editBatchStartTime,
@@ -947,7 +951,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
                     <SelectItem value="level">Level</SelectItem>
                     <SelectItem value="age_group">Age Group</SelectItem>
                     <SelectItem value="time_slot">Time Slot</SelectItem>
-                    <SelectItem value="custom">Custom</SelectItem>
+                  <SelectItem value="grade">Grade</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -977,6 +981,13 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
                   <Label>Max Age</Label>
                   <Input type="number" value={editBatchAgeMax} onChange={(e) => setEditBatchAgeMax(e.target.value)} className="h-11 rounded-xl" />
                 </div>
+              </div>
+            )}
+
+            {editBatchType === "grade" && (
+              <div className="space-y-2">
+                <Label>Grades</Label>
+                <GradeMultiSelect value={editBatchGrades} onChange={setEditBatchGrades} />
               </div>
             )}
 

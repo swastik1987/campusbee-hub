@@ -1,0 +1,1 @@
+ALTER TABLE public.batches ADD COLUMN IF NOT EXISTS grades text[] NOT NULL DEFAULT '{}'::text[];

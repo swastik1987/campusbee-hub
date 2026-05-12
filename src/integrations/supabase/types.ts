@@ -197,6 +197,7 @@ export type Database = {
           end_date: string | null
           fee_amount: number
           fee_frequency: string
+          grades: string[]
           id: string
           max_batch_size: number
           notes: string | null
@@ -221,6 +222,7 @@ export type Database = {
           end_date?: string | null
           fee_amount?: number
           fee_frequency?: string
+          grades?: string[]
           id?: string
           max_batch_size?: number
           notes?: string | null
@@ -245,6 +247,7 @@ export type Database = {
           end_date?: string | null
           fee_amount?: number
           fee_frequency?: string
+          grades?: string[]
           id?: string
           max_batch_size?: number
           notes?: string | null

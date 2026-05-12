@@ -343,6 +343,7 @@ export function useCreateBatch() {
       registrationFee?: number;
       status: string;
       schedules: { dayOfWeek: number; startTime: string; endTime: string }[];
+      grades?: string[];
     }) => {
       const normalizedBatchName = normalizeBatchName(input.batchName);
       const { data: existingBatches, error: dupErr } = await supabase
@@ -381,6 +382,7 @@ export function useCreateBatch() {
           notes: input.notes || null,
           registration_fee: input.registrationFee ?? 0,
           status: input.status,
+          grades: input.grades ?? [],
         })
         .select("id")
         .single();
@@ -443,6 +445,7 @@ export function useUpdateBatch() {
       notes?: string;
       status?: string;
       schedules?: { dayOfWeek: number; startTime: string; endTime: string }[];
+      grades?: string[];
     }) => {
       const { batchId, schedules, ...fields } = input;
 
@@ -490,6 +493,7 @@ export function useUpdateBatch() {
       if (fields.autoWaitlist !== undefined) updateObj.auto_waitlist = fields.autoWaitlist;
       if (fields.notes !== undefined) updateObj.notes = fields.notes || null;
       if (fields.status !== undefined) updateObj.status = fields.status;
+      if (fields.grades !== undefined) updateObj.grades = fields.grades;
 
       const { error } = await supabase.from("batches").update(updateObj).eq("id", batchId);
       if (error) throw error;

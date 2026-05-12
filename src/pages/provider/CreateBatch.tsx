@@ -19,6 +19,7 @@ import {
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import ClockTimePicker from "@/components/provider/ClockTimePicker";
+import GradeMultiSelect from "@/components/provider/GradeMultiSelect";
 
 // TIME_OPTIONS removed — time selection uses ClockTimePicker
 
@@ -47,6 +48,7 @@ const CreateBatch = () => {
   const [skillLevel, setSkillLevel] = useState("all");
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
+  const [grades, setGrades] = useState<string[]>([]);
   const [trainerId, setTrainerId] = useState("");
   const [maxSize, setMaxSize] = useState("");
   const [feeAmount, setFeeAmount] = useState("");
@@ -96,6 +98,7 @@ const CreateBatch = () => {
         autoWaitlist,
         notes,
         status,
+        grades: batchType === "grade" ? grades : [],
         schedules: selectedDays.map((d) => ({
           dayOfWeek: d,
           startTime,
@@ -135,7 +138,7 @@ const CreateBatch = () => {
                 <SelectItem value="level">Level</SelectItem>
                 <SelectItem value="age_group">Age Group</SelectItem>
                 <SelectItem value="time_slot">Time Slot</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
+                <SelectItem value="grade">Grade</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -165,6 +168,14 @@ const CreateBatch = () => {
               <Label>Max Age<Opt /></Label>
               <Input type="number" value={ageMax} onChange={(e) => setAgeMax(e.target.value)} className="h-11 rounded-xl" />
             </div>
+          </div>
+        )}
+
+        {batchType === "grade" && (
+          <div className="space-y-2">
+            <Label>Grades<Req /></Label>
+            <GradeMultiSelect value={grades} onChange={setGrades} />
+            <p className="text-xs text-muted-foreground">Select one or more grades that this batch is for.</p>
           </div>
         )}
 
