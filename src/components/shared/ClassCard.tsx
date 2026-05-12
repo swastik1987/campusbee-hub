@@ -54,7 +54,7 @@ const ClassCard = React.forwardRef<HTMLDivElement, ClassCardProps>(
   const navigate = useNavigate();
 
   const provider = cls.service_providers;
-  const providerName = provider?.business_name || provider?.users?.full_name || "Provider";
+  const providerName = provider?.business_name || provider?.users?.full_name || "Instructor";
 
   // Find lowest fee from active batches
   const activeBatches = cls.batches?.filter((b) => b.status === "active" || b.status === "full") ?? [];

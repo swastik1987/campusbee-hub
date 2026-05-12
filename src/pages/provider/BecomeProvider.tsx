@@ -140,7 +140,7 @@ const BecomeProvider = () => {
         <button onClick={() => (step > 0 ? setStep(step - 1) : navigate(-1))} className="p-1">
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-lg font-bold">Become a Provider</h1>
+        <h1 className="text-lg font-bold">Become an Instructor</h1>
       </header>
 
       {/* Progress */}
@@ -162,7 +162,7 @@ const BecomeProvider = () => {
           <div className="space-y-6 animate-fade-up">
             <div>
               <h2 className="text-xl font-bold">How will you teach?</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Select your provider type</p>
+              <p className="mt-1 text-sm text-muted-foreground">Select your instructor type</p>
             </div>
             <div className="space-y-3">
               <Card

@@ -491,12 +491,12 @@ const LoggedInLanding = () => {
             <div style={{ display: "flex", gap: 6, marginTop: 14, flexWrap: "wrap" }}>
               {hasFamily && (
                 <div style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.28)", borderRadius: 999, padding: "4px 10px", fontSize: 10, fontWeight: 700 }}>
-                  <Home size={10} /> Seeker
+                  <Home size={10} /> Learner
                 </div>
               )}
               {isProvider && (
                 <div style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.28)", borderRadius: 999, padding: "4px 10px", fontSize: 10, fontWeight: 700 }}>
-                  <GraduationCap size={10} /> Provider
+                  <GraduationCap size={10} /> Instructor
                 </div>
               )}
               {isAdmin && (

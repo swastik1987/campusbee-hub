@@ -473,7 +473,7 @@ const Profile = () => {
                 <GraduationCap size={17} className="text-provider" />
               </div>
               <span className="flex-1 text-sm font-medium">
-                Become a Provider
+                Become an Instructor
               </span>
               <ChevronRight size={16} className="text-muted-foreground" />
             </button>
@@ -623,14 +623,14 @@ const Profile = () => {
                 />
               </div>
 
-              {/* ── Provider Details ───────────────────────────────────── */}
+              {/* ── Instructor Details ───────────────────────────────────── */}
               {profile?.is_provider && providerProfile && (
                 <>
                   <Separator />
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Provider Details
+                        Instructor Details
                       </p>
                       {loadingExtra && (
                         <Loader2
@@ -642,7 +642,7 @@ const Profile = () => {
 
                     {/* Provider Type */}
                     <div className="space-y-1.5">
-                      <Label className="text-sm">Provider Type</Label>
+                      <Label className="text-sm">Instructor Type</Label>
                       <div className="grid grid-cols-2 gap-2">
                         {(["individual", "academy"] as const).map((t) => (
                           <button

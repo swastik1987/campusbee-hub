@@ -244,7 +244,7 @@ const PlatformSubscriptions = () => {
                 className="h-11"
               />
               <p className="text-xs text-muted-foreground">
-                Provider's subscription will auto-expire after this date.
+                Instructor's subscription will auto-expire after this date.
               </p>
             </div>
             <Button

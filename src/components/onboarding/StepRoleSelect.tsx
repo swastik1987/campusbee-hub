@@ -40,7 +40,7 @@ const StepRoleSelect = ({ onSelect }: StepRoleSelectProps) => {
             <GraduationCap size={24} className="text-indigo-600" />
           </div>
           <div className="flex-1">
-            <p className="font-semibold text-foreground">I'm a service provider</p>
+            <p className="font-semibold text-foreground">I'm an instructor</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Offer classes and services in apartment communities
             </p>

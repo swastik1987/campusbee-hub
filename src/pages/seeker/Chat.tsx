@@ -75,13 +75,13 @@ const Chat = () => {
     if (user?.is_provider) {
       return (
         <Badge className="text-[9px] border-0 bg-indigo-100 text-indigo-700 gap-0.5 px-1.5 py-0">
-          <GraduationCap size={9} /> Provider
+          <GraduationCap size={9} /> Instructor
         </Badge>
       );
     }
     return (
       <Badge className="text-[9px] border-0 bg-primary/10 text-primary gap-0.5 px-1.5 py-0">
-        <Users size={9} /> Seeker
+        <Users size={9} /> Learner
       </Badge>
     );
   };

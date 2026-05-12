@@ -22,7 +22,7 @@ const PERSONA_CONFIG: Record<
   }
 > = {
   seeker: {
-    label: "Seeker",
+    label: "Learner",
     description: "Discover & enroll in classes",
     icon: Home,
     color: "text-primary",
@@ -30,7 +30,7 @@ const PERSONA_CONFIG: Record<
     homePath: "/explore",
   },
   provider: {
-    label: "Provider",
+    label: "Instructor",
     description: "Manage classes & students",
     icon: GraduationCap,
     color: "text-provider",
@@ -143,7 +143,7 @@ const PersonaSwitcher = () => {
                   Start Teaching
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Become a provider on CampusBee
+                  Become an instructor on CampusBee
                 </p>
               </div>
               <ArrowRight size={16} className="text-provider" />
