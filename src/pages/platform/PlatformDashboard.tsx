@@ -109,7 +109,7 @@ const PlatformDashboard = () => {
             badgeColor="bg-indigo-500"
           />
           <QuickLinkCard
-            title="Providers Directory"
+            title="Instructors Directory"
             description="Verify badges, suspend / reinstate, manage tiers"
             icon={<UserCheck size={20} className="text-blue-600" />}
             iconBg="bg-blue-50"

@@ -125,7 +125,7 @@ const BecomeProvider = () => {
         upiId,
         upiQrImageUrl: upiQrUrl,
       });
-      toast.success("You're now a provider on CampusBee! Start creating your first class.");
+      toast.success("You're now an instructor on CampusBee! Start creating your first class.");
       await refreshProfile();
       navigate("/provider/classes", { replace: true });
     } catch {
