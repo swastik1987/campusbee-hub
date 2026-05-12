@@ -21,6 +21,7 @@ import { useTrainers } from "@/hooks/useProvider";
 import ClassLocationPicker from "@/components/location/ClassLocationPicker";
 import type { LocationValue } from "@/hooks/useLocation";
 import ClockTimePicker from "@/components/provider/ClockTimePicker";
+import GradeMultiSelect from "@/components/provider/GradeMultiSelect";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
