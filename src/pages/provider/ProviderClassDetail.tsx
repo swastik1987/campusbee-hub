@@ -598,6 +598,11 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
                       onClick={() => openEditBatch(batch)}>
                       <Pencil size={12} className="mr-1" /> Edit
                     </Button>
+                    <Button size="sm" variant="outline" className="text-xs h-7"
+                      disabled={createBatch.isPending}
+                      onClick={() => handleDuplicateBatch(batch)}>
+                      <Copy size={12} className="mr-1" /> Duplicate
+                    </Button>
                     {batch.status === "active" && (
                       <Button size="sm" variant="outline" className="text-xs h-7"
                         onClick={() => updateBatchStatus.mutateAsync({ batchId: batch.id, status: "paused" })}>
