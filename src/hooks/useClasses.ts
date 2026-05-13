@@ -66,7 +66,7 @@ export function useClassDetail(classId: string | undefined) {
           venue_details, what_to_bring, trial_available, trial_fee, status,
           address, is_home_based, home_radius_km, location_lat, location_lng,
           moderation_status, moderation_notes, total_rating, rating_count, provider_id, category_id,
-          created_at, updated_at,
+          pending_category_request_id, created_at, updated_at,
           class_categories(id, name, slug, icon),
           service_providers(id, user_id, business_name, provider_type, bio, experience_years, whatsapp_number, upi_id, upi_qr_image_url, is_verified,
             users(full_name, avatar_url)

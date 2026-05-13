@@ -211,6 +211,10 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
   if (!cls) return null;
 
   const handleToggleStatus = async () => {
+    if (cls.status !== "published" && (cls as any).pending_category_request_id) {
+      toast.error("Awaiting category approval. You can publish once the platform admin approves your category request.");
+      return;
+    }
     const newStatus = cls.status === "published" ? "paused" : "published";
     try {
       await updateStatus.mutateAsync({ classId: cls.id, status: newStatus });
@@ -510,8 +514,16 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
             size="sm"
             variant="outline"
             onClick={handleToggleStatus}
-            disabled={updateStatus.isPending}
+            disabled={
+              updateStatus.isPending ||
+              (cls.status !== "published" && !!(cls as any).pending_category_request_id)
+            }
             className="flex-1"
+            title={
+              cls.status !== "published" && (cls as any).pending_category_request_id
+                ? "Awaiting category approval from platform admin"
+                : undefined
+            }
           >
             {cls.status === "published" ? (
               <><Pause size={14} className="mr-1" /> Pause</>
