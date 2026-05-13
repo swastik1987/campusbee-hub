@@ -11,6 +11,7 @@ import {
   useUpdateBatchStatus,
   useUpdateBatch,
   DUPLICATE_BATCH_NAME_ERROR,
+  useCreateBatch,
   useCreateAddon,
   useDeleteAddon,
 } from "@/hooks/useClasses";
@@ -77,6 +78,7 @@ import {
   Twitter,
   Users,
   Youtube,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -112,6 +114,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
   const updateClass = useUpdateClass();
   const updateBatchStatus = useUpdateBatchStatus();
   const updateBatch = useUpdateBatch();
+  const createBatch = useCreateBatch();
   const createAddon = useCreateAddon();
   const deleteAddon = useDeleteAddon();
   const isAcademy = providerProfile?.provider_type === "academy";
