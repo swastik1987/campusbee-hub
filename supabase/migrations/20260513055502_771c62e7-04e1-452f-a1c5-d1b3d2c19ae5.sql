@@ -1,0 +1,2 @@
+ALTER TABLE public.moderation_flags DROP CONSTRAINT moderation_flags_ref_type_check;
+ALTER TABLE public.moderation_flags ADD CONSTRAINT moderation_flags_ref_type_check CHECK (ref_type = ANY (ARRAY['class_image','class_text','provider_avatar','provider_bio','banner','class_title','class_description','certification']));
