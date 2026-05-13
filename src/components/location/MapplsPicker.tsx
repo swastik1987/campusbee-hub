@@ -518,25 +518,6 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
           )}
         </div>
 
-        {/* ── Use My Location — standalone button above the map ───── */}
-        {showMap && !sdkLoading && !sdkError && (
-          <button
-            type="button"
-            onClick={handleUseMyLocation}
-            disabled={gpsLoading}
-            className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-border bg-background hover:bg-muted transition-colors active:scale-95 disabled:opacity-60 text-sm"
-          >
-            {gpsLoading ? (
-              <Loader2 size={15} className="animate-spin text-primary" />
-            ) : (
-              <Navigation2 size={15} className={gpsDenied ? "text-muted-foreground" : "text-primary"} />
-            )}
-            <span className={`font-medium ${gpsDenied ? "text-muted-foreground" : "text-primary"}`}>
-              {gpsLoading ? "Getting your location…" : "Use my current location"}
-            </span>
-          </button>
-        )}
-
         {/* ── Map with CSS overlay pin ─────────────────────────────── */}
         {showMap && (
           <div className="relative w-full rounded-xl overflow-hidden border border-border bg-muted" style={{ height: 256 }}>
@@ -618,6 +599,25 @@ const MapplsPicker = React.forwardRef<HTMLDivElement, MapplsPickerProps>(
               </div>
             )}
           </div>
+        )}
+
+        {/* ── Use My Location — between map and selected location ───── */}
+        {showMap && !sdkLoading && !sdkError && (
+          <button
+            type="button"
+            onClick={handleUseMyLocation}
+            disabled={gpsLoading}
+            className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-border bg-background hover:bg-muted transition-colors active:scale-95 disabled:opacity-60 text-sm"
+          >
+            {gpsLoading ? (
+              <Loader2 size={15} className="animate-spin text-primary" />
+            ) : (
+              <Navigation2 size={15} className={gpsDenied ? "text-muted-foreground" : "text-primary"} />
+            )}
+            <span className={`font-medium ${gpsDenied ? "text-muted-foreground" : "text-primary"}`}>
+              {gpsLoading ? "Getting your location…" : "Use my current location"}
+            </span>
+          </button>
         )}
 
         {/* ── Selected location display ────────────────────────────── */}

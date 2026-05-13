@@ -11,6 +11,7 @@ import {
   useUpdateBatchStatus,
   useUpdateBatch,
   DUPLICATE_BATCH_NAME_ERROR,
+  useCreateBatch,
   useCreateAddon,
   useDeleteAddon,
 } from "@/hooks/useClasses";
@@ -77,6 +78,7 @@ import {
   Twitter,
   Users,
   Youtube,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -112,6 +114,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
   const updateClass = useUpdateClass();
   const updateBatchStatus = useUpdateBatchStatus();
   const updateBatch = useUpdateBatch();
+  const createBatch = useCreateBatch();
   const createAddon = useCreateAddon();
   const deleteAddon = useDeleteAddon();
   const isAcademy = providerProfile?.provider_type === "academy";
@@ -354,6 +357,63 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
     }
   };
 
+  const handleDuplicateBatch = async (batch: any) => {
+    if (!classId) return;
+    try {
+      // Find a unique name: "<name> (Copy)", "<name> (Copy 2)", ...
+      const baseName = batch.batch_name || "Batch";
+      const existingNames = new Set(
+        (batches ?? []).map((b: any) => (b.batch_name ?? "").toLowerCase().trim())
+      );
+      let candidate = `${baseName} (Copy)`;
+      let i = 2;
+      while (existingNames.has(candidate.toLowerCase().trim())) {
+        candidate = `${baseName} (Copy ${i++})`;
+      }
+
+      const { data: scheds } = await supabase
+        .from("batch_schedules")
+        .select("day_of_week, start_time, end_time")
+        .eq("batch_id", batch.id);
+
+      const created = await createBatch.mutateAsync({
+        classId,
+        trainerId: batch.trainer_id || null,
+        batchName: candidate,
+        batchType: batch.batch_type || "level",
+        skillLevel: batch.skill_level || null,
+        ageGroupMin: batch.age_group_min ?? null,
+        ageGroupMax: batch.age_group_max ?? null,
+        maxBatchSize: batch.max_batch_size || 10,
+        feeAmount: Number(batch.fee_amount) || 0,
+        feeFrequency: batch.fee_frequency || "monthly",
+        registrationFee: Number(batch.registration_fee) || 0,
+        startDate: batch.start_date || null,
+        endDate: batch.end_date || null,
+        totalSessions: batch.total_sessions ?? null,
+        registrationMode: batch.registration_mode || "auto",
+        autoWaitlist: batch.auto_waitlist ?? true,
+        notes: batch.notes || "",
+        status: "draft",
+        grades: Array.isArray(batch.grades) ? batch.grades : [],
+        schedules: (scheds ?? []).map((s: any) => ({
+          dayOfWeek: s.day_of_week,
+          startTime: (s.start_time ?? "06:00").slice(0, 5),
+          endTime: (s.end_time ?? "07:00").slice(0, 5),
+        })),
+      });
+      toast.success("Draft copy created — edit and activate when ready");
+      // Open the edit dialog for the new draft
+      await openEditBatch({ ...batch, id: created.id, batch_name: candidate, status: "draft" });
+    } catch (error) {
+      if (error instanceof Error && error.name === DUPLICATE_BATCH_NAME_ERROR) {
+        toast.error("Couldn't generate a unique copy name. Try renaming the original first.");
+        return;
+      }
+      toast.error("Failed to duplicate batch");
+    }
+  };
+
   const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -537,6 +597,11 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
                     <Button size="sm" variant="outline" className="text-xs h-7"
                       onClick={() => openEditBatch(batch)}>
                       <Pencil size={12} className="mr-1" /> Edit
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-xs h-7"
+                      disabled={createBatch.isPending}
+                      onClick={() => handleDuplicateBatch(batch)}>
+                      <Copy size={12} className="mr-1" /> Duplicate
                     </Button>
                     {batch.status === "active" && (
                       <Button size="sm" variant="outline" className="text-xs h-7"
