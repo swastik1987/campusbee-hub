@@ -284,6 +284,7 @@ export type Database = {
           admin_notes: string | null
           created_category_id: string | null
           description: string | null
+          dismissed_at: string | null
           id: string
           parent_category_id: string | null
           provider_id: string
@@ -304,6 +305,7 @@ export type Database = {
           admin_notes?: string | null
           created_category_id?: string | null
           description?: string | null
+          dismissed_at?: string | null
           id?: string
           parent_category_id?: string | null
           provider_id: string
@@ -324,6 +326,7 @@ export type Database = {
           admin_notes?: string | null
           created_category_id?: string | null
           description?: string | null
+          dismissed_at?: string | null
           id?: string
           parent_category_id?: string | null
           provider_id?: string
@@ -1327,7 +1330,7 @@ export type Database = {
           doc_type: string
           document_version_id: string
           id: string
-          ip_address: string | null
+          ip_address: unknown
           user_agent: string | null
           user_id: string
         }
@@ -1337,7 +1340,7 @@ export type Database = {
           doc_type: string
           document_version_id: string
           id?: string
-          ip_address?: string | null
+          ip_address?: unknown
           user_agent?: string | null
           user_id: string
         }
@@ -1347,7 +1350,7 @@ export type Database = {
           doc_type?: string
           document_version_id?: string
           id?: string
-          ip_address?: string | null
+          ip_address?: unknown
           user_agent?: string | null
           user_id?: string
         }
@@ -1973,15 +1976,12 @@ export type Database = {
       sponsored_listings: {
         Row: {
           category_id: string | null
-          center_address: string | null
-          center_location: unknown
           class_id: string
           click_count: number
           id: string
           impression_count: number
           off_app_payment_ref: string | null
           provider_id: string
-          radius_km: number
           rejection_reason: string | null
           requested_at: string
           reviewed_at: string | null
@@ -1993,15 +1993,12 @@ export type Database = {
         }
         Insert: {
           category_id?: string | null
-          center_address?: string | null
-          center_location?: unknown
           class_id: string
           click_count?: number
           id?: string
           impression_count?: number
           off_app_payment_ref?: string | null
           provider_id: string
-          radius_km?: number
           rejection_reason?: string | null
           requested_at?: string
           reviewed_at?: string | null
@@ -2013,15 +2010,12 @@ export type Database = {
         }
         Update: {
           category_id?: string | null
-          center_address?: string | null
-          center_location?: unknown
           class_id?: string
           click_count?: number
           id?: string
           impression_count?: number
           off_app_payment_ref?: string | null
           provider_id?: string
-          radius_km?: number
           rejection_reason?: string | null
           requested_at?: string
           reviewed_at?: string | null
@@ -2704,6 +2698,17 @@ export type Database = {
         Returns: boolean
       }
       geomfromewkt: { Args: { "": string }; Returns: unknown }
+      get_active_legal_document: {
+        Args: { p_doc_type: string }
+        Returns: {
+          doc_type: string
+          html_content: string
+          id: string
+          title: string
+          uploaded_at: string
+          version: number
+        }[]
+      }
       get_pending_moderation_count: { Args: never; Returns: number }
       get_provider_student_names: {
         Args: { p_batch_ids: string[] }
@@ -2743,6 +2748,10 @@ export type Database = {
       is_premium: { Args: { p_provider_id: string }; Returns: boolean }
       is_provider_owner: { Args: { p_provider_id: string }; Returns: boolean }
       longtransactionsenabled: { Args: never; Returns: boolean }
+      mark_conversation_read: {
+        Args: { p_conversation_id: string }
+        Returns: number
+      }
       nearby_classes: {
         Args: {
           p_category_id?: string
@@ -2753,28 +2762,8 @@ export type Database = {
           p_radius_km?: number
         }
         Returns: {
-          address: string
-          age_max: number
-          age_min: number
-          category_id: string
-          description: string
           distance_km: number
-          effective_lat: number
-          effective_lng: number
           id: string
-          images: string[]
-          is_home_based: boolean
-          provider_id: string
-          provider_name: string
-          provider_tier: string
-          rating_count: number
-          skill_level: string
-          status: string
-          tags: string[]
-          title: string
-          total_rating: number
-          trial_available: boolean
-          trial_fee: number
         }[]
       }
       nearby_sponsored: {
@@ -2838,6 +2827,24 @@ export type Database = {
         Args: { p_enrollment_id: string }
         Returns: boolean
       }
+      publish_legal_document: {
+        Args: {
+          p_doc_type: string
+          p_file_path?: string
+          p_html: string
+          p_title: string
+        }
+        Returns: string
+      }
+      record_legal_acceptance: {
+        Args: {
+          p_doc_type: string
+          p_fingerprint?: string
+          p_ip?: string
+          p_user_agent?: string
+        }
+        Returns: string
+      }
       refresh_sponsored_lifecycle: {
         Args: never
         Returns: {
@@ -2871,6 +2878,10 @@ export type Database = {
         Args: { p_flag_id: string; p_notes?: string; p_status: string }
         Returns: undefined
       }
+      resolve_support_request: {
+        Args: { p_comment?: string; p_request_id: string }
+        Returns: undefined
+      }
       respond_to_category_retag: {
         Args: { p_accepted: boolean; p_request_id: string }
         Returns: undefined
@@ -2900,10 +2911,8 @@ export type Database = {
         Returns: {
           category_id: string
           class_id: string
-          distance_km: number
           id: string
           provider_id: string
-          radius_km: number
           slot_position: number
           valid_until: string
         }[]
@@ -3513,39 +3522,6 @@ export type Database = {
           table_name: string
         }
         Returns: string
-      }
-      get_active_legal_document: {
-        Args: { p_doc_type: string }
-        Returns: {
-          id: string
-          doc_type: string
-          version: number
-          title: string
-          html_content: string
-          uploaded_at: string
-        }[]
-      }
-      publish_legal_document: {
-        Args: {
-          p_doc_type: string
-          p_title: string
-          p_html: string
-          p_file_path?: string | null
-        }
-        Returns: string
-      }
-      record_legal_acceptance: {
-        Args: {
-          p_doc_type: string
-          p_ip?: string | null
-          p_user_agent?: string | null
-          p_fingerprint?: string | null
-        }
-        Returns: string
-      }
-      resolve_support_request: {
-        Args: { p_request_id: string; p_comment?: string | null }
-        Returns: undefined
       }
     }
     Enums: {
