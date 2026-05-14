@@ -22,6 +22,8 @@ import {
   usePlatformBannerRequests,
   useApproveFeaturedBanner,
   useRejectFeaturedBanner,
+  useRefreshSponsoredSlots,
+  type RefreshSponsoredResult,
 } from "@/hooks/usePlatformAdmin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,7 +38,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Loader2, MapPin, Megaphone, Sparkles, Target, TrendingUp, XCircle } from "lucide-react";
+import { Loader2, MapPin, Megaphone, RefreshCw, Sparkles, Target, TrendingUp, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 // ── Tab / filter model ───────────────────────────────────────────────────────
@@ -118,6 +120,22 @@ const PlatformSponsored = () => {
   const { data: bannerData, isLoading: lBanner, refetch: refetchBanner } =
     usePlatformBannerRequests(dbStatuses);
 
+  const refresh = useRefreshSponsoredSlots();
+
+  /** Called after a successful admin action.  Triggers the lifecycle cron so
+   *  approved rows flip to active immediately, then refetches both queues. */
+  const refreshAndRefetch = async (opts?: { silent?: boolean }) => {
+    try {
+      const result = await refresh.mutateAsync();
+      if (!opts?.silent) toast.success(formatRefreshSummary(result));
+    } catch (e) {
+      if (!opts?.silent) toast.error(`Refresh failed: ${(e as Error).message}`);
+      else console.warn("refresh-sponsored-slots invoke failed:", e);
+    }
+    refetchSponsored();
+    refetchBanner();
+  };
+
   const isLoading = lSponsored || lBanner;
 
   const feed = useMemo<FeedItem[]>(() => {
@@ -180,11 +198,28 @@ const PlatformSponsored = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold">Sponsored & Featured</h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Approve top-of-Explore slots and home / explore banners.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold">Sponsored & Featured</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Approve top-of-Explore slots and banners.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => refreshAndRefetch()}
+          disabled={refresh.isPending}
+          className="gap-1.5"
+          title="Run the lifecycle cron now — flips approved rows to active and expires past-window rows. Also runs every 15 min automatically."
+        >
+          {refresh.isPending ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <RefreshCw size={14} />
+          )}
+          Refresh
+        </Button>
       </div>
 
       {/* Status tabs */}
@@ -254,10 +289,7 @@ const PlatformSponsored = () => {
                 item={item}
                 showActions={tab === "pending"}
                 profileId={profile?.id}
-                onAfterAction={() => {
-                  refetchSponsored();
-                  refetchBanner();
-                }}
+                onAfterAction={() => refreshAndRefetch({ silent: true })}
               />
             ) : (
               <BannerCard
@@ -265,10 +297,7 @@ const PlatformSponsored = () => {
                 item={item}
                 showActions={tab === "pending"}
                 profileId={profile?.id}
-                onAfterAction={() => {
-                  refetchSponsored();
-                  refetchBanner();
-                }}
+                onAfterAction={() => refreshAndRefetch({ silent: true })}
               />
             )
           )}
@@ -725,6 +754,15 @@ const EmptyRow = ({ label }: { label: string }) => (
     <p className="text-sm text-muted-foreground">{label}</p>
   </div>
 );
+
+function formatRefreshSummary(r: RefreshSponsoredResult): string {
+  const parts: string[] = [];
+  if (r.sponsored_activated) parts.push(`${r.sponsored_activated} sponsored activated`);
+  if (r.banners_activated)   parts.push(`${r.banners_activated} banner${r.banners_activated === 1 ? "" : "s"} activated`);
+  if (r.sponsored_expired)   parts.push(`${r.sponsored_expired} sponsored expired`);
+  if (r.banners_expired)     parts.push(`${r.banners_expired} banner${r.banners_expired === 1 ? "" : "s"} expired`);
+  return parts.length ? `Refreshed: ${parts.join(" · ")}` : "Refreshed — no state changes";
+}
 
 // Raw row shapes from the hooks (relations come as nested objects).
 

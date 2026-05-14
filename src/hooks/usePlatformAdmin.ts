@@ -387,6 +387,41 @@ export function useRejectFeaturedBanner() {
   });
 }
 
+// ---- Refresh sponsored / banner lifecycle (invokes the cron edge function) ----
+
+export type RefreshSponsoredResult = {
+  ok: boolean;
+  sponsored_activated: number;
+  sponsored_expired: number;
+  banners_activated: number;
+  banners_expired: number;
+  ran_at: string;
+};
+
+/** Manually fires the `refresh-sponsored-slots` edge function so approved
+ *  rows flip to `active` immediately and expired rows are retired.
+ *  The 15-min Supabase cron continues to run independently.
+ *
+ *  On success, invalidates the platform-sponsored and platform-banners
+ *  query keys so the admin queue reflects the new state.
+ */
+export function useRefreshSponsoredSlots() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<RefreshSponsoredResult> => {
+      const { data, error } = await supabase.functions.invoke("refresh-sponsored-slots");
+      if (error) throw error;
+      return data as RefreshSponsoredResult;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform-sponsored"] });
+      qc.invalidateQueries({ queryKey: ["platform-banners"] });
+      qc.invalidateQueries({ queryKey: ["sponsored-for-location"] });
+      qc.invalidateQueries({ queryKey: ["featured-banners"] });
+    },
+  });
+}
+
 // ---- Platform Settings (key-value JSON editor) ----
 
 export function usePlatformSettings() {
