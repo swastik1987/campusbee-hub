@@ -32,24 +32,36 @@ export function usePlatformSettings() {
 // ---- Active Sponsored Class IDs (Seeker Explore) ----
 
 /**
- * Returns a Set of class IDs that currently have an active sponsored listing.
- * Used by the Explore page to mark classes with the "Sponsored" trust tag
- * and sort them to the top of results.
+ * Returns a Set of class IDs that currently have an active sponsored listing
+ * **for the given seeker location** (Phase 8: region + per-category slot count).
+ *
+ * Callers can pass `null`/`undefined` for lat/lng when the seeker hasn't set
+ * a home location — the hook returns an empty Set in that case.  Used by the
+ * Explore page to mark sponsored cards and sort them to the top of results.
  */
-export function useActiveSponsoredClassIds() {
+export function useActiveSponsoredClassIds(args?: {
+  lat?: number | null;
+  lng?: number | null;
+  categoryId?: string | null;
+}) {
+  const lat = args?.lat ?? null;
+  const lng = args?.lng ?? null;
+  const categoryId = args?.categoryId ?? null;
   return useQuery({
-    queryKey: ["active-sponsored-class-ids"],
-    queryFn: async () => {
-      const today = new Date().toISOString();
-      const { data } = await supabase
-        .from("sponsored_listings")
-        .select("class_id")
-        .eq("status", "active")
-        .lte("valid_from", today)
-        .gte("valid_until", today);
-      return new Set<string>((data ?? []).map((d: any) => d.class_id as string));
-    },
+    queryKey: ["active-sponsored-class-ids", lat, lng, categoryId],
+    enabled: typeof lat === "number" && typeof lng === "number",
     staleTime: 2 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("sponsored_for_location" as never, {
+        p_lat: lat as number,
+        p_lng: lng as number,
+        p_category_id: categoryId ?? null,
+      } as never);
+      if (error) throw error;
+      return new Set<string>(
+        ((data ?? []) as unknown as { class_id: string }[]).map((d) => d.class_id)
+      );
+    },
   });
 }
 

@@ -275,17 +275,20 @@ export function useApproveSponsored() {
     mutationFn: async (input: {
       listingId: string;
       reviewedBy: string;
-      slotPosition: number;
       validFrom: string;
       validUntil: string;
+      offAppPaymentRef?: string;
     }) => {
+      // Phase 8: slot_position is computed at query time by sponsored_for_location.
+      // We mark the request 'approved'; the refresh_sponsored_lifecycle cron
+      // flips approved → active when valid_from <= now() <= valid_until.
       const { error } = await supabase
         .from("sponsored_listings")
         .update({
           status: "approved",
-          slot_position: input.slotPosition,
           valid_from: input.validFrom,
           valid_until: input.validUntil,
+          off_app_payment_ref: input.offAppPaymentRef ?? null,
           reviewed_by: input.reviewedBy,
           reviewed_at: new Date().toISOString(),
         })
@@ -293,6 +296,121 @@ export function useApproveSponsored() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-sponsored"] }),
+  });
+}
+
+// ---- Featured Banners Management ----
+
+export function usePlatformBannerRequests(status?: string) {
+  return useQuery({
+    queryKey: ["platform-banners", status],
+    queryFn: async () => {
+      let query = supabase
+        .from("featured_banners")
+        .select(`
+          id, provider_id, class_id, surface, image_url, target_url,
+          status, moderation_status, center_address, radius_km,
+          valid_from, valid_until, impression_count, click_count,
+          off_app_payment_ref, rejection_reason, requested_at,
+          reviewed_by, reviewed_at,
+          service_providers(business_name, users(full_name)),
+          classes(title, cover_image_url)
+        `)
+        .order("requested_at", { ascending: false });
+
+      if (status && status !== "all") {
+        query = query.eq("status", status);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useApproveFeaturedBanner() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      bannerId: string;
+      reviewedBy: string;
+      validFrom: string;
+      validUntil: string;
+      offAppPaymentRef?: string;
+    }) => {
+      const { error } = await supabase
+        .from("featured_banners")
+        .update({
+          status: "approved",
+          moderation_status: "approved",
+          valid_from: input.validFrom,
+          valid_until: input.validUntil,
+          off_app_payment_ref: input.offAppPaymentRef ?? null,
+          reviewed_by: input.reviewedBy,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", input.bannerId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-banners"] }),
+  });
+}
+
+export function useRejectFeaturedBanner() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      bannerId: string;
+      reviewedBy: string;
+      rejectionReason?: string;
+    }) => {
+      const { error } = await supabase
+        .from("featured_banners")
+        .update({
+          status: "rejected",
+          rejection_reason: input.rejectionReason || null,
+          reviewed_by: input.reviewedBy,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", input.bannerId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-banners"] }),
+  });
+}
+
+// ---- Platform Settings (key-value JSON editor) ----
+
+export function usePlatformSettings() {
+  return useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_settings")
+        .select("key, value, description, updated_at")
+        .order("key");
+      if (error) throw error;
+      return data as { key: string; value: unknown; description: string | null; updated_at: string }[];
+    },
+  });
+}
+
+export function useUpdatePlatformSetting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { key: string; value: unknown; updatedBy: string }) => {
+      const { error } = await supabase
+        .from("platform_settings")
+        .update({
+          value: input.value as never,
+          updated_by: input.updatedBy,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("key", input.key);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-settings"] }),
   });
 }
 

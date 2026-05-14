@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  usePlatformSettings,
+  useUpdatePlatformSetting,
+} from "@/hooks/usePlatformAdmin";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Save, Settings, Trash2, Upload, Video } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2, Save, Settings, Sliders, Trash2, Upload, Video } from "lucide-react";
 import { toast } from "sonner";
 
 const DEMO_KEY = "instructor_demo_video_url";
@@ -218,8 +223,124 @@ const PlatformSettings = () => {
           </Button>
         )}
       </Card>
+
+      <KeyValueEditor />
     </div>
   );
 };
 
 export default PlatformSettings;
+
+// ────────────────────────────────────────────────────────────────────────────
+// Generic key-value JSON editor for non-special platform_settings rows.
+// Hides the demo-video key (handled above).  Each row gets a textarea where
+// the admin can edit the JSON value; Save validates JSON before writing.
+// ────────────────────────────────────────────────────────────────────────────
+
+const HIDDEN_KEYS = new Set([DEMO_KEY]);
+
+const KeyValueEditor = () => {
+  const { profile } = useUser();
+  const { data, isLoading } = usePlatformSettings();
+  const update = useUpdatePlatformSetting();
+
+  return (
+    <Card className="space-y-4 p-5">
+      <div>
+        <h3 className="flex items-center gap-2 text-base font-semibold">
+          <Sliders size={16} className="text-indigo-600" />
+          Platform configuration
+        </h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          JSONB key-value store.  Edit any value below — values are stored as
+          JSON, so strings must be quoted (e.g. <code>"value"</code>), numbers
+          unquoted (<code>5</code>), objects in <code>{`{}`}</code>, arrays in <code>[]</code>.
+        </p>
+      </div>
+
+      {isLoading ? (
+        <Loader2 className="animate-spin text-muted-foreground" size={20} />
+      ) : (
+        <ul className="space-y-4">
+          {data
+            ?.filter((row) => !HIDDEN_KEYS.has(row.key))
+            .map((row) => (
+              <SettingRow
+                key={row.key}
+                settingKey={row.key}
+                description={row.description}
+                value={row.value}
+                onSave={(value) =>
+                  update.mutateAsync({
+                    key: row.key,
+                    value,
+                    updatedBy: profile?.id ?? "",
+                  })
+                }
+                saving={update.isPending}
+              />
+            ))}
+        </ul>
+      )}
+    </Card>
+  );
+};
+
+const SettingRow = ({
+  settingKey,
+  description,
+  value,
+  onSave,
+  saving,
+}: {
+  settingKey: string;
+  description: string | null;
+  value: unknown;
+  onSave: (next: unknown) => Promise<void>;
+  saving: boolean;
+}) => {
+  const initial = JSON.stringify(value, null, 2);
+  const [draft, setDraft] = useState(initial);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Reset draft when the upstream value changes after a save.
+  useEffect(() => {
+    setDraft(initial);
+    setErr(null);
+  }, [initial]);
+
+  const dirty = draft !== initial;
+
+  const save = async () => {
+    try {
+      const parsed = JSON.parse(draft);
+      setErr(null);
+      await onSave(parsed);
+      toast.success(`Updated ${settingKey}`);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
+  return (
+    <li className="space-y-2 rounded-lg border p-3">
+      <div>
+        <p className="font-mono text-xs font-semibold">{settingKey}</p>
+        {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+      </div>
+      <Textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        rows={Math.min(8, draft.split("\n").length + 1)}
+        className="font-mono text-xs"
+      />
+      {err && <p className="text-xs text-red-600">Invalid JSON: {err}</p>}
+      <div className="flex justify-end">
+        <Button size="sm" disabled={!dirty || saving} onClick={save} className="gap-1.5">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          Save
+        </Button>
+      </div>
+    </li>
+  );
+};

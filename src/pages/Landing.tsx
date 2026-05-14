@@ -4,6 +4,7 @@ import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useUpdateSeekerLocation, type LocationValue } from "@/hooks/useLocation";
 import MapplsPicker from "@/components/location/MapplsPicker";
+import SeekerBanners from "@/components/shared/SeekerBanners";
 import {
   ArrowRight,
   Bell,
@@ -507,6 +508,9 @@ const LoggedInLanding = () => {
             </div>
           )}
         </div>
+
+        {/* ── Featured home banner (Phase 8) ─────────────────────────── */}
+        <SeekerBanners surface="home_banner" className="mb-4" />
 
         {/* ── Role cards — always visible ───────────────────────────── */}
         <div className="space-y-4">

@@ -192,7 +192,25 @@ const ProviderDashboard = () => {
             </div>
             <ArrowRight size={14} className="text-amber-500 shrink-0" />
           </Card>
-        ) : (
+        ) : null}
+        {isPremium && (
+          <Card
+            className="flex cursor-pointer items-center gap-3 border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50 p-3"
+            onClick={() => navigate("/provider/sponsored")}
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100">
+              <Crown size={16} className="text-indigo-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-indigo-900">Sponsored & Featured</p>
+              <p className="text-[10px] text-indigo-700">
+                Promote your classes with sponsored slots and banners
+              </p>
+            </div>
+            <ArrowRight size={14} className="shrink-0 text-indigo-500" />
+          </Card>
+        )}
+        {!isPremium && (
           <Card
             className="flex items-center gap-3 p-3 border-dashed border-amber-200 cursor-pointer hover:bg-amber-50/50 transition-colors"
             onClick={() => setShowUpgrade(true)}

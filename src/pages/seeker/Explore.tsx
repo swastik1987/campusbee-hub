@@ -10,6 +10,7 @@ import { useUpdateSeekerLocation, haversineKm, formatDistance, type LocationValu
 import MapplsPicker from "@/components/location/MapplsPicker";
 import Header from "@/components/layout/Header";
 import ClassCard from "@/components/shared/ClassCard";
+import SeekerBanners from "@/components/shared/SeekerBanners";
 import BottomNav from "@/components/BottomNav";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -223,7 +224,11 @@ const Explore = () => {
 
   // Trust-marker thresholds from platform_settings
   const { data: platformSettings }  = usePlatformSettings();
-  const { data: sponsoredClassIds } = useActiveSponsoredClassIds();
+  const { data: sponsoredClassIds } = useActiveSponsoredClassIds({
+    lat: seekerLat,
+    lng: seekerLng,
+    categoryId: activeCat?.id ?? null,
+  });
 
   const newThresholdDays      = parseInt(platformSettings?.new_class_days_threshold  ?? "7");
   const popularEnrollmentMin  = parseInt(platformSettings?.popular_enrollment_min    ?? "10");
@@ -338,6 +343,11 @@ const Explore = () => {
               </div>
               <ChevronRight size={16} className="text-primary shrink-0" />
             </button>
+          )}
+
+          {/* Featured banners (promotional images, Phase 8) */}
+          {!isSearching && (
+            <SeekerBanners surface="explore_banner" lat={seekerLat} lng={seekerLng} />
           )}
 
           {/* Featured / sponsored carousel */}

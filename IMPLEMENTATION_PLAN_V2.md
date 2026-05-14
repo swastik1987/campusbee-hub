@@ -3,6 +3,8 @@
 > Companion to `CLAUDE.md` (v2). Sequenced phases for migrating CampusBee from apartment-scoped marketplace to location-based, subscription-tiered, AI-moderated marketplace.
 > Each phase ends in a deployable, demo-able state. Phases that can run in parallel are marked.
 
+> **Status snapshot — May 14, 2026:** Phases 0–7 substantively complete. Phase 8 (sponsored listings & featured banners) ~30% complete (admin surface + read hook in place; provider-facing pages + cron edge function still missing). Phase 9 (stabilization) ongoing as hotfixes land. Phase 10 (cutover) blocked on Phase 8 + open backlog items below. See **Current Backlog** section at the end of this file.
+
 ---
 
 ## Guiding principles
@@ -34,7 +36,7 @@
 
 ---
 
-## Phase 1 — Schema & RLS Baseline (Backend foundation)
+## Phase 1 — Schema & RLS Baseline (Backend foundation) — ✅ COMPLETE
 
 **Goal:** existing Supabase project is wiped and reprovisioned with PostGIS, all v2 tables, RLS, helpers, seed categories. No frontend wired yet.
 
@@ -77,9 +79,11 @@
 
 **Exit criteria:** clean DB, all 7 migrations applied, RLS smoke tests green.
 
+**Actual outcome:** Baseline 001–007 applied. Follow-on hotfix migrations 008–017 closed v1↔v2 compat gaps as they surfaced (UUID defaults, role grants, families RLS, family-members compat, categories RLS, moderation Gemini provider). See CLAUDE.md migrations table for the full chain.
+
 ---
 
-## Phase 2 — Auth, UserContext, Onboarding (Identity layer)
+## Phase 2 — Auth, UserContext, Onboarding (Identity layer) — ✅ COMPLETE
 
 **Goal:** users can sign up, complete onboarding (with location picker), see persona switcher.
 
@@ -117,9 +121,11 @@
 
 **Exit criteria:** new user reaches `/explore` with location set; legacy admin routes 404.
 
+**Actual outcome:** Email + password is the primary auth path; Google + Apple OAuth added; magic links removed. `users.auth_id` is the FK to `auth.users.id`; internal `users.id` drives every other table. `ensure_self_family_member()` RPC (migration 026) seeds the seeker's self family-member row from inside StepLocation. PersonaSwitcher labels finalized as **Learner** / **Instructor** / **Platform Admin**. `/admin/*` redirects to `/`. `/home` removed entirely; `/` is the unified landing.
+
 ---
 
-## Phase 3 — Content Moderation Pipeline (Cross-cutting)
+## Phase 3 — Content Moderation Pipeline (Cross-cutting) — ✅ COMPLETE
 
 **Goal:** the `ai-moderate-content` edge function is live; image and text submissions get auto-moderated; rejections notify owners.
 
@@ -158,9 +164,11 @@
 
 **Exit criteria:** edge function deployed, hooks compile, smoke tests pass on three image categories.
 
+**Actual outcome:** `ai-moderate-content` edge function deployed. `moderation_flags.ref_type` extended to include `class_title`, `class_description`, `certification` (migration 20260513055502). Gemini provider supported in CHECK constraint (migration 017). Certification images run through the same pipeline. `ModerationStatusBadge` component used wherever moderation status is surfaced (class cards, certification gallery, provider class detail).
+
 ---
 
-## Phase 4 — Provider: Self-Serve Onboarding & Class Creation with Location (Provider core)
+## Phase 4 — Provider: Self-Serve Onboarding & Class Creation with Location (Provider core) — ✅ COMPLETE
 
 **Goal:** a provider can self-onboard, create a class with a location picker, publish it (subject to moderation), and see it on `/explore`.
 
@@ -189,9 +197,20 @@
 
 **Exit criteria:** end-to-end provider creates a published, moderated class.
 
+**Actual outcome (and additions):**
+- CreateClass restructured into a **5-step flow**: Category → Details → Location (mandatory) → Schedule + social links → Review (commits: `faa97fe`, `6456b45`).
+- `is_home_based` checkbox + `home_radius_km` column (migration 021) for "I travel to students" mode.
+- Provider-initiated **Category Request workflow** (migrations 022, 028, L3, L5, L6 + `ProviderCategories` page + `CategoryRequestSheet` component + `useCategoryRequests` hook + `approve/reject/retag_category_request` RPCs). Classes can be created with `category_id = null` + `pending_category_request_id`; auto-backfilled on approval.
+- **Certifications** for providers and trainers (migration 022 + `CertificationManager` + `useCertifications`) — max 5 each, image moderated, gallery on provider profile.
+- **Batch grade multi-select** (`batches.grades TEXT[]`, migration L2 + `GradeMultiSelect` component).
+- **Clock-style time picker** (`ClockTimePicker`) for batch start/end times.
+- Edit-batch path validates duplicate batch names (PR #1–5).
+- Seat-count trigger (migration 027) so the seat-availability badge is correct everywhere.
+- Provider students page rewritten to use `get_provider_enrolled_student_names` RPC after the naive RLS approach (migration 018a) caused infinite recursion (fixed in 019b/020b).
+
 ---
 
-## Phase 5 — Seeker: Nearby Discovery & Distance UX (Seeker core)
+## Phase 5 — Seeker: Nearby Discovery & Distance UX (Seeker core) — ✅ COMPLETE
 
 **Goal:** seekers see nearby classes ranked by distance, with a working radius slider and category filter.
 
@@ -216,9 +235,18 @@
 
 **Exit criteria:** seeker can discover and view a class created in Phase 4.
 
+**Actual outcome (and additions):**
+- Explore redesigned: full-spectrum category pills (flex-wrap, collapse-on-scroll), unified search bar, distance badges per card (`97f6ee5`, `476baec`, `010c440`).
+- **Trust markers** ("New", "Popular") with platform-settings thresholds (migration 025).
+- Distance computed client-side from denormalized `location_lat`/`location_lng` (migration 021) — no server round-trip for ranking.
+- **Public shareable class detail** page (`/class/:classId`) readable by anon (migration 024). Trust-marker tags rendered there too.
+- "Get Directions" deep link to Mappls from ClassDetail.
+- Landing page rebuilt with **live location detection + demo video modal** (`271c500`).
+- Self-enrollment + stepper progress bar + full-screen success in EnrollFlow (`812757f`).
+
 ---
 
-## Phase 6 — Platform Admin Expansion (Oversight surfaces)
+## Phase 6 — Platform Admin Expansion (Oversight surfaces) — ✅ COMPLETE
 
 **Goal:** platform admin has working UI for moderation queue, premium subscription requests, sponsored slots, and providers directory.
 
@@ -242,9 +270,11 @@
 
 **Exit criteria:** every oversight workflow has UI and is reachable from PlatformDashboard quick links.
 
+**Actual outcome:** `/platform/moderation`, `/subscriptions`, `/sponsored`, `/providers` shipped (`d976df3`). `/platform/categories` extended with the category-request review queue (`/platform/settings` added too for key-value platform settings). Admin RLS pattern hardened against the `users.id` vs `auth.uid()` confusion (migrations 20260512072126, 20260513051521, 20260513060707).
+
 ---
 
-## Phase 7 — Provider Subscription UX & Premium Gating (Tiering)
+## Phase 7 — Provider Subscription UX & Premium Gating (Tiering) — ✅ COMPLETE
 
 **Goal:** providers can request Premium; Premium-gated features are visibly upsold.
 
@@ -273,9 +303,11 @@
 
 **Exit criteria:** end-to-end Basic→Premium upgrade demoable.
 
+**Actual outcome:** `/provider/subscription`, `PremiumGate`, `UpgradeRequestSheet`, tier badge in dashboard, and Premium gates on Payments + Analytics shipped (`ea5803e`). `generate-payment-reminders` cron filters to Premium providers only.
+
 ---
 
-## Phase 8 — Sponsored Listings & Featured Banners (Premium monetization surfaces)
+## Phase 8 — Sponsored Listings & Featured Banners (Premium monetization surfaces) — 🟡 IN PROGRESS (~30%)
 
 **Goal:** Premium providers can request sponsored slots; sponsored classes appear in seeker explore top-3.
 
@@ -300,6 +332,15 @@
 - Banner click increments `click_count`
 
 **Exit criteria:** seekers see a sponsored class; provider sees impression/click counts.
+
+**Current status (May 14, 2026):**
+- ✅ `sponsored_listings` table + admin queue (`/platform/sponsored`) exist.
+- ✅ `useActiveFeaturedListings` reads active sponsored rows by region.
+- ❌ Provider-facing `/provider/sponsored` page **NOT yet built**.
+- ❌ `refresh-sponsored-slots` cron edge function **NOT yet deployed**.
+- ❌ Top-3 merge into Explore + "Featured" badge is **not wired** in the UI (only data path is ready).
+- ❌ `featured_banners` table flow (request → approve → render on home) **NOT yet built**.
+- ❌ `click_count` / `impression_count` increment instrumentation **missing**.
 
 ---
 
@@ -397,3 +438,54 @@ With a small team (2 frontend + 1 backend): **3–4 weeks**.
 - **Phase 7:** Premium pricing — defer; manually grant during MVP, observe demand.
 - **Phase 8:** How many sponsored slots per region? *Default 3 globally via `platform_settings`; tune from analytics.*
 - **Phase 10:** Migrate v1 user accounts? *No — wipe & rebuild means new signups required. Send re-onboard email to v1 users with a reactivation link if needed.*
+
+---
+
+## Current Backlog (as of May 14, 2026)
+
+> This section is the **single source of truth** for what's still pending. Update as items land. Items are roughly ordered by user-visible impact, not strict dependency.
+
+### A. Phase 8 — Sponsored & Featured (highest priority, blocks Premium monetization)
+1. **`/provider/sponsored` page** — pick a class, pick region center + radius_km, valid_from/until, optional banner image upload (moderated). Status indicator + history table.
+2. **Explore top-3 merge** — `useActiveFeaturedListings({lat, lng})` results merged into the first 3 cards with a "Featured" badge. Tie-break by `slot_position`.
+3. **`refresh-sponsored-slots` cron edge function** — every 15 min: expire past `valid_until`, recompute `slot_position` per region (deterministic by `requested_at`).
+4. **`featured_banners` flow** — table already in schema spec; build the request UI + admin approval + rotating banner on home / explore (per region).
+5. **Impression / click instrumentation** — increment `sponsored_listings.impression_count` on card render and `click_count` on tap; debounced to avoid scroll spam.
+
+### B. Stabilization & polish (Phase 9 carryover)
+1. **Carryover-feature regression sweep** — Playwright happy-path coverage for: family CRUD, family linking invite/accept, demo sessions seeker→provider round trip, materials, waitlist auto-offer, chat realtime, reviews + provider reply, announcements, attendance (today + past), notifications bell badge.
+2. **Cleanup** — remove `provider_apartment_registrations` references still present in [EnrollmentDetail.tsx](src/pages/seeker/EnrollmentDetail.tsx) and [InviteAccept.tsx](src/pages/seeker/InviteAccept.tsx). Remove `is_apartment_admin` from [database.ts](src/types/database.ts).
+3. **Deprecated hooks** — delete the `@deprecated` apartment helpers in [useFamily.ts](src/hooks/useFamily.ts) and [usePlatformAdmin.ts](src/hooks/usePlatformAdmin.ts) once confirmed unused.
+4. **Re-onboarding nudge for users with `seeker_home_location IS NULL`** — currently they can hit `/explore` with no nearby results.
+5. **PostGIS RPC fallback path** — Explore currently filters client-side from denormalized lat/lng. Wire the `nearby_classes` RPC as the canonical server-side path once dataset grows past a few hundred classes.
+
+### C. Trust, safety, abuse handling
+1. **Repeat-violation suspension** — auto-suspend providers with N moderation rejections in M days (CLAUDE.md § "Strict no-tolerance categories").
+2. **Appeal flow** — provider taps "Appeal" on a rejected item → admin sees in moderation queue with appeal note.
+3. **Rate-limit category requests** — providers currently can submit unlimited requests; cap at e.g. 3 pending per provider.
+
+### D. Performance & analytics
+1. **`EXPLAIN ANALYZE` on `nearby_classes`** at 10k-class load; confirm GIST index usage. Defer unless dataset projection demands.
+2. **Provider Premium analytics tab** — competitor analysis, retention, growth insights (currently the tab exists behind PremiumGate but the queries are stubbed).
+3. **Platform analytics charts** — Recharts views for active providers, classes, enrollments by city/category over time.
+
+### E. Cutover prep (Phase 10)
+1. Take v1 DB snapshot for archive.
+2. Run Supabase advisors → resolve all warnings.
+3. Update marketing copy on Landing page.
+4. Producer's guide + admin runbook docs.
+5. Update [README.md](README.md) to reflect v2 architecture.
+
+### F. Nice-to-haves (post-MVP)
+- Phone OTP auth.
+- Multiple seeker home locations (home + office).
+- `provider_home_travel_radius_km` separate from per-class `home_radius_km`.
+- Razorpay webhook → auto-grant Premium (replace manual approval).
+- Geocode result caching table (`geocode_cache`) for cost control.
+- H3 hex bucketing if class count exceeds ~100k.
+
+---
+
+## Pointer to CLAUDE.md
+
+For schema details (including the difference between `users.id` and `users.auth_id`, the seat-count trigger contract, the `ref_type` values in `moderation_flags`, and the full migration chain), see [CLAUDE.md](CLAUDE.md). This plan focuses on phase status; CLAUDE.md is the codebase reference.

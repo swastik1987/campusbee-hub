@@ -37,6 +37,7 @@ import ProviderMaterials from "./pages/provider/ProviderMaterials";
 import ProviderDemoSessions from "./pages/provider/ProviderDemoSessions";
 import ProviderReviews from "./pages/provider/ProviderReviews";
 import ProviderSubscription from "./pages/provider/ProviderSubscription";
+import ProviderSponsored from "./pages/provider/ProviderSponsored";
 import ProviderCategories from "./pages/provider/ProviderCategories";
 import Notifications from "./pages/Notifications";
 import PlatformLayout from "./pages/platform/PlatformLayout";
@@ -124,6 +125,7 @@ const App = () => (
             <Route path="/provider/classes/:classId/demos" element={<AuthGuard><ProviderDemoSessions /></AuthGuard>} />
             <Route path="/provider/reviews" element={<AuthGuard><ProviderReviews /></AuthGuard>} />
             <Route path="/provider/subscription" element={<AuthGuard><ProviderSubscription /></AuthGuard>} />
+            <Route path="/provider/sponsored" element={<AuthGuard><ProviderSponsored /></AuthGuard>} />
             <Route path="/provider/categories" element={<AuthGuard><ProviderCategories /></AuthGuard>} />
 
             {/* Notifications */}
