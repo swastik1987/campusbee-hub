@@ -105,7 +105,7 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
   const { classId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, providerProfile } = useUser();
+  const { profile, providerProfile, isPremium } = useUser();
 
   const { data: cls, isLoading } = useClassDetail(classId);
   const { data: batches, isLoading: batchesLoading } = useBatches(classId);
@@ -741,8 +741,9 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
                 <p className="text-sm font-semibold text-amber-800">Sponsored & Featured</p>
               </div>
               <p className="text-xs text-amber-700">
-                Promote this class with a sponsored slot in Explore, or a featured banner
-                on the home page. Premium-only.
+                {isPremium
+                  ? "Promote this class with a sponsored slot in Explore, or a featured banner on the home page. Premium-only."
+                  : "This is a feature available only with Premium Subscription. You can promote this class with a sponsored badge on you class listing and make it listed higher among other classes. You can also post a featured banner at the top of the class listing page for greater visibility."}
               </p>
             </div>
 

@@ -27,6 +27,7 @@ import {
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import MapplsPicker from "@/components/location/MapplsPicker";
+import UpgradeRequestSheet from "@/components/subscription/UpgradeRequestSheet";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -136,27 +137,31 @@ export default ProviderSponsored;
 // Premium upsell (Basic tier landing)
 // ────────────────────────────────────────────────────────────────────────────
 
-const PremiumUpsell = () => (
-  <div className="min-h-screen bg-background">
-    <Header />
-    <main className="mx-auto max-w-lg px-4 pt-6">
-      <Card className="overflow-hidden border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6">
-        <Crown size={32} className="text-amber-500" />
-        <h2 className="mt-3 text-xl font-bold">Sponsored & Featured are Premium</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Upgrade to Premium to request top-3 Explore placements and home / explore banners.
-        </p>
-        <Button
-          className="mt-5 w-full bg-amber-500 hover:bg-amber-600"
-          asChild
-        >
-          <a href="/provider/subscription">Upgrade to Premium</a>
-        </Button>
-      </Card>
-    </main>
-    <BottomNav persona="provider" />
-  </div>
-);
+const PremiumUpsell = () => {
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+      <main className="mx-auto max-w-lg px-4 pt-6">
+        <Card className="overflow-hidden border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6">
+          <Crown size={32} className="text-amber-500" />
+          <h2 className="mt-3 text-xl font-bold">Sponsored & Featured are Premium</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Upgrade to Premium to request top-3 Explore placements and home / explore banners.
+          </p>
+          <Button
+            className="mt-5 w-full bg-amber-500 hover:bg-amber-600"
+            onClick={() => setShowUpgrade(true)}
+          >
+            Upgrade to Premium
+          </Button>
+        </Card>
+      </main>
+      <UpgradeRequestSheet open={showUpgrade} onOpenChange={setShowUpgrade} />
+      <BottomNav persona="provider" />
+    </div>
+  );
+};
 
 // ────────────────────────────────────────────────────────────────────────────
 // Sponsored tab
