@@ -3,22 +3,31 @@
 -- Regression repair for the seeker /explore page returning zero results
 -- even when there are classes nearby.
 --
--- Root cause: PostgREST does not reliably persist the
--- 'SRID=4326;POINT(lng lat)' WKT string the app sends into a geography
--- column, so classes.location ended up NULL for some / all rows even
--- though the denormalized classes.location_lat / location_lng were
--- correctly populated. The nearby_classes RPC filtered on the geography
--- column → empty result.
+-- Two issues fixed:
+--   A. The original nearby_classes RPC (006_geo_helpers.sql) referenced
+--      column names from the baseline draft (age_min, age_max, images,
+--      tags) that no longer match the live schema (which uses
+--      age_group_min, age_group_max, gallery_urls). The RPC has been
+--      silently broken since then — the app's existing code path used a
+--      client-side haversine filter and never actually called it.
+--   B. classes.location (geography) is NULL for some rows because
+--      PostgREST does not reliably persist the
+--      'SRID=4326;POINT(lng lat)' WKT string the insert hook sends, even
+--      though classes.location_lat / location_lng are correctly
+--      populated. The RPC's ST_DWithin filter therefore matched zero
+--      rows once the explore page started calling it.
 --
--- Two-part fix:
+-- Three-part fix:
 --   1. Backfill classes.location from (location_lat, location_lng) for
---      every row where geography is missing but coords exist. Also
---      install a trigger that keeps the geography in sync going forward
---      so app code can no longer drift.
---   2. Rewrite nearby_classes so the effective-location expression
+--      every row where geography is NULL but coords exist.
+--   2. BEFORE INSERT/UPDATE trigger keeps geography in sync going
+--      forward so drift cannot reappear.
+--   3. Drop the original wide RPC and replace it with a slim version
+--      that returns only (id, distance_km) — which is all the explore
+--      page actually needs — and whose effective-location expression
 --      COALESCEs the geography with a synthesized point from the
---      denormalized lat/lng. Defensive — works even if a row slips
---      through with NULL geography.
+--      denormalized lat/lng. Defensive even if a row slips through with
+--      NULL geography.
 -- Idempotent — safe to re-run.
 -- ──────────────────────────────────────────────────────────────────────────
 
@@ -29,7 +38,7 @@ WHERE  location IS NULL
   AND  location_lat IS NOT NULL
   AND  location_lng IS NOT NULL;
 
--- ── 2. Keep geography in sync on future inserts / updates ────────────────
+-- ── 2. Trigger to keep geography in sync on writes ───────────────────────
 CREATE OR REPLACE FUNCTION public.classes_sync_location_from_latlng()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -54,11 +63,14 @@ CREATE TRIGGER classes_sync_location_trg
   FOR EACH ROW
   EXECUTE FUNCTION public.classes_sync_location_from_latlng();
 
--- ── 3. Rewrite nearby_classes with COALESCE fallback ─────────────────────
--- Same signature + return shape as 006_geo_helpers.sql so client code is
--- unchanged. The only difference is the effective-location expression
--- now falls back to ST_MakePoint(location_lng, location_lat) when the
--- geography column itself is NULL.
+-- ── 3. Replace nearby_classes with a slim, correct, defensive version ───
+-- The return TABLE shape changes from the original 23-column form to just
+-- (id, distance_km) — so we must DROP first; CREATE OR REPLACE alone is
+-- not allowed when the return type changes.
+DROP FUNCTION IF EXISTS public.nearby_classes(
+  DOUBLE PRECISION, DOUBLE PRECISION, NUMERIC, UUID, INTEGER, INTEGER
+);
+
 CREATE OR REPLACE FUNCTION public.nearby_classes(
   p_lat         DOUBLE PRECISION,
   p_lng         DOUBLE PRECISION,
@@ -68,28 +80,8 @@ CREATE OR REPLACE FUNCTION public.nearby_classes(
   p_offset      INTEGER      DEFAULT 0
 )
 RETURNS TABLE (
-  id                UUID,
-  provider_id       UUID,
-  category_id       UUID,
-  title             TEXT,
-  description       TEXT,
-  status            TEXT,
-  age_min           INTEGER,
-  age_max           INTEGER,
-  skill_level       TEXT,
-  trial_available   BOOLEAN,
-  trial_fee         NUMERIC,
-  images            TEXT[],
-  tags              TEXT[],
-  address           TEXT,
-  is_home_based     BOOLEAN,
-  total_rating      NUMERIC,
-  rating_count      INTEGER,
-  effective_lat     DOUBLE PRECISION,
-  effective_lng     DOUBLE PRECISION,
-  distance_km       DOUBLE PRECISION,
-  provider_name     TEXT,
-  provider_tier     TEXT
+  id          UUID,
+  distance_km DOUBLE PRECISION
 )
 LANGUAGE sql
 STABLE
@@ -101,27 +93,7 @@ AS $$
   )
   SELECT
     c.id,
-    c.provider_id,
-    c.category_id,
-    c.title,
-    c.description,
-    c.status,
-    c.age_min,
-    c.age_max,
-    c.skill_level,
-    c.trial_available,
-    c.trial_fee,
-    c.images,
-    c.tags,
-    c.address,
-    c.is_home_based,
-    c.total_rating,
-    c.rating_count,
-    ST_Y(loc.eff::geometry) AS effective_lat,
-    ST_X(loc.eff::geometry) AS effective_lng,
-    ST_Distance(loc.eff, seeker.pt) / 1000.0 AS distance_km,
-    sp.business_name        AS provider_name,
-    sp.subscription_tier    AS provider_tier
+    ST_Distance(loc.eff, seeker.pt) / 1000.0 AS distance_km
   FROM   public.classes c
   JOIN   public.service_providers sp ON sp.id = c.provider_id
   CROSS  JOIN seeker
