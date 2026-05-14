@@ -22,7 +22,6 @@ import {
   useUploadFeaturedBannerImage,
   useCancelSponsored,
   useCancelFeaturedBanner,
-  type FeaturedBannerSurface,
 } from "@/hooks/useSponsored";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
@@ -326,18 +325,13 @@ const BannersTab = ({ providerId }: { providerId: string }) => {
                   <img src={r.image_url} alt="" className="h-28 w-full object-cover" />
                   <div className="p-3">
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {r.surface === "home_banner" ? "Home" : "Explore"}
-                      </Badge>
                       <Badge className={meta.cls + " text-xs"}>{meta.label}</Badge>
                       {r.moderation_status === "rejected" && (
                         <Badge className="bg-red-100 text-xs text-red-700">Image flagged</Badge>
                       )}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {r.surface === "explore_banner"
-                        ? `${r.center_address ?? "—"} · ${r.radius_km} km`
-                        : "Global"}
+                      {r.center_address ?? "—"} · {r.radius_km} km
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {fmtDate(r.valid_from)} → {fmtDate(r.valid_until)}
@@ -536,7 +530,6 @@ const BannerRequestSheet = ({
   const request = useRequestFeaturedBanner();
   const { data: classes } = useProviderClasses(providerId, "published");
 
-  const [surface, setSurface] = useState<FeaturedBannerSurface>("home_banner");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [targetUrl, setTargetUrl] = useState<string>("");
@@ -552,27 +545,24 @@ const BannerRequestSheet = ({
     setPreviewUrl(URL.createObjectURL(f));
   };
 
+  // Banners are explore-only post-migration 033; region + radius always required.
   const canSubmit =
-    file &&
-    validFrom &&
-    validUntil &&
-    validFrom < validUntil &&
-    (surface === "home_banner" || (region && Number(radiusKm) > 0));
+    file && validFrom && validUntil && validFrom < validUntil && region && Number(radiusKm) > 0;
 
   const submit = async () => {
-    if (!canSubmit || !file) return;
+    if (!canSubmit || !file || !region) return;
     try {
       const imageUrl = await upload.mutateAsync({ providerId, file });
       await request.mutateAsync({
         providerId,
-        surface,
+        surface: "explore_banner",
         imageUrl,
         targetUrl: targetUrl || undefined,
         classId: classId || null,
-        centerAddress: region?.address,
-        centerLat: region?.lat,
-        centerLng: region?.lng,
-        radiusKm: surface === "explore_banner" ? Number(radiusKm) : undefined,
+        centerAddress: region.address,
+        centerLat: region.lat,
+        centerLng: region.lng,
+        radiusKm: Number(radiusKm),
         validFrom: new Date(validFrom).toISOString(),
         validUntil: new Date(validUntil).toISOString(),
         offAppPaymentRef: paymentRef || undefined,
@@ -595,18 +585,11 @@ const BannerRequestSheet = ({
         </SheetHeader>
 
         <div className="mt-4 space-y-4 pb-6">
-          <div>
-            <Label>Surface</Label>
-            <Select value={surface} onValueChange={(v) => setSurface(v as FeaturedBannerSurface)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="home_banner">Home page (single rotating, global)</SelectItem>
-                <SelectItem value="explore_banner">Explore page (carousel, regional)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            Banners appear in the carousel above the /explore page for seekers
+            in your selected region. Up to 5 banners are shown, ordered by
+            proximity to the seeker.
+          </p>
 
           <div>
             <Label>Banner image</Label>
@@ -656,25 +639,21 @@ const BannerRequestSheet = ({
             </Select>
           </div>
 
-          {surface === "explore_banner" && (
-            <>
-              <div>
-                <Label>Region center</Label>
-                <MapplsPicker value={region} onChange={setRegion} />
-              </div>
-              <div>
-                <Label htmlFor="b-radius">Radius (km)</Label>
-                <Input
-                  id="b-radius"
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={radiusKm}
-                  onChange={(e) => setRadiusKm(e.target.value)}
-                />
-              </div>
-            </>
-          )}
+          <div>
+            <Label>Region center</Label>
+            <MapplsPicker value={region} onChange={setRegion} />
+          </div>
+          <div>
+            <Label htmlFor="b-radius">Radius (km)</Label>
+            <Input
+              id="b-radius"
+              type="number"
+              min={1}
+              max={50}
+              value={radiusKm}
+              onChange={(e) => setRadiusKm(e.target.value)}
+            />
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>

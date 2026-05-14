@@ -57,12 +57,11 @@ const STATUS_QUERY: Record<StatusTab, string[]> = {
   rejected: ["rejected"],
 };
 
-type TypeFilter = "all" | "sponsored" | "banner_home" | "banner_explore";
+type TypeFilter = "all" | "sponsored" | "banner";
 const TYPE_FILTERS: { label: string; value: TypeFilter }[] = [
-  { label: "All",              value: "all" },
-  { label: "Sponsored",        value: "sponsored" },
-  { label: "Banner — Home",    value: "banner_home" },
-  { label: "Banner — Explore", value: "banner_explore" },
+  { label: "All",       value: "all" },
+  { label: "Sponsored", value: "sponsored" },
+  { label: "Banner",    value: "banner" },
 ];
 
 // ── Normalized feed item ─────────────────────────────────────────────────────
@@ -168,20 +167,15 @@ const PlatformSponsored = () => {
     if (typeFilter === "all") return merged;
     return merged.filter((item) => {
       if (typeFilter === "sponsored") return item.kind === "sponsored";
-      if (typeFilter === "banner_home")
-        return item.kind === "banner" && item.surface === "home_banner";
-      if (typeFilter === "banner_explore")
-        return item.kind === "banner" && item.surface === "explore_banner";
+      if (typeFilter === "banner") return item.kind === "banner";
       return true;
     });
   }, [sponsoredData, bannerData, typeFilter]);
 
   const counts = useMemo(() => {
     const sponsored = (sponsoredData ?? []).length;
-    const banners = (bannerData ?? []) as unknown as BannerRowRaw[];
-    const home = banners.filter((b) => b.surface === "home_banner").length;
-    const explore = banners.filter((b) => b.surface === "explore_banner").length;
-    return { all: sponsored + home + explore, sponsored, home, explore };
+    const banner = (bannerData ?? []).length;
+    return { all: sponsored + banner, sponsored, banner };
   }, [sponsoredData, bannerData]);
 
   return (
@@ -218,9 +212,7 @@ const PlatformSponsored = () => {
               ? counts.all
               : f.value === "sponsored"
                 ? counts.sponsored
-                : f.value === "banner_home"
-                  ? counts.home
-                  : counts.explore;
+                : counts.banner;
           return (
             <button
               key={f.value}
@@ -463,15 +455,13 @@ const BannerCard = ({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="border-0 bg-indigo-100 text-[10px] text-indigo-700">
-                Banner — {item.surface === "home_banner" ? "Home" : "Explore"}
+                Banner
               </Badge>
               <p className="text-sm font-semibold">{item.providerName}</p>
               <StatusPill status={item.status} />
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {item.surface === "explore_banner"
-                ? `${item.centerAddress ?? "—"} · ${item.radiusKm} km`
-                : "Global"}
+              {item.centerAddress ?? "—"} · {item.radiusKm} km
             </p>
             {item.classTitle && (
               <p className="mt-0.5 text-xs text-muted-foreground">→ {item.classTitle}</p>

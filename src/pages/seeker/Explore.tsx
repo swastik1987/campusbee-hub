@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useExploreClasses, usePlatformSettings, useActiveSponsoredClassIds, useMyEnrollments } from "@/hooks/useSeeker";
-import { useActiveFeaturedListings } from "@/hooks/useFeatured";
 import { useIncomingInvites } from "@/hooks/useFamilyLinking";
 import { useCategories } from "@/hooks/useClasses";
 import { useQueryClient } from "@tanstack/react-query";
@@ -267,7 +266,6 @@ const Explore = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawDisplayClasses, seekerLat, seekerLng, searchRadius, applyTrustMarkers]);
 
-  const { data: featuredListings } = useActiveFeaturedListings(undefined);
   const { data: incomingInvites }  = useIncomingInvites(
     profile?.id, profile?.email ?? null, profile?.mobile_number ?? null,
   );
@@ -278,30 +276,6 @@ const Explore = () => {
   const hasEnrollments = (myEnrollments ?? []).some(
     (e: any) => e.status === "active" || e.status === "pending",
   );
-
-  // Auto-advancing featured carousel
-  const carouselRef = useRef<HTMLDivElement>(null);
-  const [currentSlide, setCurrentSlide] = useState(0);
-
-  useEffect(() => {
-    if (!featuredListings || featuredListings.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrentSlide((prev) => {
-        const next = (prev + 1) % featuredListings.length;
-        carouselRef.current?.scrollTo({ left: next * carouselRef.current.offsetWidth, behavior: "smooth" });
-        return next;
-      });
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [featuredListings]);
-
-  useEffect(() => {
-    const el = carouselRef.current;
-    if (!el) return;
-    const handleScroll = () => setCurrentSlide(Math.round(el.scrollLeft / el.offsetWidth));
-    el.addEventListener("scrollend", handleScroll);
-    return () => el.removeEventListener("scrollend", handleScroll);
-  }, []);
 
   const filteredClasses = useMemo(() => {
     if (!classes) return classes;
@@ -345,63 +319,9 @@ const Explore = () => {
             </button>
           )}
 
-          {/* Featured banners (promotional images, Phase 8) */}
+          {/* Featured banners (Phase 8 — explore-only, region-scoped, max 5) */}
           {!isSearching && (
-            <SeekerBanners surface="explore_banner" lat={seekerLat} lng={seekerLng} />
-          )}
-
-          {/* Featured / sponsored carousel */}
-          {!isSearching && featuredListings && featuredListings.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold">Featured</h2>
-                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-600">
-                  Sponsored
-                </span>
-              </div>
-              <div className="relative">
-                <div
-                  ref={carouselRef}
-                  className="flex overflow-x-auto scrollbar-hide"
-                  style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}
-                >
-                  {featuredListings.map((listing) => (
-                    <div
-                      key={listing.id}
-                      className="w-full flex-shrink-0 cursor-pointer"
-                      style={{ scrollSnapAlign: "start", minWidth: "100%" }}
-                      onClick={() => navigate(`/class/${listing.class_id}`)}
-                    >
-                      <div className="relative aspect-[16/7] overflow-hidden rounded-2xl">
-                        <img
-                          src={(listing.classes as any)?.cover_image_url ?? ""}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                        <div className="absolute bottom-3 left-4 right-4">
-                          <p className="truncate text-sm font-bold text-white">
-                            {(listing.classes as any)?.title}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {featuredListings.length > 1 && (
-                  <div className="mt-2 flex justify-center gap-1.5">
-                    {featuredListings.map((_, i) => (
-                      <div
-                        key={i}
-                        className={`h-1.5 rounded-full transition-all ${
-                          i === currentSlide ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <SeekerBanners lat={seekerLat} lng={seekerLng} />
           )}
 
         </div>
