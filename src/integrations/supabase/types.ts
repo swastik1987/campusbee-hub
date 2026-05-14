@@ -1320,6 +1320,98 @@ export type Database = {
           },
         ]
       }
+      legal_acceptances: {
+        Row: {
+          accepted_at: string
+          device_fingerprint: string | null
+          doc_type: string
+          document_version_id: string
+          id: string
+          ip_address: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          device_fingerprint?: string | null
+          doc_type: string
+          document_version_id: string
+          id?: string
+          ip_address?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string
+          device_fingerprint?: string | null
+          doc_type?: string
+          document_version_id?: string
+          id?: string
+          ip_address?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_acceptances_document_version_id_fkey"
+            columns: ["document_version_id"]
+            isOneToOne: false
+            referencedRelation: "legal_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_acceptances_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_documents: {
+        Row: {
+          doc_type: string
+          html_content: string
+          id: string
+          is_active: boolean
+          original_file_path: string | null
+          title: string
+          uploaded_at: string
+          uploaded_by: string | null
+          version: number
+        }
+        Insert: {
+          doc_type: string
+          html_content: string
+          id?: string
+          is_active?: boolean
+          original_file_path?: string | null
+          title: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          version: number
+        }
+        Update: {
+          doc_type?: string
+          html_content?: string
+          id?: string
+          is_active?: boolean
+          original_file_path?: string | null
+          title?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       moderation_flags: {
         Row: {
           action_notes: string | null
@@ -1964,6 +2056,101 @@ export type Database = {
           {
             foreignKeyName: "sponsored_listings_reviewed_by_fkey"
             columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_request_attachments: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_path: string
+          id: string
+          mime_type: string
+          size_bytes: number
+          support_request_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_path: string
+          id?: string
+          mime_type: string
+          size_bytes: number
+          support_request_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          id?: string
+          mime_type?: string
+          size_bytes?: number
+          support_request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_request_attachments_support_request_id_fkey"
+            columns: ["support_request_id"]
+            isOneToOne: false
+            referencedRelation: "support_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_requests: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          resolution_comment: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          subject: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          resolution_comment?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          subject: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          resolution_comment?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          subject?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_requests_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_requests_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -3326,6 +3513,39 @@ export type Database = {
           table_name: string
         }
         Returns: string
+      }
+      get_active_legal_document: {
+        Args: { p_doc_type: string }
+        Returns: {
+          id: string
+          doc_type: string
+          version: number
+          title: string
+          html_content: string
+          uploaded_at: string
+        }[]
+      }
+      publish_legal_document: {
+        Args: {
+          p_doc_type: string
+          p_title: string
+          p_html: string
+          p_file_path?: string | null
+        }
+        Returns: string
+      }
+      record_legal_acceptance: {
+        Args: {
+          p_doc_type: string
+          p_ip?: string | null
+          p_user_agent?: string | null
+          p_fingerprint?: string | null
+        }
+        Returns: string
+      }
+      resolve_support_request: {
+        Args: { p_request_id: string; p_comment?: string | null }
+        Returns: undefined
       }
     }
     Enums: {

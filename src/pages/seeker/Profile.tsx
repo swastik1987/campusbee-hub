@@ -34,6 +34,7 @@ import {
   Camera,
   ChevronRight,
   GraduationCap,
+  HelpCircle,
   Link2,
   Loader2,
   LogOut,
@@ -44,6 +45,8 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
+import SupportRequestSheet from "@/components/support/SupportRequestSheet";
+import SupportRequestList from "@/components/support/SupportRequestList";
 
 const Profile = () => {
   const {
@@ -66,6 +69,9 @@ const Profile = () => {
   const [editOpen, setEditOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [loadingExtra, setLoadingExtra] = React.useState(false);
+
+  // ── Support / Recommendation sheet ──────────────────────────────────────
+  const [supportOpen, setSupportOpen] = React.useState(false);
 
   // Personal fields
   const [editName, setEditName] = React.useState("");
@@ -404,6 +410,27 @@ const Profile = () => {
             </div>
           </Card>
         )}
+
+        {/* ── Help & Feedback ──────────────────────────────────────── */}
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <HelpCircle size={15} className="text-primary" />
+              Help &amp; Feedback
+            </h3>
+            <button
+              onClick={() => setSupportOpen(true)}
+              className="text-xs font-semibold text-primary"
+            >
+              Raise a request
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground -mt-1">
+            Send us a support request or share a recommendation. Our team will
+            get back to you.
+          </p>
+          <SupportRequestList userId={profile?.id} />
+        </Card>
 
         {/* ── Account section ───────────────────────────────────────── */}
         <Card className="p-0 overflow-hidden">
@@ -808,6 +835,9 @@ const Profile = () => {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      {/* ── Support Request Sheet ────────────────────────────────────────── */}
+      <SupportRequestSheet open={supportOpen} onOpenChange={setSupportOpen} />
 
       <BottomNav
         persona={

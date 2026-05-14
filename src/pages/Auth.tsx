@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useUser } from "@/contexts/UserContext";
 import { OAUTH_RETURN_KEY } from "@/components/AuthDrawer";
+import LegalLinks from "@/components/legal/LegalLinks";
 import {
   AlertTriangle,
   GraduationCap,
@@ -376,13 +377,11 @@ const Auth = React.forwardRef<HTMLDivElement, Record<string, never>>((_props, re
             </div>
           )}
 
-          {/* Privacy note */}
-          <p style={{ fontSize: 11, color: MUTED, textAlign: "center", lineHeight: 1.5, marginTop: 2 }}>
-            By continuing you agree to our{" "}
-            <span style={{ color: A_DEEP, fontWeight: 600, cursor: "pointer" }}>Terms</span>
-            {" & "}
-            <span style={{ color: A_DEEP, fontWeight: 600, cursor: "pointer" }}>Privacy Policy</span>
-          </p>
+          {/* Privacy note — opens drawers; clicking is read-only, acceptance
+              is recorded implicitly after successful signup. */}
+          <div style={{ color: MUTED, marginTop: 2 }}>
+            <LegalLinks linkColor={A_DEEP} />
+          </div>
         </div>
       </div>
     </div>

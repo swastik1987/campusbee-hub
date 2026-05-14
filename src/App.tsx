@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { UserProvider, useUser } from "@/contexts/UserContext";
 import AuthGuard from "@/components/AuthGuard";
 import { OAUTH_RETURN_KEY } from "@/components/AuthDrawer";
+import { useImplicitLegalAcceptance } from "@/hooks/useImplicitLegalAcceptance";
 
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
@@ -49,6 +50,8 @@ import PlatformSubscriptions from "./pages/platform/PlatformSubscriptions";
 import PlatformSponsored from "./pages/platform/PlatformSponsored";
 import PlatformProviders from "./pages/platform/PlatformProviders";
 import PlatformSettings from "./pages/platform/PlatformSettings";
+import PlatformLegal from "./pages/platform/PlatformLegal";
+import PlatformSupport from "./pages/platform/PlatformSupport";
 import NotFound from "./pages/NotFound";
 
 /**
@@ -78,6 +81,12 @@ const OAuthReturnHandler = () => {
   return null;
 };
 
+/** Records implicit T&C + Privacy Policy acceptance the first time a user is created. */
+const ImplicitLegalAcceptance = () => {
+  useImplicitLegalAcceptance();
+  return null;
+};
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -89,6 +98,8 @@ const App = () => (
         <UserProvider>
           {/* Handles post-OAuth redirect back to the originating page */}
           <OAuthReturnHandler />
+          {/* Records implicit legal acceptance for newly created users */}
+          <ImplicitLegalAcceptance />
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
@@ -144,6 +155,8 @@ const App = () => (
               <Route path="categories" element={<PlatformCategories />} />
               <Route path="analytics" element={<PlatformAnalytics />} />
               <Route path="settings" element={<PlatformSettings />} />
+              <Route path="legal" element={<PlatformLegal />} />
+              <Route path="support" element={<PlatformSupport />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
