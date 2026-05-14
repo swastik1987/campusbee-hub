@@ -10,7 +10,8 @@
  * displayed.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useProviderClasses } from "@/hooks/useClasses";
 import {
@@ -83,6 +84,8 @@ function ctr(impressions: number, clicks: number) {
 const ProviderSponsored = () => {
   const { providerProfile, isPremium } = useUser();
   const providerId = providerProfile?.id;
+  const [params] = useSearchParams();
+  const prefillClassId = params.get("classId") ?? undefined;
 
   if (!isPremium) {
     return <PremiumUpsell />;
@@ -115,7 +118,7 @@ const ProviderSponsored = () => {
           </TabsList>
 
           <TabsContent value="sponsored">
-            <SponsoredTab providerId={providerId!} />
+            <SponsoredTab providerId={providerId!} prefillClassId={prefillClassId} />
           </TabsContent>
           <TabsContent value="banners">
             <BannersTab providerId={providerId!} />
@@ -159,10 +162,21 @@ const PremiumUpsell = () => (
 // Sponsored tab
 // ────────────────────────────────────────────────────────────────────────────
 
-const SponsoredTab = ({ providerId }: { providerId: string }) => {
+const SponsoredTab = ({
+  providerId,
+  prefillClassId,
+}: {
+  providerId: string;
+  prefillClassId?: string;
+}) => {
   const [open, setOpen] = useState(false);
   const { data: rows, isLoading } = useMySponsoredRequests(providerId);
   const cancel = useCancelSponsored();
+
+  // Auto-open the request sheet when arriving from "Promote this class"
+  useEffect(() => {
+    if (prefillClassId) setOpen(true);
+  }, [prefillClassId]);
 
   return (
     <>
@@ -257,6 +271,7 @@ const SponsoredTab = ({ providerId }: { providerId: string }) => {
       {open && (
         <SponsoredRequestSheet
           providerId={providerId}
+          prefillClassId={prefillClassId}
           open={open}
           onOpenChange={setOpen}
         />
@@ -377,17 +392,19 @@ const BannersTab = ({ providerId }: { providerId: string }) => {
 
 const SponsoredRequestSheet = ({
   providerId,
+  prefillClassId,
   open,
   onOpenChange,
 }: {
   providerId: string;
+  prefillClassId?: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) => {
   const { data: classes } = useProviderClasses(providerId, "published");
   const request = useRequestSponsored();
 
-  const [classId, setClassId] = useState<string>("");
+  const [classId, setClassId] = useState<string>(prefillClassId ?? "");
   const [region, setRegion] = useState<{ address: string; lat: number; lng: number } | null>(null);
   const [radiusKm, setRadiusKm] = useState<string>("10");
   const [validFrom, setValidFrom] = useState<string>("");

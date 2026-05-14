@@ -738,23 +738,25 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
               <div className="flex items-center gap-2">
                 <Sparkles size={16} className="text-amber-600" />
-                <p className="text-sm font-semibold text-amber-800">Sponsored Listings</p>
+                <p className="text-sm font-semibold text-amber-800">Sponsored & Featured</p>
               </div>
               <p className="text-xs text-amber-700">
-                In v2, featured spots are managed as <strong>sponsored listings</strong>. Visit{" "}
-                <strong>/provider/sponsored</strong> to request a sponsored slot for this class.
+                Promote this class with a sponsored slot in Explore, or a featured banner
+                on the home page. Premium-only.
               </p>
             </div>
 
-            {/* Banner upload (can still upload a banner image here) */}
-            {cls.status === "published" && (
+            {cls.status === "published" ? (
               <Button
-                onClick={() => setFeaturedSheetOpen(true)}
-                className="w-full border-dashed border-provider text-provider"
-                variant="outline"
+                onClick={() => navigate(`/provider/sponsored?classId=${cls.id}`)}
+                className="w-full bg-provider text-white"
               >
-                <Sparkles size={14} className="mr-1" /> Upload Banner Image
+                <Sparkles size={14} className="mr-1" /> Promote this class
               </Button>
+            ) : (
+              <p className="text-center text-xs text-muted-foreground">
+                Publish the class first to request a sponsored slot.
+              </p>
             )}
           </TabsContent>
 
