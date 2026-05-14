@@ -228,9 +228,6 @@ const SponsoredTab = ({
                         <Badge className={meta.cls + " text-xs"}>{meta.label}</Badge>
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {r.center_address ?? "—"} · {r.radius_km} km
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
                         {fmtDate(r.valid_from)} → {fmtDate(r.valid_until)}
                       </p>
                       <div className="mt-2 flex items-center gap-4 text-xs">
@@ -404,8 +401,6 @@ const SponsoredRequestSheet = ({
   const request = useRequestSponsored();
 
   const [classId, setClassId] = useState<string>(prefillClassId ?? "");
-  const [region, setRegion] = useState<{ address: string; lat: number; lng: number } | null>(null);
-  const [radiusKm, setRadiusKm] = useState<string>("10");
   const [validFrom, setValidFrom] = useState<string>("");
   const [validUntil, setValidUntil] = useState<string>("");
   const [paymentRef, setPaymentRef] = useState<string>("");
@@ -415,20 +410,15 @@ const SponsoredRequestSheet = ({
     [classes, classId]
   );
 
-  const canSubmit =
-    classId && region && Number(radiusKm) > 0 && validFrom && validUntil && validFrom < validUntil;
+  const canSubmit = classId && validFrom && validUntil && validFrom < validUntil;
 
   const submit = () => {
-    if (!canSubmit || !region) return;
+    if (!canSubmit) return;
     request.mutate(
       {
         providerId,
         classId,
         categoryId: selectedClass?.category_id ?? null,
-        centerAddress: region.address,
-        centerLat: region.lat,
-        centerLng: region.lng,
-        radiusKm: Number(radiusKm),
         validFrom: new Date(validFrom).toISOString(),
         validUntil: new Date(validUntil).toISOString(),
         offAppPaymentRef: paymentRef || undefined,
@@ -449,7 +439,8 @@ const SponsoredRequestSheet = ({
         <SheetHeader>
           <SheetTitle>Request a sponsored slot</SheetTitle>
           <SheetDescription>
-            Pick a class, the region, and dates. Pricing is handled off-app — contact admin for pricing.
+            The Sponsored tag will appear on this class's card in /explore for the
+            chosen window. Pricing is handled off-app — contact admin for pricing.
           </SheetDescription>
         </SheetHeader>
 
@@ -468,23 +459,6 @@ const SponsoredRequestSheet = ({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          <div>
-            <Label>Region center</Label>
-            <MapplsPicker value={region} onChange={setRegion} />
-          </div>
-
-          <div>
-            <Label htmlFor="radius">Radius (km)</Label>
-            <Input
-              id="radius"
-              type="number"
-              min={1}
-              max={50}
-              value={radiusKm}
-              onChange={(e) => setRadiusKm(e.target.value)}
-            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

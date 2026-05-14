@@ -26,8 +26,6 @@ export type SponsoredForLocationRow = {
   class_id: string;
   provider_id: string;
   category_id: string | null;
-  radius_km: number;
-  distance_km: number;
   slot_position: number;
   valid_until: string;
 };
@@ -111,8 +109,6 @@ export type ProviderSponsoredRow = {
   class_id: string;
   category_id: string | null;
   status: "pending" | "approved" | "active" | "expired" | "rejected" | "cancelled";
-  radius_km: number;
-  center_address: string | null;
   valid_from: string | null;
   valid_until: string | null;
   impression_count: number;
@@ -132,7 +128,7 @@ export function useMySponsoredRequests(providerId: string | undefined) {
       const { data, error } = await supabase
         .from("sponsored_listings")
         .select(`
-          id, class_id, category_id, status, radius_km, center_address,
+          id, class_id, category_id, status,
           valid_from, valid_until, impression_count, click_count,
           off_app_payment_ref, rejection_reason, requested_at, reviewed_at,
           classes(title, cover_image_url)
@@ -152,36 +148,18 @@ export function useRequestSponsored() {
       providerId: string;
       classId: string;
       categoryId: string | null;
-      centerAddress: string;
-      centerLat: number;
-      centerLng: number;
-      radiusKm: number;
       validFrom: string; // ISO date
       validUntil: string; // ISO date
       offAppPaymentRef?: string;
     }) => {
-      // PostgREST can't insert a geography literal directly, so we use an RPC
-      // when available.  For now we insert via a small wrapper SQL using
-      // ST_MakePoint passed through a generated column would be ideal — but
-      // we instead set center_location via an UPDATE after INSERT using the
-      // PostGIS-friendly format the policy allows.
-      //
-      // Approach: INSERT without geography, then UPDATE the geography column
-      // using a single round-trip RPC `set_sponsored_center` (added below).
-      // Until that RPC exists in 031, fall back to inserting via the
-      // RPC-less raw object — Supabase accepts EWKT strings for geography
-      // columns at INSERT time.
-      const ewkt = `SRID=4326;POINT(${input.centerLng} ${input.centerLat})`;
-
+      // Phase 8 design fix: sponsored listings are trust-marker tags scoped
+      // to the class. No separate region — the class supplies the location.
       const { data, error } = await supabase
         .from("sponsored_listings")
         .insert({
           provider_id: input.providerId,
           class_id: input.classId,
           category_id: input.categoryId,
-          center_address: input.centerAddress,
-          center_location: ewkt as unknown as string,
-          radius_km: input.radiusKm,
           valid_from: input.validFrom,
           valid_until: input.validUntil,
           off_app_payment_ref: input.offAppPaymentRef ?? null,

@@ -251,7 +251,7 @@ export function usePlatformSponsoredRequests(status?: string | string[]) {
         .from("sponsored_listings")
         .select(`
           id, class_id, provider_id, status, slot_position,
-          radius_km, valid_from, valid_until, center_address,
+          valid_from, valid_until,
           impression_count, click_count,
           off_app_payment_ref, rejection_reason, requested_at,
           reviewed_by, reviewed_at,

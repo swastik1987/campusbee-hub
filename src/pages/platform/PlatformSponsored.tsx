@@ -78,8 +78,6 @@ type FeedItem =
       classTitle: string;
       coverImageUrl: string | null;
       categoryName: string | null;
-      centerAddress: string | null;
-      radiusKm: number;
       validFrom: string | null;
       validUntil: string | null;
       impressionCount: number;
@@ -148,8 +146,6 @@ const PlatformSponsored = () => {
       classTitle: s.classes?.title ?? "—",
       coverImageUrl: s.classes?.cover_image_url ?? null,
       categoryName: s.classes?.class_categories?.name ?? null,
-      centerAddress: s.center_address ?? null,
-      radiusKm: s.radius_km,
       validFrom: s.valid_from,
       validUntil: s.valid_until,
       impressionCount: s.impression_count ?? 0,
@@ -343,9 +339,6 @@ const SponsoredCard = ({
           </div>
           <p className="text-xs text-muted-foreground">{item.providerName}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <MapPin size={10} /> {item.radiusKm} km
-            </span>
             {item.categoryName && (
               <Badge variant="outline" className="h-4 px-1.5 text-[10px]">
                 {item.categoryName}
@@ -358,13 +351,6 @@ const SponsoredCard = ({
           {new Date(item.requestedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
         </span>
       </div>
-
-      {item.centerAddress && (
-        <p className="text-xs text-muted-foreground">
-          <MapPin size={10} className="mr-1 inline" />
-          {item.centerAddress}
-        </p>
-      )}
 
       {item.offAppPaymentRef && (
         <div className="rounded-lg bg-muted/60 px-3 py-2">
@@ -769,8 +755,6 @@ function formatRefreshSummary(r: RefreshSponsoredResult): string {
 type SponsoredRowRaw = {
   id: string;
   status: string;
-  radius_km: number;
-  center_address: string | null;
   valid_from: string | null;
   valid_until: string | null;
   impression_count: number | null;

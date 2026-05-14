@@ -16,7 +16,7 @@ export function useActiveFeaturedListings(_apartmentId?: string) {
       const { data, error } = await supabase
         .from("sponsored_listings")
         .select(`
-          id, class_id, slot_position, radius_km, valid_from, valid_until,
+          id, class_id, slot_position, valid_from, valid_until,
           classes(
             id, title, short_description, cover_image_url,
             class_categories(name, slug),
@@ -47,7 +47,7 @@ export function useProviderSponsoredRequests(providerId: string | undefined) {
         .from("sponsored_listings")
         .select(`
           id, class_id, provider_id, status, slot_position,
-          radius_km, valid_from, valid_until,
+          valid_from, valid_until,
           off_app_payment_ref, rejection_reason,
           requested_at, reviewed_at,
           classes(title, cover_image_url)
@@ -62,6 +62,8 @@ export function useProviderSponsoredRequests(providerId: string | undefined) {
 
 // ---- Provider: Request a Sponsored Slot ----
 
+/** @deprecated Use useRequestSponsored from "@/hooks/useSponsored" instead.
+ *  Kept as a compat stub; radius_km param is ignored (column dropped in 034). */
 export function useRequestSponsoredListing() {
   const qc = useQueryClient();
   return useMutation({
@@ -69,7 +71,6 @@ export function useRequestSponsoredListing() {
       classId: string;
       providerId: string;
       offAppPaymentRef?: string;
-      radiusKm?: number;
     }) => {
       const { data, error } = await supabase
         .from("sponsored_listings")
@@ -77,7 +78,6 @@ export function useRequestSponsoredListing() {
           class_id: input.classId,
           provider_id: input.providerId,
           status: "pending",
-          radius_km: input.radiusKm ?? 10,
           off_app_payment_ref: input.offAppPaymentRef || null,
           requested_at: new Date().toISOString(),
         })
