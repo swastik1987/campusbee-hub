@@ -1231,52 +1231,67 @@ export type Database = {
       }
       featured_banners: {
         Row: {
+          center_address: string | null
+          center_location: unknown
           class_id: string | null
           click_count: number
           id: string
           image_url: string
           impression_count: number
           moderation_status: string
+          off_app_payment_ref: string | null
           provider_id: string
+          radius_km: number | null
           rejection_reason: string | null
           requested_at: string
           reviewed_at: string | null
           reviewed_by: string | null
           status: string
+          surface: string
           target_url: string | null
           valid_from: string | null
           valid_until: string | null
         }
         Insert: {
+          center_address?: string | null
+          center_location?: unknown
           class_id?: string | null
           click_count?: number
           id?: string
           image_url: string
           impression_count?: number
           moderation_status?: string
+          off_app_payment_ref?: string | null
           provider_id: string
+          radius_km?: number | null
           rejection_reason?: string | null
           requested_at?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          surface?: string
           target_url?: string | null
           valid_from?: string | null
           valid_until?: string | null
         }
         Update: {
+          center_address?: string | null
+          center_location?: unknown
           class_id?: string | null
           click_count?: number
           id?: string
           image_url?: string
           impression_count?: number
           moderation_status?: string
+          off_app_payment_ref?: string | null
           provider_id?: string
+          radius_km?: number | null
           rejection_reason?: string | null
           requested_at?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          surface?: string
           target_url?: string | null
           valid_from?: string | null
           valid_until?: string | null
@@ -1865,10 +1880,13 @@ export type Database = {
       }
       sponsored_listings: {
         Row: {
+          category_id: string | null
           center_address: string | null
           center_location: unknown
           class_id: string
+          click_count: number
           id: string
+          impression_count: number
           off_app_payment_ref: string | null
           provider_id: string
           radius_km: number
@@ -1882,10 +1900,13 @@ export type Database = {
           valid_until: string | null
         }
         Insert: {
+          category_id?: string | null
           center_address?: string | null
           center_location?: unknown
           class_id: string
+          click_count?: number
           id?: string
+          impression_count?: number
           off_app_payment_ref?: string | null
           provider_id: string
           radius_km?: number
@@ -1899,10 +1920,13 @@ export type Database = {
           valid_until?: string | null
         }
         Update: {
+          category_id?: string | null
           center_address?: string | null
           center_location?: unknown
           class_id?: string
+          click_count?: number
           id?: string
+          impression_count?: number
           off_app_payment_ref?: string | null
           provider_id?: string
           radius_km?: number
@@ -1916,6 +1940,13 @@ export type Database = {
           valid_until?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "sponsored_listings_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "class_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sponsored_listings_class_id_fkey"
             columns: ["class_id"]
@@ -2196,6 +2227,10 @@ export type Database = {
         Args: { ""?: string; att_name: string; tbl: unknown }
         Returns: string
       }
+      _sponsored_slot_count: {
+        Args: { p_category_id: string }
+        Returns: number
+      }
       _st_3dintersects: {
         Args: { geom1: unknown; geom2: unknown }
         Returns: boolean
@@ -2371,6 +2406,19 @@ export type Database = {
       }
       equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
       expire_premium_subscriptions: { Args: never; Returns: number }
+      featured_banners_for_location: {
+        Args: { p_lat: number; p_lng: number; p_surface: string }
+        Returns: {
+          class_id: string
+          distance_km: number
+          id: string
+          image_url: string
+          provider_id: string
+          surface: string
+          target_url: string
+          valid_until: string
+        }[]
+      }
       geometry: { Args: { "": string }; Returns: unknown }
       geometry_above: {
         Args: { geom1: unknown; geom2: unknown }
@@ -2484,6 +2532,16 @@ export type Database = {
         }[]
       }
       gettransactionid: { Args: never; Returns: unknown }
+      increment_banner_click: { Args: { p_id: string }; Returns: undefined }
+      increment_banner_impression: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      increment_sponsored_click: { Args: { p_id: string }; Returns: undefined }
+      increment_sponsored_impression: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       is_chat_participant: {
         Args: { p_conversation_id: string }
         Returns: boolean
@@ -2593,6 +2651,15 @@ export type Database = {
         Args: { p_enrollment_id: string }
         Returns: boolean
       }
+      refresh_sponsored_lifecycle: {
+        Args: never
+        Returns: {
+          banners_activated: number
+          banners_expired: number
+          sponsored_activated: number
+          sponsored_expired: number
+        }[]
+      }
       reject_category_request: {
         Args: {
           p_admin_user_id: string
@@ -2640,6 +2707,19 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      sponsored_for_location: {
+        Args: { p_category_id?: string; p_lat: number; p_lng: number }
+        Returns: {
+          category_id: string
+          class_id: string
+          distance_km: number
+          id: string
+          provider_id: string
+          radius_km: number
+          slot_position: number
+          valid_until: string
+        }[]
       }
       st_3dclosestpoint: {
         Args: { geom1: unknown; geom2: unknown }
