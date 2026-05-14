@@ -9,7 +9,12 @@ import {
   usePendingEnrollments,
   useProviderActiveBatches,
 } from "@/hooks/useProvider";
-import { useProviderCategoryRequests } from "@/hooks/useCategoryRequests";
+import {
+  useProviderCategoryRequests,
+  useDismissCategoryRequest,
+} from "@/hooks/useCategoryRequests";
+import SwipeToDismiss from "@/components/provider/SwipeToDismiss";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CertificationManager from "@/components/provider/CertificationManager";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
@@ -68,8 +73,13 @@ const ProviderDashboard = () => {
   const [upcomingOpen, setUpcomingOpen] = useState(false);
 
   const actionCount = pendingEnrollments?.length ?? 0;
-  const pendingCatRequests = (catRequests ?? []).filter((r) => r.status === "pending");
-  const rejectedCatRequests = (catRequests ?? []).filter((r) => r.status === "rejected");
+  const dismissCatReq = useDismissCategoryRequest();
+  const pendingCatRequests = (catRequests ?? []).filter(
+    (r) => r.status === "pending",
+  );
+  const historyCatRequests = (catRequests ?? []).filter(
+    (r) => r.status !== "pending" && !r.dismissed_at,
+  );
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-20">
@@ -328,37 +338,122 @@ const ProviderDashboard = () => {
             </CollapsibleContent>
           </Collapsible>
         )}
-        {/* Category Requests Status */}
-        {((pendingCatRequests.length > 0) || (rejectedCatRequests.length > 0)) && (
+        {/* Category Requests Status — Active (pending) + History (dismissible) */}
+        {(pendingCatRequests.length > 0 || historyCatRequests.length > 0) && (
           <div>
             <h2 className="mb-3 text-base font-bold flex items-center gap-2">
               <FolderTree size={18} className="text-provider" />
               Category Requests
             </h2>
-            <div className="space-y-2">
-              {pendingCatRequests.map((r) => (
-                <Card key={r.id} className="flex items-center gap-3 p-3 border-amber-200 bg-amber-50/50">
-                  <Clock size={16} className="text-amber-500 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{r.requested_name}</p>
-                    <p className="text-xs text-muted-foreground">Awaiting review</p>
-                  </div>
-                  <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">Pending</Badge>
-                </Card>
-              ))}
-              {rejectedCatRequests.map((r) => (
-                <Card key={r.id} className="flex items-center gap-3 p-3 border-red-200 bg-red-50/50">
-                  <XCircle size={16} className="text-red-500 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{r.requested_name}</p>
-                    {r.admin_notes && (
-                      <p className="text-xs text-red-600 line-clamp-1">{r.admin_notes}</p>
-                    )}
-                  </div>
-                  <Badge variant="outline" className="text-red-600 border-red-300 text-xs">Rejected</Badge>
-                </Card>
-              ))}
-            </div>
+            <Tabs defaultValue={pendingCatRequests.length > 0 ? "active" : "history"}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="active" className="text-xs">
+                  Active
+                  {pendingCatRequests.length > 0 && (
+                    <Badge className="ml-1.5 h-4 bg-amber-500 px-1 text-[9px] text-white">
+                      {pendingCatRequests.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="history" className="text-xs">
+                  History
+                  {historyCatRequests.length > 0 && (
+                    <Badge variant="outline" className="ml-1.5 h-4 px-1 text-[9px]">
+                      {historyCatRequests.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="active" className="mt-3 space-y-2">
+                {pendingCatRequests.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-muted-foreground">
+                    No pending category requests
+                  </p>
+                ) : (
+                  pendingCatRequests.map((r) => (
+                    // Locked: pending requests can't be dismissed
+                    <SwipeToDismiss key={r.id} locked onDismiss={() => {}}>
+                      <Card className="flex items-center gap-3 border-amber-200 bg-amber-50/50 p-3">
+                        <Clock size={16} className="flex-shrink-0 text-amber-500" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{r.requested_name}</p>
+                          <p className="text-xs text-muted-foreground">Awaiting review</p>
+                        </div>
+                        <Badge variant="outline" className="border-amber-300 text-xs text-amber-600">
+                          Pending
+                        </Badge>
+                      </Card>
+                    </SwipeToDismiss>
+                  ))
+                )}
+              </TabsContent>
+
+              <TabsContent value="history" className="mt-3 space-y-2">
+                {historyCatRequests.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-muted-foreground">
+                    Nothing here — dismissed requests will appear with no card.
+                  </p>
+                ) : (
+                  historyCatRequests.map((r) => {
+                    const isApproved = r.status === "approved";
+                    const isRejected = r.status === "rejected";
+                    return (
+                      <SwipeToDismiss
+                        key={r.id}
+                        onDismiss={() => dismissCatReq.mutate(r.id)}
+                      >
+                        <Card
+                          className={`flex items-center gap-3 p-3 pr-9 ${
+                            isApproved
+                              ? "border-emerald-200 bg-emerald-50/50"
+                              : isRejected
+                              ? "border-red-200 bg-red-50/50"
+                              : "border-muted bg-muted/30"
+                          }`}
+                        >
+                          {isApproved ? (
+                            <CheckCircle2 size={16} className="flex-shrink-0 text-emerald-500" />
+                          ) : isRejected ? (
+                            <XCircle size={16} className="flex-shrink-0 text-red-500" />
+                          ) : (
+                            <Clock size={16} className="flex-shrink-0 text-muted-foreground" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">{r.requested_name}</p>
+                            {r.admin_notes && (
+                              <p
+                                className={`line-clamp-1 text-xs ${
+                                  isRejected ? "text-red-600" : "text-muted-foreground"
+                                }`}
+                              >
+                                {r.admin_notes}
+                              </p>
+                            )}
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${
+                              isApproved
+                                ? "border-emerald-300 text-emerald-700"
+                                : isRejected
+                                ? "border-red-300 text-red-600"
+                                : "text-muted-foreground"
+                            }`}
+                          >
+                            {r.status === "retag_declined"
+                              ? "Declined"
+                              : r.status === "retag_pending"
+                              ? "Re-tag"
+                              : r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                          </Badge>
+                        </Card>
+                      </SwipeToDismiss>
+                    );
+                  })
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         )}
 

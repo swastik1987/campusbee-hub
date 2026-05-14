@@ -15,6 +15,7 @@ export function useMyCategoryRequests(providerId: string | undefined) {
           id, request_type, requested_name, requested_icon, description,
           requested_subcategories,
           status, admin_notes, parent_category_id, retag_category_id, requested_at,
+          dismissed_at,
           parent_cat:class_categories!category_requests_parent_category_id_fkey(id, name, icon),
           retag_cat:class_categories!category_requests_retag_category_id_fkey(id, name, icon)
         `)
@@ -31,6 +32,56 @@ export function useMyCategoryRequests(providerId: string | undefined) {
  * ProviderDashboard uses r.requested_name / r.admin_notes / r.status.
  */
 export const useProviderCategoryRequests = useMyCategoryRequests;
+
+/**
+ * Soft-hide a non-pending category request from the dashboard.
+ * Pending requests cannot be dismissed (DB trigger enforces).
+ */
+export function useDismissCategoryRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      const { error } = await supabase
+        .from("category_requests")
+        .update({ dismissed_at: new Date().toISOString() })
+        .eq("id", requestId);
+      if (error) throw error;
+    },
+    onMutate: async (requestId) => {
+      await qc.cancelQueries({ queryKey: ["category-requests"] });
+      const previous = qc.getQueriesData<any[]>({ queryKey: ["category-requests"] });
+      qc.setQueriesData<any[]>({ queryKey: ["category-requests"] }, (old) =>
+        old?.map((r) =>
+          r.id === requestId ? { ...r, dismissed_at: new Date().toISOString() } : r,
+        ),
+      );
+      return { previous };
+    },
+    onError: (_err, _id, ctx) => {
+      ctx?.previous.forEach(([key, value]) => qc.setQueryData(key, value));
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["category-requests"] });
+    },
+  });
+}
+
+/** Reverse a soft-hide (e.g. an "Undo" toast). */
+export function useRestoreCategoryRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      const { error } = await supabase
+        .from("category_requests")
+        .update({ dismissed_at: null })
+        .eq("id", requestId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["category-requests"] });
+    },
+  });
+}
 
 /** Submit a new category / sub-category request. Returns { id }. */
 export function useSubmitCategoryRequest() {
