@@ -1,5 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+
+const EXPLORE_PAGE_SIZE = 20;
+const NEARBY_RPC_MAX = 500;
 
 // ---- Platform Settings (read-only, public) ----
 
@@ -233,6 +236,149 @@ export function useExploreClasses(filters: {
       if (error) throw error;
       return data;
     },
+  });
+}
+
+/**
+ * Server-side radius filter via PostGIS RPC. Returns a Map<classId, distanceKm>
+ * for every published+approved class within radius. The Explore page intersects
+ * this with the paginated PostgREST query so radius filtering happens
+ * server-side without over-fetching, and distances render without a follow-up
+ * client-side haversine pass on cards inside the radius.
+ *
+ * Capped at NEARBY_RPC_MAX results — for MVP volumes this is more than enough.
+ * If a city's catalogue ever crosses that, switch this to a cursor pager too.
+ */
+export function useNearbyClassIds(opts: {
+  lat: number | null;
+  lng: number | null;
+  radiusKm: number;
+  categoryId?: string | null;
+  enabled?: boolean;
+}) {
+  return useQuery({
+    queryKey: [
+      "nearby-class-ids",
+      opts.lat,
+      opts.lng,
+      opts.radiusKm,
+      opts.categoryId ?? null,
+    ],
+    enabled:
+      (opts.enabled ?? true) && opts.lat != null && opts.lng != null,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("nearby_classes", {
+        p_lat: opts.lat!,
+        p_lng: opts.lng!,
+        p_radius_km: opts.radiusKm,
+        p_category_id: opts.categoryId ?? null,
+        p_limit: NEARBY_RPC_MAX,
+        p_offset: 0,
+      });
+      if (error) throw error;
+      const distances = new Map<string, number>();
+      for (const r of (data ?? []) as Array<{ id: string; distance_km: number }>) {
+        distances.set(r.id, r.distance_km);
+      }
+      return distances;
+    },
+  });
+}
+
+/**
+ * Infinite-paginated explore feed. Optionally constrained to a pre-computed
+ * set of class IDs (typically those returned from nearby_classes RPC). When
+ * `restrictToIds` is an empty array, returns no rows.
+ *
+ * Pages of EXPLORE_PAGE_SIZE rows; getNextPageParam returns null when the last
+ * page returned fewer rows than the page size.
+ */
+export function useInfiniteExploreClasses(filters: {
+  search?: string;
+  categoryIds?: string[];
+  /** When the search term also matches a category by name, those category IDs
+   * are OR'd with the title/short_description ilike filter so users typing a
+   * category name (e.g. "music") still see classes in that category even when
+   * the title doesn't contain the term. */
+  searchOrCategoryIds?: string[];
+  sort?: string;
+  /** Pre-filtered class IDs (from nearby_classes RPC). Pass undefined to skip. */
+  restrictToIds?: string[];
+  /** Disable the query entirely (e.g. while location/radius RPC is still loading). */
+  enabled?: boolean;
+}) {
+  return useInfiniteQuery({
+    queryKey: ["explore-classes-infinite", filters],
+    enabled: filters.enabled ?? true,
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const offset = pageParam as number;
+
+      // Empty restriction set short-circuits — no rows to fetch.
+      if (filters.restrictToIds && filters.restrictToIds.length === 0) {
+        return { rows: [] as any[], nextOffset: null as number | null };
+      }
+
+      let query = supabase
+        .from("classes")
+        .select(`
+          id, title, short_description, cover_image_url, class_type,
+          skill_level, age_group_min, age_group_max, total_rating, rating_count,
+          trial_available, trial_fee, created_at, category_id, address,
+          is_home_based, home_radius_km, location_lat, location_lng,
+          class_categories!inner(id, name, slug, parent_id),
+          service_providers(id, business_name, provider_type,
+            users(full_name, avatar_url)
+          ),
+          batches(id, fee_amount, fee_frequency, status, max_batch_size, current_enrollment_count,
+            batch_schedules(day_of_week, start_time, end_time)
+          )
+        `)
+        .eq("status", "published")
+        .eq("moderation_status", "approved");
+
+      if (filters.restrictToIds && filters.restrictToIds.length > 0) {
+        query = query.in("id", filters.restrictToIds);
+      }
+      if (filters.categoryIds && filters.categoryIds.length > 0) {
+        query = query.in("category_id", filters.categoryIds);
+      }
+      if (filters.search) {
+        const safe = filters.search.replace(/%/g, "\\%").replace(/_/g, "\\_");
+        const parts = [
+          `title.ilike.%${safe}%`,
+          `short_description.ilike.%${safe}%`,
+        ];
+        if (filters.searchOrCategoryIds && filters.searchOrCategoryIds.length > 0) {
+          parts.push(`category_id.in.(${filters.searchOrCategoryIds.join(",")})`);
+        }
+        query = query.or(parts.join(","));
+      }
+
+      switch (filters.sort) {
+        case "rating":
+          query = query.order("total_rating", { ascending: false });
+          break;
+        case "popular":
+          query = query.order("rating_count", { ascending: false });
+          break;
+        case "newest":
+        default:
+          query = query.order("created_at", { ascending: false });
+          break;
+      }
+
+      query = query.range(offset, offset + EXPLORE_PAGE_SIZE - 1);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      const rows = data ?? [];
+      return {
+        rows,
+        nextOffset: rows.length === EXPLORE_PAGE_SIZE ? offset + EXPLORE_PAGE_SIZE : null,
+      };
+    },
+    getNextPageParam: (lastPage) => lastPage.nextOffset,
   });
 }
 

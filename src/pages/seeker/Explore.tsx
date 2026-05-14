@@ -1,7 +1,13 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useExploreClasses, usePlatformSettings, useActiveSponsoredClassIds, useMyEnrollments } from "@/hooks/useSeeker";
+import {
+  useInfiniteExploreClasses,
+  useNearbyClassIds,
+  usePlatformSettings,
+  useActiveSponsoredClassIds,
+  useMyEnrollments,
+} from "@/hooks/useSeeker";
 import { useIncomingInvites } from "@/hooks/useFamilyLinking";
 import { useCategories } from "@/hooks/useClasses";
 import { useQueryClient } from "@tanstack/react-query";
@@ -185,37 +191,53 @@ const Explore = () => {
 
   const isSearching = !!debouncedSearch;
 
-  // Primary query: title/description + category filter
-  const { data: classes, isLoading } = useExploreClasses({
-    apartmentId: undefined,
-    search:      debouncedSearch || undefined,
-    categoryIds: combinedCategoryIds,
-    sort,
-    limit: 50,
-  });
-
-  // Secondary: category name match (text search only)
-  const { data: catMatchClasses } = useExploreClasses({
-    apartmentId: undefined,
-    categoryIds: searchCategoryIds,
-    sort,
-    limit: 50,
-  });
-
-  // All classes in the category filter (for client-side provider name search)
-  const { data: allAptClasses } = useExploreClasses({
-    apartmentId: undefined,
-    categoryIds: selectedCategoryIds,
-    sort,
-    limit: 100,
-  });
-
   // Distance helpers
   const seekerLat = profile?.seeker_home_lat ?? null;
   const seekerLng = profile?.seeker_home_lng ?? null;
   const hasLocation = seekerLat != null && seekerLng != null;
 
+  // Step 1: PostGIS RPC returns IDs (and distance) of every published+approved
+  // class within radius. Cached separately so changing sort/search/pagination
+  // doesn't refetch it.
+  const { data: nearbyDistances, isLoading: nearbyLoading } = useNearbyClassIds({
+    lat: seekerLat,
+    lng: seekerLng,
+    radiusKm: searchRadius,
+    categoryId: activeCat?.id ?? null,
+  });
+
+  const restrictToIds = hasLocation
+    ? Array.from(nearbyDistances?.keys() ?? [])
+    : undefined;
+
+  // Step 2: Infinite-paginated PostgREST fetch, optionally restricted to the
+  // nearby ID set. EXPLORE_PAGE_SIZE rows per page, sentinel-triggered.
+  const {
+    data: infiniteData,
+    isLoading: pageLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteExploreClasses({
+    search: debouncedSearch || undefined,
+    categoryIds: combinedCategoryIds,
+    searchOrCategoryIds: searchCategoryIds,
+    sort,
+    restrictToIds,
+    enabled: !hasLocation || !nearbyLoading,
+  });
+
+  const fetchedClasses = useMemo(
+    () => (infiniteData?.pages ?? []).flatMap((p) => p.rows),
+    [infiniteData],
+  );
+  const isLoading = pageLoading || (hasLocation && nearbyLoading);
+
+  // Distance: prefer the RPC's value (which respects home-based fallback),
+  // fall back to client haversine for safety.
   const computeDistance = (cls: any): number | null => {
+    const rpcDist = nearbyDistances?.get(cls.id);
+    if (rpcDist != null) return rpcDist;
     if (!hasLocation || !cls.location_lat || !cls.location_lng) return null;
     return haversineKm(
       { lat: seekerLat!, lng: seekerLng! },
@@ -223,31 +245,16 @@ const Explore = () => {
     );
   };
 
-  const withinRadius = (cls: any): boolean => {
-    if (!hasLocation || !cls.location_lat || !cls.location_lng) return true;
-    const dist = haversineKm(
-      { lat: seekerLat!, lng: seekerLng! },
-      { lat: cls.location_lat, lng: cls.location_lng },
-    );
-    return cls.is_home_based ? dist <= (cls.home_radius_km ?? 5) : dist <= searchRadius;
-  };
+  // Server-side radius filter via the RPC. We only need a client guard for the
+  // no-location case (when restrictToIds is undefined and we want to keep
+  // everything visible).
+  const withinRadius = (_cls: any): boolean => true;
 
-  // Merge + deduplicate search results
-  const rawDisplayClasses = (() => {
-    if (!isSearching) return classes;
-    const map = new Map<string, any>();
-    (classes ?? []).forEach((c) => map.set(c.id, c));
-    (catMatchClasses ?? []).forEach((c) => map.set(c.id, c));
-    if (allAptClasses && debouncedSearch) {
-      const term = debouncedSearch.toLowerCase();
-      allAptClasses.forEach((c: any) => {
-        const sp = c.service_providers;
-        const name = sp?.business_name || sp?.users?.full_name || "";
-        if (name.toLowerCase().includes(term)) map.set(c.id, c);
-      });
-    }
-    return Array.from(map.values());
-  })();
+  // Search merge no longer needed: the infinite query handles
+  // title/short_description ilike and category intersection in one pass.
+  // Provider-name search is deferred to a follow-up improvement — surfacing
+  // it consistently requires either a full-text index or a server RPC.
+  const rawDisplayClasses = fetchedClasses;
 
   // Trust-marker thresholds from platform_settings
   const { data: platformSettings }  = usePlatformSettings();
@@ -285,14 +292,14 @@ const Explore = () => {
     ];
   }, [sponsoredClassIds, newThresholdDays, popularEnrollmentMin, popularRatingMin, popularRatingCountMin]);
 
-  const displayClasses = useMemo(() => {
+  const activeList = useMemo(() => {
     if (!rawDisplayClasses) return rawDisplayClasses;
     const withDist = (rawDisplayClasses as any[])
       .filter(withinRadius)
       .map((cls: any) => ({ ...cls, distanceKm: computeDistance(cls) }));
     return applyTrustMarkers(withDist);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawDisplayClasses, seekerLat, seekerLng, searchRadius, applyTrustMarkers]);
+  }, [rawDisplayClasses, seekerLat, seekerLng, searchRadius, applyTrustMarkers, nearbyDistances]);
 
   const { data: incomingInvites }  = useIncomingInvites(
     profile?.id, profile?.email ?? null, profile?.mobile_number ?? null,
@@ -305,19 +312,25 @@ const Explore = () => {
     (e: any) => e.status === "active" || e.status === "pending",
   );
 
-  const filteredClasses = useMemo(() => {
-    if (!classes) return classes;
-    const withDist = (classes as any[])
-      .filter(withinRadius)
-      .map((cls: any) => ({ ...cls, distanceKm: computeDistance(cls) }));
-    return applyTrustMarkers(withDist);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classes, seekerLat, seekerLng, searchRadius, applyTrustMarkers]);
-
   const clearFilters = () => { setCategorySlug(""); setSearch(""); setSort("newest"); };
 
-  // Unified list for display
-  const activeList = isSearching ? displayClasses : filteredClasses;
+  // Sentinel-based infinite scroll: trigger fetchNextPage when the load marker
+  // intersects the viewport. rootMargin pre-fetches one screen ahead.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!sentinelRef.current || !hasNextPage || isFetchingNextPage) return;
+    const el = sentinelRef.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: "400px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-20">
@@ -589,6 +602,21 @@ const Explore = () => {
                   <ClassCard cls={cls as any} />
                 </div>
               ))}
+
+              {/* Infinite-scroll sentinel + next-page skeletons */}
+              {hasNextPage && (
+                <div ref={sentinelRef} className="space-y-3 pt-1">
+                  {isFetchingNextPage &&
+                    Array.from({ length: 2 }).map((_, i) => (
+                      <Skeleton key={i} className="h-24 rounded-2xl" />
+                    ))}
+                </div>
+              )}
+              {!hasNextPage && activeList.length >= 20 && (
+                <p className="py-4 text-center text-[11px] text-muted-foreground">
+                  You've reached the end.
+                </p>
+              )}
             </div>
           )}
 
