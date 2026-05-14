@@ -742,14 +742,14 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
               </div>
               <p className="text-xs text-amber-700">
                 {isPremium
-                  ? "Promote this class with a sponsored slot in Explore, or a featured banner on the home page. Premium-only."
+                  ? "This feature is available to you as you have Premium Subscription. You can promote this class with a sponsored badge on you class listing and make it listed higher among other classes. You can also post a featured banner at the top of the class listing page for greater visibility."
                   : "This is a feature available only with Premium Subscription. You can promote this class with a sponsored badge on you class listing and make it listed higher among other classes. You can also post a featured banner at the top of the class listing page for greater visibility."}
               </p>
             </div>
 
             {cls.status === "published" ? (
               <Button
-                onClick={() => navigate(`/provider/sponsored?classId=${cls.id}`)}
+                onClick={() => navigate("/provider/sponsored")}
                 className="w-full bg-provider text-white"
               >
                 <Sparkles size={14} className="mr-1" /> Promote this class
