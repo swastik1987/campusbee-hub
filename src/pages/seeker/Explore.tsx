@@ -206,9 +206,17 @@ const Explore = () => {
     categoryId: activeCat?.id ?? null,
   });
 
-  const restrictToIds = hasLocation
-    ? Array.from(nearbyDistances?.keys() ?? [])
-    : undefined;
+  // Only restrict the paginated query to the RPC's ID set when the RPC
+  // actually returned something. If it comes back empty (e.g. before the
+  // geo-backfill migration has been applied, or if a class row is missing
+  // its geography column), fall back to no server-side restriction and
+  // let the client-side haversine filter do its job — correctness over
+  // perf in the degenerate case.
+  const restrictToIds =
+    hasLocation && nearbyDistances && nearbyDistances.size > 0
+      ? Array.from(nearbyDistances.keys())
+      : undefined;
+  const usingRpcRestriction = restrictToIds !== undefined;
 
   // Step 2: Infinite-paginated PostgREST fetch, optionally restricted to the
   // nearby ID set. EXPLORE_PAGE_SIZE rows per page, sentinel-triggered.
@@ -245,10 +253,19 @@ const Explore = () => {
     );
   };
 
-  // Server-side radius filter via the RPC. We only need a client guard for the
-  // no-location case (when restrictToIds is undefined and we want to keep
-  // everything visible).
-  const withinRadius = (_cls: any): boolean => true;
+  // Radius filter: when the RPC delivered a non-empty restriction, the
+  // server has already filtered for us — skip the client pass. Otherwise
+  // fall back to haversine on the denormalized lat/lng columns so the
+  // page stays correct even when the RPC degrades.
+  const withinRadius = (cls: any): boolean => {
+    if (usingRpcRestriction) return true;
+    if (!hasLocation || cls.location_lat == null || cls.location_lng == null) return true;
+    const dist = haversineKm(
+      { lat: seekerLat!, lng: seekerLng! },
+      { lat: cls.location_lat, lng: cls.location_lng },
+    );
+    return cls.is_home_based ? dist <= (cls.home_radius_km ?? 5) : dist <= searchRadius;
+  };
 
   // Search merge no longer needed: the infinite query handles
   // title/short_description ilike and category intersection in one pass.
