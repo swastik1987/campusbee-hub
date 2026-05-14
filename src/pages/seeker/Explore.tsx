@@ -139,20 +139,48 @@ const Explore = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Auto-collapse categories when scrolled down; expand at top
+  // Auto-collapse categories when scrolling down; expand near top.
+  // Hysteresis (separate collapse/expand thresholds) + direction-awareness +
+  // a short post-toggle lockout prevent the layout-shift loop that otherwise
+  // makes the section flicker open/closed on short pages.
   useEffect(() => {
-    const COLLAPSE_THRESHOLD = 80;
-    let lastCollapsed: boolean | null = null;
-    const onScroll = () => {
-      const shouldCollapse = window.scrollY > COLLAPSE_THRESHOLD;
-      if (shouldCollapse !== lastCollapsed) {
-        lastCollapsed = shouldCollapse;
-        setPillsExpanded(!shouldCollapse);
-      }
+    const COLLAPSE_AT = 120;
+    const EXPAND_AT   = 24;
+    const LOCKOUT_MS  = 450;
+    let lastY = window.scrollY;
+    let lockUntil = 0;
+    let rafId: number | null = null;
+
+    const update = () => {
+      rafId = null;
+      if (Date.now() < lockUntil) return;
+
+      const y = window.scrollY;
+      const goingDown = y > lastY;
+      lastY = y;
+
+      setPillsExpanded((prev) => {
+        if (prev && goingDown && y > COLLAPSE_AT) {
+          lockUntil = Date.now() + LOCKOUT_MS;
+          return false;
+        }
+        if (!prev && y <= EXPAND_AT) {
+          lockUntil = Date.now() + LOCKOUT_MS;
+          return true;
+        }
+        return prev;
+      });
     };
-    onScroll();
+
+    const onScroll = () => {
+      if (rafId === null) rafId = window.requestAnimationFrame(update);
+    };
+
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   const isSearching = !!debouncedSearch;
@@ -440,8 +468,17 @@ const Explore = () => {
 
             {/* Category icon + label pills — collapsible */}
             <div
-              className="overflow-hidden transition-all duration-300 ease-in-out"
-              style={{ maxHeight: pillsExpanded ? "200px" : "0px", opacity: pillsExpanded ? 1 : 0 }}
+              className="overflow-hidden"
+              style={{
+                maxHeight: pillsExpanded ? "240px" : "0px",
+                opacity: pillsExpanded ? 1 : 0,
+                transform: pillsExpanded ? "translateY(0)" : "translateY(-4px)",
+                transition:
+                  "max-height 400ms cubic-bezier(0.22, 1, 0.36, 1), " +
+                  "opacity 260ms ease-out, " +
+                  "transform 360ms cubic-bezier(0.22, 1, 0.36, 1)",
+                willChange: "max-height, opacity, transform",
+              }}
             >
             <div className="-mx-4 flex flex-wrap gap-2 px-4 pb-1 pt-0.5">
 
