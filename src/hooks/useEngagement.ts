@@ -329,6 +329,47 @@ export function useUnreadChatCount(userId: string | undefined) {
   });
 }
 
+/** Returns a Map of conversationId → unread count (for the receiver). */
+export function useUnreadCountsByConversation(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["unread-counts-by-conv", userId],
+    enabled: !!userId,
+    refetchInterval: 30000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chat_messages")
+        .select("conversation_id")
+        .neq("sender_id", userId!)
+        .eq("is_read", false);
+      if (error) throw error;
+      const counts = new Map<string, number>();
+      for (const row of data ?? []) {
+        const cid = (row as { conversation_id: string }).conversation_id;
+        counts.set(cid, (counts.get(cid) ?? 0) + 1);
+      }
+      return counts;
+    },
+  });
+}
+
+/** Marks every unread message in a conversation (where I'm the receiver) as read. */
+export function useMarkConversationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (conversationId: string) => {
+      const { error } = await supabase.rpc("mark_conversation_read", {
+        p_conversation_id: conversationId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["unread-chat-count"] });
+      qc.invalidateQueries({ queryKey: ["unread-counts-by-conv"] });
+      qc.invalidateQueries({ queryKey: ["chat-messages"] });
+    },
+  });
+}
+
 export function useChatMessages(conversationId: string | undefined) {
   return useQuery({
     queryKey: ["chat-messages", conversationId],

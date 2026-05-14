@@ -6,6 +6,8 @@ import {
   useChatMessages,
   useSendMessage,
   useGetOrCreateConversation,
+  useMarkConversationRead,
+  useUnreadCountsByConversation,
 } from "@/hooks/useEngagement";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
@@ -28,8 +30,10 @@ const Chat = () => {
 
   const { data: conversations, isLoading: convsLoading } = useChatConversations(userId);
   const { data: messages } = useChatMessages(activeConversationId ?? undefined);
+  const { data: unreadByConv } = useUnreadCountsByConversation(userId);
   const sendMessage = useSendMessage();
   const getOrCreate = useGetOrCreateConversation();
+  const markRead = useMarkConversationRead();
 
   // Handle deep link ?with=userId
   useEffect(() => {
@@ -45,6 +49,20 @@ const Chat = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Mark conversation as read on open + whenever new unread messages arrive
+  // while the thread is the active view.
+  useEffect(() => {
+    if (!activeConversationId || !userId) return;
+    const hasUnread = (messages ?? []).some(
+      (m) => m.sender_id !== userId && !m.is_read,
+    );
+    if (hasUnread) {
+      markRead.mutate(activeConversationId);
+    }
+    // markRead is a stable mutation object; intentionally not in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConversationId, messages, userId]);
 
   const handleSend = async () => {
     if (!messageText.trim() || !activeConversationId || !userId) return;
@@ -187,10 +205,13 @@ const Chat = () => {
           <div className="space-y-1">
             {conversations.map((conv) => {
               const other = getOtherUser(conv);
+              const unread = unreadByConv?.get(conv.id) ?? 0;
               return (
                 <div
                   key={conv.id}
-                  className="flex items-center gap-3 rounded-xl p-3 cursor-pointer transition-colors hover:bg-accent active:bg-accent/80"
+                  className={`flex items-center gap-3 rounded-xl p-3 cursor-pointer transition-colors active:bg-accent/80 ${
+                    unread > 0 ? "bg-primary/[0.04] hover:bg-primary/[0.08]" : "hover:bg-accent"
+                  }`}
                   onClick={() => setActiveConversationId(conv.id)}
                 >
                   <Avatar className="h-11 w-11">
@@ -203,21 +224,34 @@ const Chat = () => {
                     <div className="flex items-center justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <p className="text-sm font-semibold truncate">{other?.full_name}</p>
+                          <p className={`text-sm truncate ${unread > 0 ? "font-bold" : "font-semibold"}`}>
+                            {other?.full_name}
+                          </p>
                           {other && <RoleBadge user={other} />}
                         </div>
                       </div>
                       {conv.last_message_at && (
-                        <span className="text-[10px] text-muted-foreground flex-shrink-0 ml-2">
+                        <span className={`text-[10px] flex-shrink-0 ml-2 ${unread > 0 ? "font-semibold text-primary" : "text-muted-foreground"}`}>
                           {new Date(conv.last_message_at).toLocaleDateString("en-IN", {
                             day: "numeric", month: "short",
                           })}
                         </span>
                       )}
                     </div>
-                    {conv.last_message_preview && (
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">{conv.last_message_preview}</p>
-                    )}
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                      {conv.last_message_preview ? (
+                        <p className={`text-xs truncate ${unread > 0 ? "text-foreground/80 font-medium" : "text-muted-foreground"}`}>
+                          {conv.last_message_preview}
+                        </p>
+                      ) : (
+                        <span />
+                      )}
+                      {unread > 0 && (
+                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground flex-shrink-0">
+                          {unread > 99 ? "99+" : unread}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
