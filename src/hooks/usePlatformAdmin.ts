@@ -242,15 +242,17 @@ export function useResolveModerationFlag() {
 
 // ---- Sponsored Slots Management ----
 
-export function usePlatformSponsoredRequests(status?: string) {
+export function usePlatformSponsoredRequests(status?: string | string[]) {
+  const key = Array.isArray(status) ? status.join(",") : status;
   return useQuery({
-    queryKey: ["platform-sponsored", status],
+    queryKey: ["platform-sponsored", key],
     queryFn: async () => {
       let query = supabase
         .from("sponsored_listings")
         .select(`
           id, class_id, provider_id, status, slot_position,
-          radius_km, valid_from, valid_until,
+          radius_km, valid_from, valid_until, center_address,
+          impression_count, click_count,
           off_app_payment_ref, rejection_reason, requested_at,
           reviewed_by, reviewed_at,
           classes(title, cover_image_url, class_categories(name)),
@@ -258,7 +260,9 @@ export function usePlatformSponsoredRequests(status?: string) {
         `)
         .order("requested_at", { ascending: false });
 
-      if (status && status !== "all") {
+      if (Array.isArray(status) && status.length) {
+        query = query.in("status", status);
+      } else if (typeof status === "string" && status !== "all") {
         query = query.eq("status", status);
       }
 
@@ -301,9 +305,10 @@ export function useApproveSponsored() {
 
 // ---- Featured Banners Management ----
 
-export function usePlatformBannerRequests(status?: string) {
+export function usePlatformBannerRequests(status?: string | string[]) {
+  const key = Array.isArray(status) ? status.join(",") : status;
   return useQuery({
-    queryKey: ["platform-banners", status],
+    queryKey: ["platform-banners", key],
     queryFn: async () => {
       let query = supabase
         .from("featured_banners")
@@ -318,7 +323,9 @@ export function usePlatformBannerRequests(status?: string) {
         `)
         .order("requested_at", { ascending: false });
 
-      if (status && status !== "all") {
+      if (Array.isArray(status) && status.length) {
+        query = query.in("status", status);
+      } else if (typeof status === "string" && status !== "all") {
         query = query.eq("status", status);
       }
 
