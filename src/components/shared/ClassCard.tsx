@@ -15,6 +15,7 @@ type ClassCardProps = {
     total_rating?: number | null;
     rating_count?: number | null;
     is_home_based?: boolean | null;
+    address?: string | null;
     /** Distance from seeker's home (km) — computed client-side, optional */
     distanceKm?: number | null;
     class_categories?: { name: string; slug: string } | null;
@@ -40,7 +41,6 @@ type ClassCardProps = {
   variant?: "horizontal" | "vertical";
 };
 
-const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const FEE_LABELS: Record<string, string> = {
   per_session: "/session",
   monthly: "/mo",
@@ -48,6 +48,12 @@ const FEE_LABELS: Record<string, string> = {
   for_duration: " total",
   one_time: "",
 };
+
+/** Truncate an address to the first comma-separated segment. */
+function shortAddress(address: string): string {
+  const first = address.split(",")[0]?.trim() ?? address;
+  return first.length > 36 ? first.slice(0, 34) + "…" : first;
+}
 
 const ClassCard = React.forwardRef<HTMLDivElement, ClassCardProps>(
   ({ cls, variant = "horizontal" }, ref) => {
@@ -63,18 +69,11 @@ const ClassCard = React.forwardRef<HTMLDivElement, ClassCardProps>(
     : null;
   const lowestBatch = activeBatches.find((b) => b.fee_amount === lowestFee);
 
-  // Schedule summary from first batch
-  const schedules = activeBatches[0]?.batch_schedules ?? [];
-  const scheduleSummary = schedules.length > 0
-    ? schedules.map((s) => DAY_SHORT[s.day_of_week]).join("/") +
-      " · " +
-      schedules[0].start_time.slice(0, 5) + "–" + schedules[0].end_time.slice(0, 5)
-    : null;
-
   // Available slots
   const totalSlots = activeBatches.reduce((acc, b) => acc + b.max_batch_size - (b.current_enrollment_count ?? 0), 0);
 
   const distanceLabel = cls.distanceKm != null ? formatDistance(cls.distanceKm) : null;
+  const addressLine = cls.address ? shortAddress(cls.address) : null;
 
   if (variant === "vertical") {
     return (
@@ -135,6 +134,7 @@ const ClassCard = React.forwardRef<HTMLDivElement, ClassCardProps>(
         </div>
       )}
       <div className="flex-1 min-w-0">
+        {/* Row 1 — Title + distance badge */}
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-sm font-semibold truncate">{cls.title}</h3>
           {distanceLabel && (
@@ -144,14 +144,26 @@ const ClassCard = React.forwardRef<HTMLDivElement, ClassCardProps>(
             </span>
           )}
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5 truncate">
-          {providerName}
-          {provider?.provider_type === "academy" && (
-            <Badge variant="secondary" className="ml-1 text-[9px] px-1 py-0">Academy</Badge>
+
+        {/* Row 2 — Provider name + Rating */}
+        <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span className="truncate">
+            {providerName}
+            {provider?.provider_type === "academy" && (
+              <Badge variant="secondary" className="ml-1 text-[9px] px-1 py-0">Academy</Badge>
+            )}
+          </span>
+          {(cls.rating_count ?? 0) > 0 && (
+            <span className="flex items-center gap-0.5 shrink-0">
+              <Star size={11} className="text-amber-500 fill-amber-500" />
+              {cls.total_rating}
+              <span className="text-[10px]">({cls.rating_count})</span>
+            </span>
           )}
-        </p>
-        <div className="flex items-center gap-1.5 flex-wrap mt-1">
-          {/* Trust marker badges — Sponsored first, then New, then Popular */}
+        </div>
+
+        {/* Row 3 — Trust badges */}
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
           {cls.isSponsored && (
             <Badge className="text-[10px] border-0 bg-amber-50 text-amber-700 border border-amber-200 gap-0.5 px-1.5">
               ✦ Sponsored
@@ -177,24 +189,28 @@ const ClassCard = React.forwardRef<HTMLDivElement, ClassCardProps>(
             </Badge>
           )}
         </div>
-        <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground">
-          {(cls.rating_count ?? 0) > 0 && (
-            <span className="flex items-center gap-0.5">
-              <Star size={11} className="text-amber-500 fill-amber-500" />
-              {cls.total_rating} <span className="text-[10px]">({cls.rating_count})</span>
-            </span>
-          )}
-          {lowestFee !== null && (
+
+        {/* Row 4 — Class location (if available) */}
+        {addressLine && (
+          <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+            <MapPin size={10} className="shrink-0" />
+            <span className="truncate">{addressLine}</span>
+          </p>
+        )}
+
+        {/* Row 5 — Fees starting from … (if batches exist) */}
+        {lowestFee !== null && (
+          <p className="mt-1 text-xs">
+            <span className="text-muted-foreground">Starting from </span>
             <span className="font-semibold text-foreground">
               ₹{lowestFee}{FEE_LABELS[lowestBatch?.fee_frequency ?? ""] ?? ""}
             </span>
-          )}
-        </div>
-        {scheduleSummary && (
-          <p className="text-[10px] text-muted-foreground mt-0.5">{scheduleSummary}</p>
+          </p>
         )}
+
+        {/* Row 6 — Low-availability nudge */}
         {totalSlots > 0 && totalSlots <= 5 && (
-          <p className="text-[10px] text-green-600 font-medium mt-0.5">{totalSlots} spots left</p>
+          <p className="mt-0.5 text-[10px] font-medium text-green-600">{totalSlots} spots left</p>
         )}
       </div>
     </Card>

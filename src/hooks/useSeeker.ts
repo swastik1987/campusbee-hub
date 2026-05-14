@@ -188,7 +188,7 @@ export function useExploreClasses(filters: {
         .select(`
           id, title, short_description, cover_image_url, class_type,
           skill_level, age_group_min, age_group_max, total_rating, rating_count,
-          trial_available, trial_fee, created_at, category_id,
+          trial_available, trial_fee, created_at, category_id, address,
           is_home_based, home_radius_km, location_lat, location_lng,
           class_categories!inner(id, name, slug, parent_id),
           service_providers(id, business_name, provider_type,
