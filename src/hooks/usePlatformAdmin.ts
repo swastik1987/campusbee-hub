@@ -225,14 +225,15 @@ export function useResolveModerationFlag() {
     mutationFn: async (input: {
       flagId: string;
       action: "approved" | "rejected";
-      reviewedBy: string;
+      /** Kept for API compatibility — the SQL function resolves admin identity
+       *  via current_user_id() internally. */
+      reviewedBy?: string;
       actionNotes?: string;
     }) => {
       const { error } = await supabase.rpc("resolve_moderation_flag" as any, {
         p_flag_id: input.flagId,
-        p_action: input.action,
-        p_reviewed_by: input.reviewedBy,
-        p_action_notes: input.actionNotes || null,
+        p_status: input.action,
+        p_notes: input.actionNotes || null,
       });
       if (error) throw error;
     },

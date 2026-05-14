@@ -4,6 +4,7 @@ import {
   useTrainerCertifications,
   useAddCertification,
   useDeleteCertification,
+  useReplaceCertificationImage,
   type Certification,
 } from "@/hooks/useCertifications";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Award, Clock, ImagePlus, Loader2, ShieldCheck, ShieldX, Trash2, X } from "lucide-react";
+import { Award, Clock, ImagePlus, Loader2, RefreshCw, ShieldCheck, ShieldX, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -89,6 +90,7 @@ const CertificationManager = React.forwardRef<
 
   const addCert = useAddCertification();
   const deleteCert = useDeleteCertification();
+  const replaceImage = useReplaceCertificationImage();
 
   // Add sheet state
   const [addOpen, setAddOpen] = useState(false);
@@ -98,6 +100,11 @@ const CertificationManager = React.forwardRef<
   const [previewUrl, setPreviewUrl] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Re-upload (replace image) state — separate hidden input so we can target a
+  // specific cert id without conflicting with the "Add" picker.
+  const replaceFileRef = useRef<HTMLInputElement>(null);
+  const [replaceTarget, setReplaceTarget] = useState<Certification | null>(null);
 
   // Delete confirm state
   const [deleteTarget, setDeleteTarget] = useState<Certification | null>(null);
@@ -144,6 +151,38 @@ const CertificationManager = React.forwardRef<
     }
   };
 
+  const triggerReplace = (cert: Certification) => {
+    setReplaceTarget(cert);
+    // Defer so React renders the hidden input change handler with the new target
+    setTimeout(() => replaceFileRef.current?.click(), 0);
+  };
+
+  const handleReplaceFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Clear the input so picking the same file twice still fires onChange
+    e.target.value = "";
+    const target = replaceTarget;
+    setReplaceTarget(null);
+    if (!file || !target) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be under 5 MB");
+      return;
+    }
+    try {
+      await replaceImage.mutateAsync({
+        certId: target.id,
+        oldImageUrl: target.image_url,
+        ownerType,
+        providerId: ownerType === "provider" ? providerId : undefined,
+        trainerId: ownerType === "trainer" ? trainerId : undefined,
+        file,
+      });
+      toast.success("Certification resubmitted for review");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Re-upload failed");
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
@@ -167,6 +206,14 @@ const CertificationManager = React.forwardRef<
 
   return (
     <div ref={ref} className="space-y-3">
+      {/* Hidden file input for re-upload — shared across cert cards */}
+      <input
+        ref={replaceFileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleReplaceFile}
+      />
       {/* Header row */}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold flex items-center gap-1.5">
@@ -230,9 +277,25 @@ const CertificationManager = React.forwardRef<
                     {cfg.label}
                   </Badge>
                   {cert.moderation_status === "rejected" && cert.moderation_notes && (
-                    <p className="text-[9px] text-red-600 leading-tight mt-0.5">
+                    <p className="text-[9px] text-red-600 leading-tight mt-0.5 line-clamp-3">
                       {cert.moderation_notes}
                     </p>
+                  )}
+                  {cert.moderation_status === "rejected" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 mt-1 gap-1 text-[10px] border-provider/40 text-provider w-full"
+                      disabled={replaceImage.isPending}
+                      onClick={() => triggerReplace(cert)}
+                    >
+                      {replaceImage.isPending && replaceTarget?.id === cert.id ? (
+                        <Loader2 size={10} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={10} />
+                      )}
+                      Re-upload
+                    </Button>
                   )}
                 </div>
                 {/* Delete overlay */}
