@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import UpgradeRequestSheet from "@/components/subscription/UpgradeRequestSheet";
@@ -475,17 +475,52 @@ const ProviderDashboard = () => {
                         </SwipeToDismiss>
                       );
                     }
+                    const retagTargetIsParent = r.retag_cat && r.retag_cat.parent_id === null;
+                    const retagSubs: string[] = Array.isArray(r.requested_subcategories)
+                      ? r.requested_subcategories
+                      : [];
+                    let acceptPreview: ReactNode = null;
+                    if (r.retag_cat) {
+                      if (r.request_type === "new_category" && retagTargetIsParent) {
+                        acceptPreview = retagSubs.length > 0 ? (
+                          <>
+                            Accept will create sub-categories{" "}
+                            <span className="font-semibold">{retagSubs.join(", ")}</span>{" "}
+                            under existing category{" "}
+                            <span className="font-semibold">{r.retag_cat.name}</span>.
+                          </>
+                        ) : (
+                          <>
+                            Accept will map your class to existing category{" "}
+                            <span className="font-semibold">{r.retag_cat.name}</span>.
+                          </>
+                        );
+                      } else if (r.request_type === "new_subcategory" && retagTargetIsParent) {
+                        acceptPreview = (
+                          <>
+                            Accept will create sub-category{" "}
+                            <span className="font-semibold">{r.requested_name}</span>{" "}
+                            under existing category{" "}
+                            <span className="font-semibold">{r.retag_cat.name}</span>.
+                          </>
+                        );
+                      } else {
+                        acceptPreview = (
+                          <>
+                            Accept will map your class to existing category{" "}
+                            <span className="font-semibold">{r.retag_cat.name}</span>.
+                          </>
+                        );
+                      }
+                    }
                     return (
                       <Card key={r.id} className="border-blue-200 bg-blue-50/50 p-3">
                         <div className="flex items-start gap-3">
                           <FolderTree size={16} className="mt-0.5 flex-shrink-0 text-blue-600" />
                           <div className="min-w-0 flex-1 space-y-1">
                             <p className="text-sm font-medium">{r.requested_name}</p>
-                            {r.retag_cat && (
-                              <p className="text-xs text-blue-800">
-                                Admin suggests mapping this to existing category:{" "}
-                                <span className="font-semibold">{r.retag_cat.name}</span>
-                              </p>
+                            {acceptPreview && (
+                              <p className="text-xs text-blue-800">{acceptPreview}</p>
                             )}
                             {r.admin_notes && (
                               <p className="whitespace-pre-wrap break-words text-xs text-blue-700">

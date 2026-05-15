@@ -340,6 +340,48 @@ const PlatformCategories = () => {
   const [retagCatId, setRetagCatId]     = useState("");
   const [retagNotes, setRetagNotes]     = useState("");
 
+  // Flat picker list ordered parents-first; sub-categories sit beneath their
+  // parent and carry the parent's display name for context. new_category
+  // requests can only be retagged to a top-level parent (we'd otherwise end
+  // up nesting sub-categories under a sub).
+  const retagPickerOptions = useMemo(() => {
+    const cats = allCategories ?? [];
+    const restrictToParents = retagTarget?.request_type === "new_category";
+    const parents = cats
+      .filter((c) => !c.parent_id)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const out: Array<{
+      id: string;
+      name: string;
+      icon: string | null;
+      parent_id: string | null;
+      parent_name: string | null;
+    }> = [];
+    for (const p of parents) {
+      out.push({
+        id: p.id,
+        name: p.name,
+        icon: p.icon ?? null,
+        parent_id: null,
+        parent_name: null,
+      });
+      if (restrictToParents) continue;
+      const subs = cats
+        .filter((c) => c.parent_id === p.id)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      for (const s of subs) {
+        out.push({
+          id: s.id,
+          name: s.name,
+          icon: s.icon ?? null,
+          parent_id: p.id,
+          parent_name: p.name,
+        });
+      }
+    }
+    return out;
+  }, [allCategories, retagTarget?.request_type]);
+
   // ── Category CRUD state ────────────────────────────────────────────────────
   const [showAdd, setShowAdd]           = useState(false);
   const [editId, setEditId]             = useState<string | null>(null);
@@ -972,12 +1014,30 @@ const PlatformCategories = () => {
           </SheetHeader>
           <div className="space-y-4 py-4">
             {retagTarget && (
-              <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
-                  Instructor requested
-                </p>
-                <p className="text-sm font-semibold">
-                  {retagTarget.requested_name}
+              <div className="space-y-2">
+                <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                    Instructor requested ({retagTarget.request_type === "new_category" ? "new category" : "new sub-category"})
+                  </p>
+                  <p className="text-sm font-semibold">
+                    {retagTarget.requested_name}
+                  </p>
+                  {retagTarget.request_type === "new_subcategory" && retagTarget.parent_cat && (
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      under {retagTarget.parent_cat.name}
+                    </p>
+                  )}
+                  {Array.isArray(retagTarget.requested_subcategories)
+                    && retagTarget.requested_subcategories.length > 0 && (
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Sub-categories: {retagTarget.requested_subcategories.join(", ")}
+                    </p>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {retagTarget.request_type === "new_category"
+                    ? "Pick an existing top-level category. On accept, the instructor's sub-categories will be created under it (duplicates skipped)."
+                    : "Pick a category or sub-category. If you pick a top-level category, the requested sub-category will be created underneath it on accept."}
                 </p>
               </div>
             )}
@@ -992,16 +1052,20 @@ const PlatformCategories = () => {
                   <SelectValue placeholder="Select category…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(allCategories ?? []).map((cat) => {
+                  {retagPickerOptions.map((cat) => {
                     const CIcon = cat.icon ? ICON_MAP[cat.icon] : null;
+                    const isSub = !!cat.parent_id;
                     return (
                       <SelectItem key={cat.id} value={cat.id}>
                         <span className="flex items-center gap-2">
+                          {isSub && (
+                            <span className="text-muted-foreground">↳</span>
+                          )}
                           {CIcon && <CIcon size={14} />}
                           {cat.name}
-                          {cat.parent_id && (
+                          {isSub && cat.parent_name && (
                             <span className="text-[10px] text-muted-foreground ml-1">
-                              (sub)
+                              ({cat.parent_name})
                             </span>
                           )}
                         </span>

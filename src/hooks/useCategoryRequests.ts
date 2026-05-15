@@ -17,7 +17,7 @@ export function useMyCategoryRequests(providerId: string | undefined) {
           status, admin_notes, parent_category_id, retag_category_id, requested_at,
           dismissed_at,
           parent_cat:class_categories!category_requests_parent_category_id_fkey(id, name, icon),
-          retag_cat:class_categories!category_requests_retag_category_id_fkey(id, name, icon)
+          retag_cat:class_categories!category_requests_retag_category_id_fkey(id, name, icon, parent_id)
         `)
         .eq("provider_id", providerId!)
         .order("requested_at", { ascending: false });
@@ -176,7 +176,7 @@ export function usePlatformCategoryRequests(status: string = "pending") {
           retag_category_id, parent_category_id, requested_at,
           service_providers(business_name),
           parent_cat:class_categories!category_requests_parent_category_id_fkey(id, name, icon),
-          retag_cat:class_categories!category_requests_retag_category_id_fkey(id, name, icon)
+          retag_cat:class_categories!category_requests_retag_category_id_fkey(id, name, icon, parent_id)
         `)
         .order("requested_at", { ascending: false });
 
