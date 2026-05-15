@@ -208,6 +208,162 @@ export function useUpdateEnrollmentStatus() {
   });
 }
 
+// ---- Learner drop & batch switch ----
+
+const invalidateEnrollmentCaches = (qc: ReturnType<typeof useQueryClient>) => {
+  qc.invalidateQueries({ queryKey: ["my-enrollments"] });
+  qc.invalidateQueries({ queryKey: ["enrollment-detail"] });
+  qc.invalidateQueries({ queryKey: ["provider-enrollments"] });
+  qc.invalidateQueries({ queryKey: ["pending-enrollments"] });
+  qc.invalidateQueries({ queryKey: ["pending-batch-switches"] });
+  qc.invalidateQueries({ queryKey: ["batches"] });
+  qc.invalidateQueries({ queryKey: ["seeker-class-detail"] });
+};
+
+export function useLearnerDropEnrollment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (enrollmentId: string) => {
+      const { error } = await (supabase as any).rpc("learner_drop_enrollment", {
+        p_enrollment_id: enrollmentId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateEnrollmentCaches(qc),
+  });
+}
+
+export function useLearnerRequestBatchSwitch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: {
+      enrollmentId: string;
+      toBatchId: string;
+      reason?: string;
+    }) => {
+      const { error } = await (supabase as any).rpc("learner_request_batch_switch", {
+        p_enrollment_id: args.enrollmentId,
+        p_to_batch_id: args.toBatchId,
+        p_reason: args.reason ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateEnrollmentCaches(qc),
+  });
+}
+
+export function useLearnerCancelBatchSwitch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (enrollmentId: string) => {
+      const { error } = await (supabase as any).rpc("learner_cancel_batch_switch", {
+        p_enrollment_id: enrollmentId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateEnrollmentCaches(qc),
+  });
+}
+
+export function useProviderApproveBatchSwitch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (enrollmentId: string) => {
+      const { error } = await (supabase as any).rpc("provider_approve_batch_switch", {
+        p_enrollment_id: enrollmentId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateEnrollmentCaches(qc),
+  });
+}
+
+export function useProviderRejectBatchSwitch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: { enrollmentId: string; reason?: string }) => {
+      const { error } = await (supabase as any).rpc("provider_reject_batch_switch", {
+        p_enrollment_id: args.enrollmentId,
+        p_reason: args.reason ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateEnrollmentCaches(qc),
+  });
+}
+
+/** Pending batch-switch requests across this provider's classes — for the dashboard inbox. */
+export function usePendingBatchSwitches(providerId: string | undefined) {
+  return useQuery({
+    queryKey: ["pending-batch-switches", providerId],
+    enabled: !!providerId,
+    queryFn: async () => {
+      // 1. Provider's class ids
+      const { data: classes, error: cErr } = await supabase
+        .from("classes")
+        .select("id, title")
+        .eq("provider_id", providerId!);
+      if (cErr) throw cErr;
+      const classIds = (classes ?? []).map((c) => c.id);
+      if (classIds.length === 0) return [];
+
+      // 2. Batch ids in those classes
+      const { data: batches, error: bErr } = await supabase
+        .from("batches")
+        .select("id, batch_name, class_id")
+        .in("class_id", classIds);
+      if (bErr) throw bErr;
+      const batchIds = (batches ?? []).map((b) => b.id);
+      if (batchIds.length === 0) return [];
+
+      // 3. Enrollments in those batches with a pending switch
+      const { data: enrolls, error: eErr } = await (supabase as any)
+        .from("enrollments")
+        .select(
+          "id, batch_id, pending_switch_to_batch_id, switch_requested_at, family_member_id, enrolled_by",
+        )
+        .in("batch_id", batchIds)
+        .not("pending_switch_to_batch_id", "is", null)
+        .order("switch_requested_at", { ascending: false });
+      if (eErr) throw eErr;
+
+      const rows = enrolls ?? [];
+      if (rows.length === 0) return [];
+
+      // 4. Resolve names for from/to batches + classes + students
+      const batchMap = new Map(batches!.map((b) => [b.id, b]));
+      const classMap = new Map(classes!.map((c) => [c.id, c]));
+
+      // Target batches may live in other classes belonging to the same provider;
+      // they should already be in `batches` because we filtered by all provider classes.
+      const memberIds = Array.from(
+        new Set(rows.map((r: any) => r.family_member_id).filter(Boolean)),
+      );
+      const { data: members } = memberIds.length
+        ? await supabase
+            .from("family_members")
+            .select("id, full_name")
+            .in("id", memberIds)
+        : { data: [] as any[] };
+      const memberMap = new Map((members ?? []).map((m: any) => [m.id, m.full_name]));
+
+      return rows.map((r: any) => {
+        const fromBatch = batchMap.get(r.batch_id);
+        const toBatch = batchMap.get(r.pending_switch_to_batch_id);
+        const cls = fromBatch ? classMap.get(fromBatch.class_id) : undefined;
+        return {
+          enrollmentId: r.id as string,
+          classTitle: cls?.title ?? "",
+          fromBatchName: fromBatch?.batch_name ?? "",
+          toBatchName: toBatch?.batch_name ?? "",
+          memberName: memberMap.get(r.family_member_id) ?? "A student",
+          requestedAt: r.switch_requested_at as string | null,
+        };
+      });
+    },
+  });
+}
+
 // ---- Provider: Payment management ----
 
 export function useProviderPayments(providerId: string | undefined, status?: string) {

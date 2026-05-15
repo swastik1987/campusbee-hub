@@ -14,6 +14,12 @@ import {
   useCreateBatch,
   useCreateAddon,
   useDeleteAddon,
+  useDeleteClass,
+  useDeleteBatch,
+  peekClassDeleteOutcome,
+  peekBatchDeleteOutcome,
+  ACTIVE_ENROLLMENTS_ERROR,
+  type DeleteOutcomePeek,
 } from "@/hooks/useClasses";
 import {
   useUploadBannerImage,
@@ -34,6 +40,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -117,7 +133,64 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
   const createBatch = useCreateBatch();
   const createAddon = useCreateAddon();
   const deleteAddon = useDeleteAddon();
+  const deleteClass = useDeleteClass();
+  const deleteBatch = useDeleteBatch();
   const isAcademy = providerProfile?.provider_type === "academy";
+
+  // Delete-flow target — null when no dialog open. `kind` switches between
+  // class-level and batch-level dialog; `peek` decides the copy.
+  const [deleteFlow, setDeleteFlow] = useState<{
+    kind: "class" | "batch";
+    id: string;
+    label: string;
+    peek: DeleteOutcomePeek;
+  } | null>(null);
+
+  const openDeleteClass = async () => {
+    if (!cls) return;
+    try {
+      const peek = await peekClassDeleteOutcome(cls.id);
+      setDeleteFlow({ kind: "class", id: cls.id, label: cls.title, peek });
+    } catch {
+      toast.error("Couldn't check enrollment status. Try again.");
+    }
+  };
+
+  const openDeleteBatch = async (batch: { id: string; batch_name?: string | null }) => {
+    try {
+      const peek = await peekBatchDeleteOutcome(batch.id);
+      setDeleteFlow({
+        kind: "batch",
+        id: batch.id,
+        label: batch.batch_name ?? "this batch",
+        peek,
+      });
+    } catch {
+      toast.error("Couldn't check enrollment status. Try again.");
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteFlow) return;
+    try {
+      if (deleteFlow.kind === "class") {
+        const result = await deleteClass.mutateAsync(deleteFlow.id);
+        toast.success(result.mode === "hard" ? "Class deleted" : "Class archived");
+        setDeleteFlow(null);
+        navigate("/provider/classes", { replace: true });
+      } else {
+        const result = await deleteBatch.mutateAsync(deleteFlow.id);
+        toast.success(result.mode === "hard" ? "Batch deleted" : "Batch cancelled");
+        setDeleteFlow(null);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === ACTIVE_ENROLLMENTS_ERROR) {
+        toast.error("Drop all active students first.");
+      } else {
+        toast.error("Failed to delete");
+      }
+    }
+  };
   const { data: trainers } = useTrainers(providerProfile?.id);
 
   // Featured (v2: stubs — upload still works for banner image)
@@ -538,6 +611,17 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
           >
             <Plus size={14} className="mr-1" /> Batch
           </Button>
+          {cls.status !== "archived" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={openDeleteClass}
+              className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+              title="Delete class"
+            >
+              <Trash2 size={14} />
+            </Button>
+          )}
         </div>
 
         <Tabs defaultValue="batches">
@@ -631,6 +715,17 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
                       <Button size="sm" className="text-xs h-7 bg-provider text-white"
                         onClick={() => updateBatchStatus.mutateAsync({ batchId: batch.id, status: "active" })}>
                         Activate
+                      </Button>
+                    )}
+                    {batch.status !== "cancelled" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive ml-auto"
+                        onClick={() => openDeleteBatch(batch)}
+                        title="Delete batch"
+                      >
+                        <Trash2 size={12} />
                       </Button>
                     )}
                   </div>
@@ -1206,6 +1301,89 @@ const ProviderClassDetail = React.forwardRef<HTMLDivElement, Record<string, neve
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Delete (class or batch) confirmation — copy adapts to enrollment history */}
+      <AlertDialog open={!!deleteFlow} onOpenChange={(open) => !open && setDeleteFlow(null)}>
+        <AlertDialogContent>
+          {deleteFlow?.peek.mode === "blocked" ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Can't delete just yet</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {deleteFlow.kind === "class" ? "This class" : `Batch "${deleteFlow.label}"`}{" "}
+                  has {deleteFlow.peek.activeCount} pending or active
+                  enrollment{deleteFlow.peek.activeCount === 1 ? "" : "s"}.
+                  Drop those students from the Students page first, then come back to delete.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Close</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    const batchParam = deleteFlow.kind === "batch" ? `&batch=${deleteFlow.id}` : "";
+                    setDeleteFlow(null);
+                    navigate(`/provider/students?tab=active${batchParam}`);
+                  }}
+                >
+                  Go to Students
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : deleteFlow?.peek.mode === "archive" ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {deleteFlow.kind === "class"
+                    ? `Archive "${deleteFlow.label}"?`
+                    : `Cancel batch "${deleteFlow.label}"?`}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {deleteFlow.kind === "class"
+                    ? "This class has past enrollment history, so we'll archive it instead of permanently deleting — attendance and payment records stay intact for your reference. Learners won't see it anymore, and all its batches will be cancelled."
+                    : "This batch has past enrollment history, so we'll mark it as cancelled instead of permanently deleting — attendance and payment records stay intact."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={confirmDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={deleteClass.isPending || deleteBatch.isPending}
+                >
+                  {(deleteClass.isPending || deleteBatch.isPending) ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : deleteFlow.kind === "class" ? "Archive" : "Cancel batch"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : deleteFlow ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Permanently delete {deleteFlow.kind === "class" ? "" : "batch "}"{deleteFlow.label}"?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {deleteFlow.kind === "class"
+                    ? "No one has ever enrolled, so we'll fully delete this class along with all its batches. This cannot be undone."
+                    : "No one has ever enrolled in this batch, so we'll fully delete it. This cannot be undone."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={confirmDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={deleteClass.isPending || deleteBatch.isPending}
+                >
+                  {(deleteClass.isPending || deleteBatch.isPending) ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : null}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 });

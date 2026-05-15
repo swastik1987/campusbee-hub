@@ -2,7 +2,14 @@ import * as React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useProviderClasses, useUpdateClassStatus, useDeleteClass } from "@/hooks/useClasses";
+import {
+  useProviderClasses,
+  useUpdateClassStatus,
+  useDeleteClass,
+  peekClassDeleteOutcome,
+  ACTIVE_ENROLLMENTS_ERROR,
+  type DeleteOutcomePeek,
+} from "@/hooks/useClasses";
 import ModerationStatusBadge from "@/components/moderation/ModerationStatusBadge";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
@@ -42,11 +49,25 @@ const ProviderClasses = React.forwardRef<HTMLDivElement, Record<string, never>>(
   const navigate = useNavigate();
   const { providerProfile } = useUser();
   const [statusFilter, setStatusFilter] = useState("all");
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    title: string;
+    peek: DeleteOutcomePeek;
+  } | null>(null);
 
   const { data: classes, isLoading } = useProviderClasses(providerProfile?.id, statusFilter);
   const updateStatus = useUpdateClassStatus();
   const deleteClass = useDeleteClass();
+
+  const openDeleteDialog = async (e: React.MouseEvent, cls: { id: string; title: string }) => {
+    e.stopPropagation();
+    try {
+      const peek = await peekClassDeleteOutcome(cls.id);
+      setDeleteTarget({ id: cls.id, title: cls.title, peek });
+    } catch {
+      toast.error("Couldn't check enrollment status. Try again.");
+    }
+  };
 
   const handleCopyLink = (e: React.MouseEvent, classId: string) => {
     e.stopPropagation();
@@ -77,11 +98,15 @@ const ProviderClasses = React.forwardRef<HTMLDivElement, Record<string, never>>(
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await deleteClass.mutateAsync(deleteTarget);
-      toast.success("Draft deleted");
+      const result = await deleteClass.mutateAsync(deleteTarget.id);
+      toast.success(result.mode === "hard" ? "Class deleted" : "Class archived");
       setDeleteTarget(null);
-    } catch {
-      toast.error("Failed to delete class");
+    } catch (err) {
+      if (err instanceof Error && err.name === ACTIVE_ENROLLMENTS_ERROR) {
+        toast.error("Drop all active students before deleting this class.");
+      } else {
+        toast.error("Failed to delete class");
+      }
     }
   };
 
@@ -144,11 +169,11 @@ const ProviderClasses = React.forwardRef<HTMLDivElement, Record<string, never>>(
                       <Badge className={`text-[10px] ${STATUS_COLORS[cls.status ?? "draft"]} border-0`}>
                         {STATUS_LABELS[cls.status ?? "draft"] ?? cls.status}
                       </Badge>
-                      {cls.status === "draft" && (
+                      {cls.status !== "archived" && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(cls.id); }}
+                          onClick={(e) => openDeleteDialog(e, { id: cls.id, title: cls.title })}
                           className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-red-50 transition-colors"
-                          title="Delete draft"
+                          title="Delete class"
                         >
                           <Trash2 size={13} />
                         </button>
@@ -251,25 +276,71 @@ const ProviderClasses = React.forwardRef<HTMLDivElement, Record<string, never>>(
         </div>
       )}
 
-      {/* Delete confirmation */}
+      {/* Delete confirmation — copy adapts to enrollment history */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the draft class and all its batches. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteClass.isPending}
-            >
-              {deleteClass.isPending ? <Loader2 size={14} className="animate-spin" /> : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          {deleteTarget?.peek.mode === "blocked" ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Can't delete just yet</AlertDialogTitle>
+                <AlertDialogDescription>
+                  "{deleteTarget.title}" has {deleteTarget.peek.activeCount}{" "}
+                  pending or active enrollment{deleteTarget.peek.activeCount === 1 ? "" : "s"}.
+                  Drop those students from the Students page first, then come back to delete the class.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Close</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => { setDeleteTarget(null); navigate(`/provider/students?tab=active`); }}
+                >
+                  Go to Students
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : deleteTarget?.peek.mode === "archive" ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Archive "{deleteTarget.title}"?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This class has past enrollment history, so we'll archive it instead of
+                  permanently deleting — attendance and payment records stay intact for
+                  your reference. Learners won't see it anymore, and all its batches will
+                  be cancelled.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={deleteClass.isPending}
+                >
+                  {deleteClass.isPending ? <Loader2 size={14} className="animate-spin" /> : "Archive"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Permanently delete "{deleteTarget?.title}"?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  No one has ever enrolled, so we'll fully delete this class along with
+                  all its batches. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={deleteClass.isPending}
+                >
+                  {deleteClass.isPending ? <Loader2 size={14} className="animate-spin" /> : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
         </AlertDialogContent>
       </AlertDialog>
 

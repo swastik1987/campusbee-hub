@@ -551,9 +551,9 @@ const CreateClass = () => {
                   </p>
                   <p className="text-xs text-amber-700 mt-0.5">
                     Learners may confuse it with your existing class. Consider a more
-                    distinctive name (e.g. add the batch, age group, or timing) so the
-                    listings are easy to tell apart. You can still publish with this
-                    name if you intend to.
+                    distinctive class name (e.g. add some location identifier or tags)
+                    so the listings are easy to tell apart. You can still publish with
+                    this name if you intend to.
                   </p>
                   {duplicates?.[0]?.address && (
                     <p className="text-[11px] text-amber-700/80 mt-1">
@@ -827,9 +827,9 @@ const CreateClass = () => {
                   </p>
                   <p className="text-xs text-amber-700 mt-0.5">
                     You already have a published class named "{title.trim()}" within
-                    500 m of this location. Renaming it (e.g. add batch, age group, or
-                    timing) will help learners pick the right one. You can still publish
-                    with this name.
+                    500 m of this location. Renaming it (e.g. add some location
+                    identifier or tags) will help learners pick the right one. You can
+                    still publish with this name.
                   </p>
                 </div>
               </div>

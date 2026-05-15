@@ -10,6 +10,11 @@ import {
   useProviderActiveBatches,
 } from "@/hooks/useProvider";
 import {
+  usePendingBatchSwitches,
+  useProviderApproveBatchSwitch,
+  useProviderRejectBatchSwitch,
+} from "@/hooks/useEngagement";
+import {
   useProviderCategoryRequests,
   useDismissCategoryRequest,
 } from "@/hooks/useCategoryRequests";
@@ -48,10 +53,12 @@ import {
   FolderTree,
   Crown,
   ArrowRight,
+  ArrowRightLeft,
   ChevronDown,
   ChevronRight,
   ImagePlus,
 } from "lucide-react";
+import { toast } from "sonner";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -67,13 +74,17 @@ const ProviderDashboard = () => {
   const { data: pendingEnrollments } = usePendingEnrollments(providerId);
   const { data: allBatches } = useProviderActiveBatches(providerId);
   const { data: catRequests } = useProviderCategoryRequests(providerId);
+  const { data: pendingSwitches } = usePendingBatchSwitches(providerId);
+  const approveSwitch = useProviderApproveBatchSwitch();
+  const rejectSwitch = useProviderRejectBatchSwitch();
 
   const [showBatchPicker, setShowBatchPicker] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upcomingOpen, setUpcomingOpen] = useState(false);
   const certAddTriggerRef = useRef<(() => void) | null>(null);
 
-  const actionCount = pendingEnrollments?.length ?? 0;
+  const switchCount = pendingSwitches?.length ?? 0;
+  const actionCount = (pendingEnrollments?.length ?? 0) + switchCount;
   const dismissCatReq = useDismissCategoryRequest();
   const pendingCatRequests = (catRequests ?? []).filter(
     (r) => r.status === "pending",
@@ -98,6 +109,58 @@ const ProviderDashboard = () => {
               </Badge>
             </h2>
             <div className="space-y-2">
+              {/* Pending batch-switch requests */}
+              {(pendingSwitches ?? []).map((s) => (
+                <Card
+                  key={`switch-${s.enrollmentId}`}
+                  className="flex flex-col gap-2 p-3 border-amber-200 bg-amber-50/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 shrink-0">
+                      <ArrowRightLeft size={16} className="text-amber-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{s.memberName}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {s.classTitle}: {s.fromBatchName} → {s.toBatchName}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 h-7 text-[11px] border-red-300 text-red-700 hover:bg-red-50"
+                      disabled={rejectSwitch.isPending || approveSwitch.isPending}
+                      onClick={async () => {
+                        try {
+                          await rejectSwitch.mutateAsync({ enrollmentId: s.enrollmentId });
+                          toast.success("Switch declined");
+                        } catch (err: any) {
+                          toast.error(err?.message ?? "Failed to decline");
+                        }
+                      }}
+                    >
+                      Decline
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1 h-7 text-[11px] bg-green-600 hover:bg-green-700 text-white"
+                      disabled={approveSwitch.isPending || rejectSwitch.isPending}
+                      onClick={async () => {
+                        try {
+                          await approveSwitch.mutateAsync(s.enrollmentId);
+                          toast.success("Switch approved");
+                        } catch (err: any) {
+                          toast.error(err?.message ?? "Failed to approve");
+                        }
+                      }}
+                    >
+                      Approve
+                    </Button>
+                  </div>
+                </Card>
+              ))}
               {/* Pending enrollment requests */}
               {(pendingEnrollments ?? []).map((e) => (
                 <Card

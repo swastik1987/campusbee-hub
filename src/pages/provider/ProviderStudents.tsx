@@ -13,7 +13,17 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Check, Clock, CreditCard, Filter, MessageCircle, Phone, UserMinus, Users, X } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Calendar, Check, Clock, CreditCard, Filter, Loader2, MessageCircle, Phone, UserMinus, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -155,6 +165,20 @@ const ProviderStudents = () => {
       toast.success("Enrollment rejected");
     } catch {
       toast.error("Failed to reject");
+    }
+  };
+
+  // Drop-student flow — needed before the instructor can delete a class/batch.
+  const [dropTarget, setDropTarget] = useState<{ id: string; name: string } | null>(null);
+
+  const handleDrop = async () => {
+    if (!dropTarget) return;
+    try {
+      await updateStatus.mutateAsync({ enrollmentId: dropTarget.id, status: "dropped" });
+      toast.success(`Dropped ${dropTarget.name}`);
+      setDropTarget(null);
+    } catch {
+      toast.error("Failed to drop student");
     }
   };
 
@@ -397,11 +421,27 @@ const ProviderStudents = () => {
                         </>
                       )}
 
-                      {/* Enrolled date for active students */}
-                      {enrollment.status === "active" && enrollment.enrolled_at && (
-                        <p className="text-[10px] text-muted-foreground">
-                          Enrolled {new Date(enrollment.enrolled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                        </p>
+                      {/* Enrolled date + Drop action for active students */}
+                      {enrollment.status === "active" && (
+                        <div className="flex items-center justify-between gap-2">
+                          {enrollment.enrolled_at ? (
+                            <p className="text-[10px] text-muted-foreground">
+                              Enrolled {new Date(enrollment.enrolled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            </p>
+                          ) : <span />}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => setDropTarget({
+                              id: enrollment.id,
+                              name: nameEntry?.student_name ?? "this student",
+                            })}
+                            disabled={updateStatus.isPending}
+                          >
+                            <UserMinus size={12} className="mr-1" /> Drop
+                          </Button>
+                        </div>
                       )}
                     </Card>
                   );
@@ -429,6 +469,29 @@ const ProviderStudents = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Drop-student confirmation */}
+      <AlertDialog open={!!dropTarget} onOpenChange={(open) => !open && setDropTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Drop {dropTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              They'll be marked as dropped from this batch and will no longer appear in
+              attendance. Their past attendance and payment records are preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDrop}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={updateStatus.isPending}
+            >
+              {updateStatus.isPending ? <Loader2 size={14} className="animate-spin" /> : "Drop"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <BottomNav persona="provider" />
     </div>

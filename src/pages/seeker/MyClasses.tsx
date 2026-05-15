@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useMyEnrollments } from "@/hooks/useSeeker";
+import { useLearnerDropEnrollment } from "@/hooks/useEngagement";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -9,7 +10,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, Calendar, Clock, Search, Users } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ArrowRightLeft, BookOpen, Calendar, Clock, Loader2, Search, UserMinus, Users } from "lucide-react";
+import { toast } from "sonner";
 
 const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -28,6 +40,20 @@ const MyClasses = () => {
   const [memberFilter, setMemberFilter] = useState<string>("all");
 
   const { data: enrollments, isLoading } = useMyEnrollments(profile?.id, tab === "active" ? "active" : tab === "completed" ? "completed" : undefined);
+
+  const dropEnrollment = useLearnerDropEnrollment();
+  const [dropTarget, setDropTarget] = useState<{ id: string; title: string } | null>(null);
+
+  const handleDrop = async () => {
+    if (!dropTarget) return;
+    try {
+      await dropEnrollment.mutateAsync(dropTarget.id);
+      toast.success(`Dropped out of ${dropTarget.title}`);
+      setDropTarget(null);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to drop out");
+    }
+  };
 
   const activeEnrollments = enrollments?.filter((e) => e.status === "active" || e.status === "pending") ?? [];
   const completedEnrollments = enrollments?.filter((e) => e.status === "completed") ?? [];
@@ -143,9 +169,23 @@ const MyClasses = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-1">
                         <h3 className="text-sm font-semibold truncate">{cls?.title}</h3>
-                        <Badge className={`text-[10px] border-0 shrink-0 ${STATUS_COLORS[enrollment.status ?? ""] ?? "bg-gray-100"}`}>
-                          {enrollment.status}
-                        </Badge>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Badge className={`text-[10px] border-0 ${STATUS_COLORS[enrollment.status ?? ""] ?? "bg-gray-100"}`}>
+                            {enrollment.status}
+                          </Badge>
+                          {(isActive || enrollment.status === "pending") && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDropTarget({ id: enrollment.id, title: cls?.title ?? "this class" });
+                              }}
+                              className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-red-50 transition-colors"
+                              title="Drop out"
+                            >
+                              <UserMinus size={13} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{batch?.batch_name}</p>
                       {member && (
@@ -157,6 +197,11 @@ const MyClasses = () => {
                         <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-1">
                           <Clock size={10} />
                           {scheduleSummary}
+                        </div>
+                      )}
+                      {(enrollment as any).pending_switch_to_batch_id && (
+                        <div className="mt-1.5 flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-medium text-amber-700 w-fit">
+                          <ArrowRightLeft size={10} /> Switch request pending
                         </div>
                       )}
                     </div>
@@ -189,6 +234,30 @@ const MyClasses = () => {
           </div>
         )}
       </div>
+
+      {/* Drop confirmation */}
+      <AlertDialog open={!!dropTarget} onOpenChange={(open) => !open && setDropTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Drop out of {dropTarget?.title}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You'll no longer be enrolled in this batch. The instructor will be
+              notified. Past attendance and payment records stay intact. Any pending
+              batch switch on this enrollment will also be cancelled.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDrop}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={dropEnrollment.isPending}
+            >
+              {dropEnrollment.isPending ? <Loader2 size={14} className="animate-spin" /> : "Drop out"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <BottomNav persona="seeker" />
     </div>

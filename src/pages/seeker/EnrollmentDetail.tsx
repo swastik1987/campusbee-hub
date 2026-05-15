@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   useEnrollmentDetail,
@@ -5,23 +6,51 @@ import {
   useEnrollmentPayments,
   useEnrollmentMaterials,
 } from "@/hooks/useSeeker";
+import { useBatches } from "@/hooks/useClasses";
+import {
+  useLearnerDropEnrollment,
+  useLearnerRequestBatchSwitch,
+  useLearnerCancelBatchSwitch,
+} from "@/hooks/useEngagement";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
+import {
   ArrowLeft,
+  ArrowRightLeft,
   BookOpen,
   Calendar,
   CheckCircle,
   Clock,
   CreditCard,
   FileText,
+  Loader2,
   MapPin,
   MessageCircle,
+  UserMinus,
+  X,
   XCircle,
 } from "lucide-react";
+import { toast } from "sonner";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const FEE_LABELS: Record<string, string> = {
@@ -59,6 +88,67 @@ const EnrollmentDetail = () => {
   const classId = cls?.id;
   const batchId = batch?.id;
   const { data: materials } = useEnrollmentMaterials(classId, batchId);
+
+  // Drop / switch state + mutations
+  const dropMutation = useLearnerDropEnrollment();
+  const requestSwitch = useLearnerRequestBatchSwitch();
+  const cancelSwitch = useLearnerCancelBatchSwitch();
+
+  const [dropOpen, setDropOpen] = useState(false);
+  const [switchSheetOpen, setSwitchSheetOpen] = useState(false);
+  const [selectedTargetBatchId, setSelectedTargetBatchId] = useState<string | null>(null);
+  const [switchReason, setSwitchReason] = useState("");
+  const [cancelSwitchOpen, setCancelSwitchOpen] = useState(false);
+
+  // Load class batches only when the switch sheet is open
+  const { data: classBatches, isLoading: batchesLoading } = useBatches(
+    switchSheetOpen ? classId : undefined,
+  );
+
+  const pendingSwitchToId = (enrollment as any)?.pending_switch_to_batch_id as string | null;
+  const pendingSwitchToBatch = pendingSwitchToId
+    ? (classBatches ?? []).find((b: any) => b.id === pendingSwitchToId)
+    : null;
+
+  const handleDrop = async () => {
+    if (!enrollmentId) return;
+    try {
+      await dropMutation.mutateAsync(enrollmentId);
+      toast.success("You've dropped out of this class");
+      setDropOpen(false);
+      navigate("/my-classes", { replace: true });
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to drop out");
+    }
+  };
+
+  const handleSubmitSwitch = async () => {
+    if (!enrollmentId || !selectedTargetBatchId) return;
+    try {
+      await requestSwitch.mutateAsync({
+        enrollmentId,
+        toBatchId: selectedTargetBatchId,
+        reason: switchReason.trim() || undefined,
+      });
+      toast.success("Switch request sent to instructor");
+      setSwitchSheetOpen(false);
+      setSelectedTargetBatchId(null);
+      setSwitchReason("");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to request switch");
+    }
+  };
+
+  const handleCancelSwitch = async () => {
+    if (!enrollmentId) return;
+    try {
+      await cancelSwitch.mutateAsync(enrollmentId);
+      toast.success("Switch request cancelled");
+      setCancelSwitchOpen(false);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to cancel");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -139,6 +229,28 @@ const EnrollmentDetail = () => {
       </div>
 
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-4">
+        {/* Pending switch banner */}
+        {pendingSwitchToId && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <ArrowRightLeft size={15} className="text-amber-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-800">
+                Switch request pending
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Waiting for the instructor to approve your move to
+                {pendingSwitchToBatch ? ` "${pendingSwitchToBatch.batch_name}"` : " another batch"}.
+              </p>
+            </div>
+            <button
+              onClick={() => setCancelSwitchOpen(true)}
+              className="text-xs font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
         {/* Quick actions grid */}
         <div className="grid grid-cols-2 gap-2">
           <button
@@ -158,6 +270,26 @@ const EnrollmentDetail = () => {
             <span className="text-xs font-semibold" style={{ color: "oklch(0.38 0.16 250)" }}>Record Payment</span>
           </button>
         </div>
+
+        {/* Switch / Drop — only for active or pending enrollments */}
+        {(enrollment.status === "active" || enrollment.status === "pending") && (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setSwitchSheetOpen(true)}
+              disabled={!!pendingSwitchToId}
+              className="flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-800 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={pendingSwitchToId ? "A switch request is already pending" : undefined}
+            >
+              <ArrowRightLeft size={14} /> Switch Batch
+            </button>
+            <button
+              onClick={() => setDropOpen(true)}
+              className="flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700 transition-all active:scale-95"
+            >
+              <UserMinus size={14} /> Drop Out
+            </button>
+          </div>
+        )}
 
         <Tabs defaultValue="schedule">
           <TabsList className="w-full">
@@ -326,6 +458,170 @@ const EnrollmentDetail = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Drop confirmation */}
+      <AlertDialog open={dropOpen} onOpenChange={setDropOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Drop out of {cls?.title}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You'll no longer be enrolled in this batch. The instructor will be
+              notified. Past attendance and payment records are preserved. Any
+              pending batch switch on this enrollment will also be cancelled.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDrop}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={dropMutation.isPending}
+            >
+              {dropMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : "Drop out"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel-switch confirmation */}
+      <AlertDialog open={cancelSwitchOpen} onOpenChange={setCancelSwitchOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel switch request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your pending request to switch batches will be withdrawn. You can
+              request a different switch later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep request</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelSwitch}
+              disabled={cancelSwitch.isPending}
+            >
+              {cancelSwitch.isPending ? <Loader2 size={14} className="animate-spin" /> : "Cancel request"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Switch-batch picker */}
+      <Sheet
+        open={switchSheetOpen}
+        onOpenChange={(open) => {
+          setSwitchSheetOpen(open);
+          if (!open) {
+            setSelectedTargetBatchId(null);
+            setSwitchReason("");
+          }
+        }}
+      >
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
+          <SheetHeader className="pb-2">
+            <SheetTitle>Switch to another batch</SheetTitle>
+          </SheetHeader>
+          <p className="text-xs text-muted-foreground mb-3">
+            Pick a different batch of {cls?.title}. The instructor will get a
+            request — you'll be moved once they approve.
+          </p>
+
+          {batchesLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-20 rounded-xl" />
+              ))}
+            </div>
+          ) : (() => {
+            const candidates = (classBatches ?? []).filter(
+              (b: any) =>
+                b.id !== batchId &&
+                (b.status === "active" || b.status === "full"),
+            );
+            if (candidates.length === 0) {
+              return (
+                <div className="rounded-xl border border-dashed p-6 text-center text-xs text-muted-foreground">
+                  No other batches available for this class right now.
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-2">
+                {candidates.map((b: any) => {
+                  const isFull = b.status === "full" || b.current_enrollment_count >= b.max_batch_size;
+                  const selected = selectedTargetBatchId === b.id;
+                  const days = (b.batch_schedules ?? [])
+                    .map((s: any) => DAY_NAMES[s.day_of_week])
+                    .join(", ");
+                  const t0 = b.batch_schedules?.[0];
+                  const time = t0
+                    ? `${t0.start_time?.slice(0, 5)} – ${t0.end_time?.slice(0, 5)}`
+                    : "";
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => !isFull && setSelectedTargetBatchId(b.id)}
+                      disabled={isFull}
+                      className={`w-full rounded-xl border p-3 text-left transition-all ${
+                        selected ? "border-primary bg-primary/5" : "border-border"
+                      } ${isFull ? "opacity-50 cursor-not-allowed" : "hover:border-primary/50"}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold truncate">{b.batch_name}</p>
+                          {(b.trainers as any)?.name && (
+                            <p className="text-[11px] text-muted-foreground">
+                              Trainer: {(b.trainers as any).name}
+                            </p>
+                          )}
+                        </div>
+                        {isFull ? (
+                          <Badge className="text-[9px] border-0 bg-red-100 text-red-700">Full</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[9px]">
+                            {b.current_enrollment_count}/{b.max_batch_size}
+                          </Badge>
+                        )}
+                      </div>
+                      {(days || time) && (
+                        <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+                          {days && <span className="flex items-center gap-1"><Calendar size={10} />{days}</span>}
+                          {time && <span className="flex items-center gap-1"><Clock size={10} />{time}</span>}
+                        </div>
+                      )}
+                      <p className="mt-1 text-[11px] font-semibold text-primary">
+                        ₹{b.fee_amount}{FEE_LABELS[b.fee_frequency] ?? ""}
+                      </p>
+                    </button>
+                  );
+                })}
+
+                <div className="space-y-1.5 pt-2">
+                  <label className="text-xs font-medium">Reason <span className="text-muted-foreground font-normal">(optional)</span></label>
+                  <Textarea
+                    rows={2}
+                    value={switchReason}
+                    onChange={(e) => setSwitchReason(e.target.value)}
+                    placeholder="e.g. Schedule no longer works, prefer the new trainer…"
+                    className="text-xs rounded-lg"
+                  />
+                </div>
+
+                <Button
+                  onClick={handleSubmitSwitch}
+                  disabled={!selectedTargetBatchId || requestSwitch.isPending}
+                  className="w-full"
+                >
+                  {requestSwitch.isPending ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    "Request switch"
+                  )}
+                </Button>
+              </div>
+            );
+          })()}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };

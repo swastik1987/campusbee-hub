@@ -234,15 +234,143 @@ export function useUpdateClassStatus() {
   });
 }
 
+// ---- Delete Class / Delete Batch ----
+
+/**
+ * Thrown when a class/batch still has students in pending/active state.
+ * Caller catches it by `err.name === ACTIVE_ENROLLMENTS_ERROR` to show
+ * "drop students first" guidance instead of the generic error toast.
+ */
+export const ACTIVE_ENROLLMENTS_ERROR = "ACTIVE_ENROLLMENTS_ERROR";
+
+export type DeleteOutcomeMode = "hard" | "archive" | "blocked";
+
+export interface DeleteOutcomePeek {
+  /** pending + active count — blocks deletion if > 0 */
+  activeCount: number;
+  /** any enrollment row ever — if 0 we can hard-delete, otherwise archive */
+  historicalCount: number;
+  mode: DeleteOutcomeMode;
+}
+
+const peekFromCounts = (active: number, total: number): DeleteOutcomePeek => ({
+  activeCount: active,
+  historicalCount: total,
+  mode: active > 0 ? "blocked" : total > 0 ? "archive" : "hard",
+});
+
+/** Tell the UI what would happen if it called useDeleteClass — used to pick the right confirm dialog copy. */
+export async function peekClassDeleteOutcome(classId: string): Promise<DeleteOutcomePeek> {
+  const { data: bs, error: bsErr } = await supabase
+    .from("batches").select("id").eq("class_id", classId);
+  if (bsErr) throw bsErr;
+  const batchIds = (bs ?? []).map((b) => b.id);
+  if (batchIds.length === 0) return peekFromCounts(0, 0);
+
+  const { count: active, error: aErr } = await supabase
+    .from("enrollments")
+    .select("id", { count: "exact", head: true })
+    .in("batch_id", batchIds)
+    .in("status", ["active", "pending"]);
+  if (aErr) throw aErr;
+
+  const { count: total, error: tErr } = await supabase
+    .from("enrollments")
+    .select("id", { count: "exact", head: true })
+    .in("batch_id", batchIds);
+  if (tErr) throw tErr;
+
+  return peekFromCounts(active ?? 0, total ?? 0);
+}
+
+export async function peekBatchDeleteOutcome(batchId: string): Promise<DeleteOutcomePeek> {
+  const { count: active, error: aErr } = await supabase
+    .from("enrollments")
+    .select("id", { count: "exact", head: true })
+    .eq("batch_id", batchId)
+    .in("status", ["active", "pending"]);
+  if (aErr) throw aErr;
+
+  const { count: total, error: tErr } = await supabase
+    .from("enrollments")
+    .select("id", { count: "exact", head: true })
+    .eq("batch_id", batchId);
+  if (tErr) throw tErr;
+
+  return peekFromCounts(active ?? 0, total ?? 0);
+}
+
+/**
+ * Hybrid delete: hard-delete when there's zero enrollment history, archive
+ * otherwise (preserves attendance/payment audit trail). Throws an error
+ * with `name === ACTIVE_ENROLLMENTS_ERROR` if any pending/active rows exist.
+ */
 export function useDeleteClass() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<{ mode: Exclude<DeleteOutcomeMode, "blocked"> }, Error, string>({
     mutationFn: async (classId: string) => {
-      // Hard-delete the draft class row (batches cascade-delete via FK)
+      const peek = await peekClassDeleteOutcome(classId);
+      if (peek.mode === "blocked") {
+        const err = new Error("Class has active or pending enrollments");
+        err.name = ACTIVE_ENROLLMENTS_ERROR;
+        (err as Error & { activeCount: number }).activeCount = peek.activeCount;
+        throw err;
+      }
+      if (peek.mode === "archive") {
+        const { error: uErr } = await supabase
+          .from("classes")
+          .update({ status: "archived" })
+          .eq("id", classId);
+        if (uErr) throw uErr;
+        // Cancel still-active batches under this class so they don't linger
+        // as zombies. Trigger handles enrollment counts; we only touch status.
+        await supabase
+          .from("batches")
+          .update({ status: "cancelled" })
+          .eq("class_id", classId)
+          .in("status", ["active", "paused", "draft", "full"]);
+        return { mode: "archive" };
+      }
+      // hard
       const { error } = await supabase.from("classes").delete().eq("id", classId);
       if (error) throw error;
+      return { mode: "hard" };
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["provider-classes"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["provider-classes"] });
+      qc.invalidateQueries({ queryKey: ["class-detail"] });
+      qc.invalidateQueries({ queryKey: ["batches"] });
+    },
+  });
+}
+
+export function useDeleteBatch() {
+  const qc = useQueryClient();
+  return useMutation<{ mode: Exclude<DeleteOutcomeMode, "blocked"> }, Error, string>({
+    mutationFn: async (batchId: string) => {
+      const peek = await peekBatchDeleteOutcome(batchId);
+      if (peek.mode === "blocked") {
+        const err = new Error("Batch has active or pending enrollments");
+        err.name = ACTIVE_ENROLLMENTS_ERROR;
+        (err as Error & { activeCount: number }).activeCount = peek.activeCount;
+        throw err;
+      }
+      if (peek.mode === "archive") {
+        const { error: uErr } = await supabase
+          .from("batches")
+          .update({ status: "cancelled" })
+          .eq("id", batchId);
+        if (uErr) throw uErr;
+        return { mode: "archive" };
+      }
+      const { error } = await supabase.from("batches").delete().eq("id", batchId);
+      if (error) throw error;
+      return { mode: "hard" };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["batches"] });
+      qc.invalidateQueries({ queryKey: ["provider-classes"] });
+    },
   });
 }
 

@@ -670,6 +670,7 @@ export function useMyEnrollments(userId: string | undefined, status?: string) {
         .from("enrollments")
         .select(`
           id, status, enrolled_at, selected_addon_ids, notes, created_at,
+          pending_switch_to_batch_id, switch_requested_at,
           family_members(id, full_name, relationship, avatar_url),
           batches(
             id, batch_name, skill_level, fee_amount, fee_frequency, status,
@@ -712,10 +713,12 @@ export function useEnrollmentDetail(enrollmentId: string | undefined) {
         .from("enrollments")
         .select(`
           id, status, enrolled_at, selected_addon_ids, notes, created_at,
+          pending_switch_to_batch_id, switch_requested_at,
           family_members(id, full_name, relationship, avatar_url, age_group),
           batches(
             id, batch_name, skill_level, fee_amount, fee_frequency, status,
             start_date, end_date, total_sessions, max_batch_size, current_enrollment_count,
+            class_id,
             trainers(id, name, photo_url),
             batch_schedules(id, day_of_week, start_time, end_time),
             classes(
