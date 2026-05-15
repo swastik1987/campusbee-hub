@@ -90,11 +90,11 @@ const ProviderDashboard = () => {
   const actionCount = (pendingEnrollments?.length ?? 0) + switchCount;
   const respondToRetag = useRespondToRetag();
   const [respondingCatReqId, setRespondingCatReqId] = useState<string | null>(null);
-  const pendingCatRequests = (catRequests ?? []).filter(
-    (r) => r.status === "pending",
+  const activeCatRequests = (catRequests ?? []).filter(
+    (r) => r.status === "pending" || r.status === "retag_pending",
   );
   const historyCatRequests = (catRequests ?? []).filter(
-    (r) => r.status !== "pending",
+    (r) => r.status !== "pending" && r.status !== "retag_pending",
   );
 
   const handleRetagResponse = async (requestId: string, accepted: boolean) => {
@@ -422,20 +422,20 @@ const ProviderDashboard = () => {
             </CollapsibleContent>
           </Collapsible>
         )}
-        {/* Category Requests Status — Active (pending) + History (dismissible) */}
-        {(pendingCatRequests.length > 0 || historyCatRequests.length > 0) && (
+        {/* Category Requests Status — Active (pending + retag_pending) + History */}
+        {(activeCatRequests.length > 0 || historyCatRequests.length > 0) && (
           <div>
             <h2 className="mb-3 text-base font-bold flex items-center gap-2">
               <FolderTree size={18} className="text-provider" />
               Category Requests
             </h2>
-            <Tabs defaultValue={pendingCatRequests.length > 0 ? "active" : "history"}>
+            <Tabs defaultValue={activeCatRequests.length > 0 ? "active" : "history"}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="active" className="text-xs">
                   Active
-                  {pendingCatRequests.length > 0 && (
+                  {activeCatRequests.length > 0 && (
                     <Badge className="ml-1.5 h-4 bg-amber-500 px-1 text-[9px] text-white">
-                      {pendingCatRequests.length}
+                      {activeCatRequests.length}
                     </Badge>
                   )}
                 </TabsTrigger>
@@ -450,26 +450,85 @@ const ProviderDashboard = () => {
               </TabsList>
 
               <TabsContent value="active" className="mt-3 space-y-2">
-                {pendingCatRequests.length === 0 ? (
+                {activeCatRequests.length === 0 ? (
                   <p className="py-4 text-center text-xs text-muted-foreground">
-                    No pending category requests
+                    No active category requests
                   </p>
                 ) : (
-                  pendingCatRequests.map((r) => (
-                    // Locked: pending requests can't be dismissed
-                    <SwipeToDismiss key={r.id} locked onDismiss={() => {}}>
-                      <Card className="flex items-center gap-3 border-amber-200 bg-amber-50/50 p-3">
-                        <Clock size={16} className="flex-shrink-0 text-amber-500" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium">{r.requested_name}</p>
-                          <p className="text-xs text-muted-foreground">Awaiting review</p>
+                  activeCatRequests.map((r) => {
+                    const isRetagPending = r.status === "retag_pending";
+                    const isResponding = respondingCatReqId === r.id;
+                    if (!isRetagPending) {
+                      return (
+                        // Locked: pending requests can't be dismissed
+                        <SwipeToDismiss key={r.id} locked onDismiss={() => {}}>
+                          <Card className="flex items-center gap-3 border-amber-200 bg-amber-50/50 p-3">
+                            <Clock size={16} className="flex-shrink-0 text-amber-500" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium">{r.requested_name}</p>
+                              <p className="text-xs text-muted-foreground">Awaiting review</p>
+                            </div>
+                            <Badge variant="outline" className="border-amber-300 text-xs text-amber-600">
+                              Pending
+                            </Badge>
+                          </Card>
+                        </SwipeToDismiss>
+                      );
+                    }
+                    return (
+                      <Card key={r.id} className="border-blue-200 bg-blue-50/50 p-3">
+                        <div className="flex items-start gap-3">
+                          <FolderTree size={16} className="mt-0.5 flex-shrink-0 text-blue-600" />
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <p className="text-sm font-medium">{r.requested_name}</p>
+                            {r.retag_cat && (
+                              <p className="text-xs text-blue-800">
+                                Admin suggests mapping this to existing category:{" "}
+                                <span className="font-semibold">{r.retag_cat.name}</span>
+                              </p>
+                            )}
+                            {r.admin_notes && (
+                              <p className="whitespace-pre-wrap break-words text-xs text-blue-700">
+                                {r.admin_notes}
+                              </p>
+                            )}
+                          </div>
+                          <Badge variant="outline" className="flex-shrink-0 border-blue-300 text-xs text-blue-700">
+                            Action Required
+                          </Badge>
                         </div>
-                        <Badge variant="outline" className="border-amber-300 text-xs text-amber-600">
-                          Pending
-                        </Badge>
+                        <div className="mt-3 flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 gap-1 border-red-200 text-xs text-red-600 hover:bg-red-50"
+                            disabled={isResponding}
+                            onClick={() => handleRetagResponse(r.id, false)}
+                          >
+                            {isResponding ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <X size={12} />
+                            )}
+                            Decline
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="flex-1 gap-1 bg-green-600 text-xs text-white hover:bg-green-700"
+                            disabled={isResponding}
+                            onClick={() => handleRetagResponse(r.id, true)}
+                          >
+                            {isResponding ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <Check size={12} />
+                            )}
+                            Accept
+                          </Button>
+                        </div>
                       </Card>
-                    </SwipeToDismiss>
-                  ))
+                    );
+                  })
                 )}
               </TabsContent>
 
@@ -482,8 +541,6 @@ const ProviderDashboard = () => {
                   historyCatRequests.map((r) => {
                     const isApproved = r.status === "approved";
                     const isRejected = r.status === "rejected";
-                    const isRetagPending = r.status === "retag_pending";
-                    const isResponding = respondingCatReqId === r.id;
                     return (
                       <Card
                         key={r.id}
@@ -492,8 +549,6 @@ const ProviderDashboard = () => {
                             ? "border-emerald-200 bg-emerald-50/50"
                             : isRejected
                             ? "border-red-200 bg-red-50/50"
-                            : isRetagPending
-                            ? "border-blue-200 bg-blue-50/50"
                             : "border-muted bg-muted/30"
                         }`}
                       >
@@ -502,27 +557,15 @@ const ProviderDashboard = () => {
                             <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0 text-emerald-500" />
                           ) : isRejected ? (
                             <XCircle size={16} className="mt-0.5 flex-shrink-0 text-red-500" />
-                          ) : isRetagPending ? (
-                            <FolderTree size={16} className="mt-0.5 flex-shrink-0 text-blue-600" />
                           ) : (
                             <Clock size={16} className="mt-0.5 flex-shrink-0 text-muted-foreground" />
                           )}
                           <div className="min-w-0 flex-1 space-y-1">
                             <p className="text-sm font-medium">{r.requested_name}</p>
-                            {isRetagPending && r.retag_cat && (
-                              <p className="text-xs text-blue-800">
-                                Admin suggests mapping this to existing category:{" "}
-                                <span className="font-semibold">{r.retag_cat.name}</span>
-                              </p>
-                            )}
                             {r.admin_notes && (
                               <p
                                 className={`whitespace-pre-wrap break-words text-xs ${
-                                  isRejected
-                                    ? "text-red-600"
-                                    : isRetagPending
-                                    ? "text-blue-700"
-                                    : "text-muted-foreground"
+                                  isRejected ? "text-red-600" : "text-muted-foreground"
                                 }`}
                               >
                                 {r.admin_notes}
@@ -536,49 +579,14 @@ const ProviderDashboard = () => {
                                 ? "border-emerald-300 text-emerald-700"
                                 : isRejected
                                 ? "border-red-300 text-red-600"
-                                : isRetagPending
-                                ? "border-blue-300 text-blue-700"
                                 : "text-muted-foreground"
                             }`}
                           >
                             {r.status === "retag_declined"
                               ? "Declined"
-                              : isRetagPending
-                              ? "Action Required"
                               : r.status.charAt(0).toUpperCase() + r.status.slice(1)}
                           </Badge>
                         </div>
-                        {isRetagPending && (
-                          <div className="mt-3 flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="flex-1 gap-1 border-red-200 text-xs text-red-600 hover:bg-red-50"
-                              disabled={isResponding}
-                              onClick={() => handleRetagResponse(r.id, false)}
-                            >
-                              {isResponding ? (
-                                <Loader2 size={12} className="animate-spin" />
-                              ) : (
-                                <X size={12} />
-                              )}
-                              Decline
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="flex-1 gap-1 bg-green-600 text-xs text-white hover:bg-green-700"
-                              disabled={isResponding}
-                              onClick={() => handleRetagResponse(r.id, true)}
-                            >
-                              {isResponding ? (
-                                <Loader2 size={12} className="animate-spin" />
-                              ) : (
-                                <Check size={12} />
-                              )}
-                              Accept
-                            </Button>
-                          </div>
-                        )}
                       </Card>
                     );
                   })
