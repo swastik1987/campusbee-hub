@@ -2535,6 +2535,13 @@ export type Database = {
         Args: { p_request_id: string; p_valid_until: string }
         Returns: undefined
       }
+      bulk_approve_certifications: {
+        Args: { p_cert_ids: string[]; p_notes?: string; p_provider_id: string }
+        Returns: {
+          approved_count: number
+          skipped_count: number
+        }[]
+      }
       create_own_family: { Args: never; Returns: string }
       current_user_id: { Args: never; Returns: string }
       delete_family_member: {
