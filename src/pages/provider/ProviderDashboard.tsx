@@ -16,7 +16,7 @@ import {
 } from "@/hooks/useEngagement";
 import {
   useProviderCategoryRequests,
-  useDismissCategoryRequest,
+  useRespondToRetag,
 } from "@/hooks/useCategoryRequests";
 import SwipeToDismiss from "@/components/provider/SwipeToDismiss";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -57,6 +57,9 @@ import {
   ChevronDown,
   ChevronRight,
   ImagePlus,
+  Check,
+  X,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -85,13 +88,30 @@ const ProviderDashboard = () => {
 
   const switchCount = pendingSwitches?.length ?? 0;
   const actionCount = (pendingEnrollments?.length ?? 0) + switchCount;
-  const dismissCatReq = useDismissCategoryRequest();
+  const respondToRetag = useRespondToRetag();
+  const [respondingCatReqId, setRespondingCatReqId] = useState<string | null>(null);
   const pendingCatRequests = (catRequests ?? []).filter(
     (r) => r.status === "pending",
   );
   const historyCatRequests = (catRequests ?? []).filter(
-    (r) => r.status !== "pending" && !r.dismissed_at,
+    (r) => r.status !== "pending",
   );
+
+  const handleRetagResponse = async (requestId: string, accepted: boolean) => {
+    setRespondingCatReqId(requestId);
+    try {
+      await respondToRetag.mutateAsync({ requestId, accepted });
+      toast.success(
+        accepted
+          ? "Accepted — you can now use that category for your classes."
+          : "Declined. You can submit a new request if needed.",
+      );
+    } catch {
+      toast.error("Failed to respond. Please try again.");
+    } finally {
+      setRespondingCatReqId(null);
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-20">
@@ -456,39 +476,53 @@ const ProviderDashboard = () => {
               <TabsContent value="history" className="mt-3 space-y-2">
                 {historyCatRequests.length === 0 ? (
                   <p className="py-4 text-center text-xs text-muted-foreground">
-                    Nothing here — dismissed requests will appear with no card.
+                    No past category requests yet.
                   </p>
                 ) : (
                   historyCatRequests.map((r) => {
                     const isApproved = r.status === "approved";
                     const isRejected = r.status === "rejected";
+                    const isRetagPending = r.status === "retag_pending";
+                    const isResponding = respondingCatReqId === r.id;
                     return (
-                      <SwipeToDismiss
+                      <Card
                         key={r.id}
-                        onDismiss={() => dismissCatReq.mutate(r.id)}
+                        className={`p-3 ${
+                          isApproved
+                            ? "border-emerald-200 bg-emerald-50/50"
+                            : isRejected
+                            ? "border-red-200 bg-red-50/50"
+                            : isRetagPending
+                            ? "border-blue-200 bg-blue-50/50"
+                            : "border-muted bg-muted/30"
+                        }`}
                       >
-                        <Card
-                          className={`flex items-center gap-3 p-3 pr-9 ${
-                            isApproved
-                              ? "border-emerald-200 bg-emerald-50/50"
-                              : isRejected
-                              ? "border-red-200 bg-red-50/50"
-                              : "border-muted bg-muted/30"
-                          }`}
-                        >
+                        <div className="flex items-start gap-3">
                           {isApproved ? (
-                            <CheckCircle2 size={16} className="flex-shrink-0 text-emerald-500" />
+                            <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0 text-emerald-500" />
                           ) : isRejected ? (
-                            <XCircle size={16} className="flex-shrink-0 text-red-500" />
+                            <XCircle size={16} className="mt-0.5 flex-shrink-0 text-red-500" />
+                          ) : isRetagPending ? (
+                            <FolderTree size={16} className="mt-0.5 flex-shrink-0 text-blue-600" />
                           ) : (
-                            <Clock size={16} className="flex-shrink-0 text-muted-foreground" />
+                            <Clock size={16} className="mt-0.5 flex-shrink-0 text-muted-foreground" />
                           )}
-                          <div className="min-w-0 flex-1">
+                          <div className="min-w-0 flex-1 space-y-1">
                             <p className="text-sm font-medium">{r.requested_name}</p>
+                            {isRetagPending && r.retag_cat && (
+                              <p className="text-xs text-blue-800">
+                                Admin suggests mapping this to existing category:{" "}
+                                <span className="font-semibold">{r.retag_cat.name}</span>
+                              </p>
+                            )}
                             {r.admin_notes && (
                               <p
-                                className={`line-clamp-1 text-xs ${
-                                  isRejected ? "text-red-600" : "text-muted-foreground"
+                                className={`whitespace-pre-wrap break-words text-xs ${
+                                  isRejected
+                                    ? "text-red-600"
+                                    : isRetagPending
+                                    ? "text-blue-700"
+                                    : "text-muted-foreground"
                                 }`}
                               >
                                 {r.admin_notes}
@@ -497,22 +531,55 @@ const ProviderDashboard = () => {
                           </div>
                           <Badge
                             variant="outline"
-                            className={`text-xs ${
+                            className={`flex-shrink-0 text-xs ${
                               isApproved
                                 ? "border-emerald-300 text-emerald-700"
                                 : isRejected
                                 ? "border-red-300 text-red-600"
+                                : isRetagPending
+                                ? "border-blue-300 text-blue-700"
                                 : "text-muted-foreground"
                             }`}
                           >
                             {r.status === "retag_declined"
                               ? "Declined"
-                              : r.status === "retag_pending"
-                              ? "Re-tag"
+                              : isRetagPending
+                              ? "Action Required"
                               : r.status.charAt(0).toUpperCase() + r.status.slice(1)}
                           </Badge>
-                        </Card>
-                      </SwipeToDismiss>
+                        </div>
+                        {isRetagPending && (
+                          <div className="mt-3 flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 gap-1 border-red-200 text-xs text-red-600 hover:bg-red-50"
+                              disabled={isResponding}
+                              onClick={() => handleRetagResponse(r.id, false)}
+                            >
+                              {isResponding ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <X size={12} />
+                              )}
+                              Decline
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="flex-1 gap-1 bg-green-600 text-xs text-white hover:bg-green-700"
+                              disabled={isResponding}
+                              onClick={() => handleRetagResponse(r.id, true)}
+                            >
+                              {isResponding ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <Check size={12} />
+                              )}
+                              Accept
+                            </Button>
+                          </div>
+                        )}
+                      </Card>
                     );
                   })
                 )}

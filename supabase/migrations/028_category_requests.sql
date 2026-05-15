@@ -6,21 +6,13 @@
 -- NOTE: apply manually in Supabase SQL editor:
 --   https://supabase.com/dashboard/project/uspqewlpgdsvabturfes/sql
 --
--- Safe to re-run: drops the table + RPCs before recreating.
-
--- ── Drop old objects first (idempotent re-run) ────────────────────────────────
-
-DROP TABLE IF EXISTS public.category_requests CASCADE;
-
-DROP FUNCTION IF EXISTS public._cat_notify(UUID, TEXT, TEXT, TEXT, UUID);
-DROP FUNCTION IF EXISTS public.approve_category_request(UUID, UUID, TEXT, TEXT, UUID);
-DROP FUNCTION IF EXISTS public.reject_category_request(UUID, UUID, TEXT);
-DROP FUNCTION IF EXISTS public.retag_category_request(UUID, UUID, UUID, TEXT);
-DROP FUNCTION IF EXISTS public.respond_to_category_retag(UUID, BOOLEAN);
+-- Safe to re-run: uses CREATE TABLE IF NOT EXISTS and DROP POLICY IF EXISTS,
+-- so re-running does NOT wipe existing category_requests rows. RPC bodies are
+-- always refreshed via CREATE OR REPLACE.
 
 -- ── Table ─────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.category_requests (
+CREATE TABLE IF NOT EXISTS public.category_requests (
   id                       UUID          DEFAULT gen_random_uuid() PRIMARY KEY,
   provider_id              UUID          NOT NULL REFERENCES public.service_providers(id) ON DELETE CASCADE,
   request_type             TEXT          NOT NULL CHECK (request_type IN ('new_category', 'new_subcategory')),
@@ -40,41 +32,87 @@ CREATE TABLE public.category_requests (
   reviewed_at              TIMESTAMPTZ,
   created_category_id      UUID          REFERENCES public.class_categories(id),
   requested_at             TIMESTAMPTZ   DEFAULT NOW(),
-  updated_at               TIMESTAMPTZ   DEFAULT NOW()
+  updated_at               TIMESTAMPTZ   DEFAULT NOW(),
+  -- Provider can soft-hide non-pending requests from their dashboard.
+  -- Enforced by trigger below: pending requests must keep this NULL.
+  dismissed_at             TIMESTAMPTZ
 );
+
+-- Idempotent re-add for older DBs created before dismissed_at existed
+ALTER TABLE public.category_requests
+  ADD COLUMN IF NOT EXISTS dismissed_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS category_requests_provider_active_idx
+  ON public.category_requests (provider_id, status, dismissed_at);
+
+-- Guard: a pending request must keep dismissed_at NULL.
+CREATE OR REPLACE FUNCTION public.cat_req_block_dismiss_pending()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.dismissed_at IS NOT NULL AND NEW.status = 'pending' THEN
+    RAISE EXCEPTION 'cannot dismiss a pending category request';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS cat_req_block_dismiss_pending_trg ON public.category_requests;
+CREATE TRIGGER cat_req_block_dismiss_pending_trg
+  BEFORE INSERT OR UPDATE OF dismissed_at, status
+  ON public.category_requests
+  FOR EACH ROW
+  EXECUTE FUNCTION public.cat_req_block_dismiss_pending();
 
 -- ── RLS ───────────────────────────────────────────────────────────────────────
 
 ALTER TABLE public.category_requests ENABLE ROW LEVEL SECURITY;
 
--- Providers see their own requests
-CREATE POLICY "cat_req_provider_select" ON public.category_requests
-  FOR SELECT USING (
-    provider_id IN (SELECT id FROM public.service_providers WHERE user_id = auth.uid())
+-- Drop existing policies so re-running refreshes them without altering row data
+DROP POLICY IF EXISTS cat_req_provider_select  ON public.category_requests;
+DROP POLICY IF EXISTS cat_req_provider_insert  ON public.category_requests;
+DROP POLICY IF EXISTS cat_req_provider_update  ON public.category_requests;
+DROP POLICY IF EXISTS cat_req_admin_select     ON public.category_requests;
+DROP POLICY IF EXISTS cat_req_admin_update     ON public.category_requests;
+
+-- Providers see / insert / update their own requests.
+-- IMPORTANT: service_providers.user_id stores public.users.id, NOT auth.uid().
+-- Always resolve through public.current_user_id().
+CREATE POLICY cat_req_provider_select ON public.category_requests
+  FOR SELECT TO authenticated
+  USING (provider_id IN (
+    SELECT id FROM public.service_providers WHERE user_id = public.current_user_id()
+  ));
+
+CREATE POLICY cat_req_provider_insert ON public.category_requests
+  FOR INSERT TO authenticated
+  WITH CHECK (provider_id IN (
+    SELECT id FROM public.service_providers WHERE user_id = public.current_user_id()
+  ));
+
+CREATE POLICY cat_req_provider_update ON public.category_requests
+  FOR UPDATE TO authenticated
+  USING (provider_id IN (
+    SELECT id FROM public.service_providers WHERE user_id = public.current_user_id()
+  ));
+
+-- Platform admins see / update all requests.
+-- IMPORTANT: compare auth.uid() against users.auth_id, NOT users.id.
+CREATE POLICY cat_req_admin_select ON public.category_requests
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.users u
+      WHERE u.auth_id = auth.uid() AND u.is_platform_admin = true
+    )
   );
 
--- Platform admins see all requests
-CREATE POLICY "cat_req_admin_select" ON public.category_requests
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND is_platform_admin = true)
-  );
-
--- Providers insert their own requests
-CREATE POLICY "cat_req_provider_insert" ON public.category_requests
-  FOR INSERT WITH CHECK (
-    provider_id IN (SELECT id FROM public.service_providers WHERE user_id = auth.uid())
-  );
-
--- Providers update their own (for retag accept / decline)
-CREATE POLICY "cat_req_provider_update" ON public.category_requests
-  FOR UPDATE USING (
-    provider_id IN (SELECT id FROM public.service_providers WHERE user_id = auth.uid())
-  );
-
--- Platform admins update all (for review actions)
-CREATE POLICY "cat_req_admin_update" ON public.category_requests
-  FOR UPDATE USING (
-    EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND is_platform_admin = true)
+CREATE POLICY cat_req_admin_update ON public.category_requests
+  FOR UPDATE TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.users u
+      WHERE u.auth_id = auth.uid() AND u.is_platform_admin = true
+    )
   );
 
 GRANT SELECT, INSERT, UPDATE ON public.category_requests TO authenticated;
@@ -97,7 +135,8 @@ $$;
 
 -- ── RPC: approve_category_request ─────────────────────────────────────────────
 -- Creates the category, auto-creates any requested_subcategories, marks
--- request approved, notifies provider.
+-- request approved, backfills classes that referenced the pending request,
+-- notifies provider.
 
 CREATE OR REPLACE FUNCTION public.approve_category_request(
   p_request_id    UUID,
@@ -107,7 +146,7 @@ CREATE OR REPLACE FUNCTION public.approve_category_request(
   p_parent_id     UUID  DEFAULT NULL
 )
 RETURNS UUID
-LANGUAGE plpgsql SECURITY DEFINER AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_slug          TEXT;
   v_sub_slug      TEXT;
@@ -165,6 +204,13 @@ BEGIN
     created_category_id = v_new_cat_id,
     updated_at          = NOW()
   WHERE id = p_request_id;
+
+  -- Backfill classes that were waiting on this request so they can be published
+  UPDATE public.classes
+  SET    category_id                 = v_new_cat_id,
+         pending_category_request_id = NULL,
+         updated_at                  = NOW()
+  WHERE  pending_category_request_id = p_request_id;
 
   -- Find the provider's user account
   SELECT u.id INTO v_prov_user

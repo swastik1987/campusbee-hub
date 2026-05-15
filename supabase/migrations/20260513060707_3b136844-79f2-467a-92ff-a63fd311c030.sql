@@ -105,7 +105,6 @@ BEGIN
     'Category Approved! 🎉',
     'Your "' || v_req_name || '" request has been approved. You can now create classes under it.',
     'category_approved',
-    'category_request',
     p_request_id
   );
 
