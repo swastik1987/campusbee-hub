@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { haversineKm } from "./useLocation";
 
 export const DUPLICATE_BATCH_NAME_ERROR = "DUPLICATE_BATCH_NAME_ERROR";
 
@@ -76,6 +77,56 @@ export function useClassDetail(classId: string | undefined) {
         .single();
       if (error) throw error;
       return data;
+    },
+  });
+}
+
+// ---- Duplicate class-name check (same-location, same-instructor) ----
+
+/**
+ * Warns when the instructor already has a published+approved class with the
+ * same title within ~500 m of the new class's location. Same name at a
+ * different location is fine (e.g. "Morning Yoga" run at two studios).
+ *
+ * Excludes a class id from the comparison so editing an existing class
+ * doesn't flag itself.
+ */
+export function useDuplicateClassNameCheck(args: {
+  providerId: string | undefined;
+  title: string;
+  lat: number | null | undefined;
+  lng: number | null | undefined;
+  excludeClassId?: string;
+}) {
+  const { providerId, title, lat, lng, excludeClassId } = args;
+  const normalized = title.trim().toLocaleLowerCase();
+  const enabled =
+    !!providerId && normalized.length >= 2 && lat != null && lng != null;
+
+  return useQuery({
+    queryKey: ["dup-class-name", providerId, normalized, lat, lng, excludeClassId],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("classes")
+        .select("id, title, address, location_lat, location_lng")
+        .eq("provider_id", providerId!)
+        .eq("status", "published")
+        .eq("moderation_status", "approved")
+        .ilike("title", title.trim());
+      if (error) throw error;
+      const RADIUS_KM = 0.5;
+      return (data ?? [])
+        .filter((c) => c.id !== excludeClassId)
+        .filter((c) => c.location_lat != null && c.location_lng != null)
+        .map((c) => ({
+          ...c,
+          distanceKm: haversineKm(
+            { lat: lat!, lng: lng! },
+            { lat: Number(c.location_lat), lng: Number(c.location_lng) },
+          ),
+        }))
+        .filter((c) => c.distanceKm <= RADIUS_KM);
     },
   });
 }

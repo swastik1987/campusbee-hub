@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Award, Clock, ImagePlus, Loader2, RefreshCw, ShieldCheck, ShieldX, Trash2, X } from "lucide-react";
+import { Award, ChevronDown, Clock, ImagePlus, Loader2, RefreshCw, ShieldCheck, ShieldX, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -69,6 +69,19 @@ interface CertificationManagerProps {
   trainerId?: string;
   /** Trainer display name — used in the section header */
   trainerName?: string;
+  /**
+   * When set, collapses the grid to the latest N items with a "Show all"
+   * toggle. Used on the provider dashboard where space is tight.
+   */
+  maxVisible?: number;
+  /** Hide the internal "Certifications" title row (caller is rendering its own header). */
+  hideTitle?: boolean;
+  /**
+   * When provided alongside hideTitle, the internal "Add" button is hidden
+   * and this ref is populated with a function the caller can wire to its own
+   * Add button. Simpler than threading state up.
+   */
+  addTriggerRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -76,7 +89,7 @@ interface CertificationManagerProps {
 const CertificationManager = React.forwardRef<
   HTMLDivElement,
   CertificationManagerProps
->(({ ownerType, providerId, trainerId, trainerName }, ref) => {
+>(({ ownerType, providerId, trainerId, trainerName, maxVisible, hideTitle, addTriggerRef }, ref) => {
   const ownerId = ownerType === "provider" ? providerId : (trainerId ?? "");
 
   const { data: providerCertsData, isLoading: providerLoading } = useProviderCertifications(
@@ -109,8 +122,21 @@ const CertificationManager = React.forwardRef<
   // Delete confirm state
   const [deleteTarget, setDeleteTarget] = useState<Certification | null>(null);
 
-  const certList = certs ?? [];
+  // Show-all toggle for the dashboard's collapsed view
+  const [showAll, setShowAll] = useState(false);
+
+  // Expose the "open add sheet" trigger so a parent header button can invoke it.
+  if (addTriggerRef) {
+    addTriggerRef.current = () => setAddOpen(true);
+  }
+
+  // Underlying hook orders ascending by created_at; show newest first.
+  const certList = [...(certs ?? [])].sort((a, b) =>
+    (b.created_at ?? "").localeCompare(a.created_at ?? ""),
+  );
   const atMax = certList.length >= MAX_CERTS;
+  const canCollapse = maxVisible != null && certList.length > maxVisible;
+  const visibleCerts = canCollapse && !showAll ? certList.slice(0, maxVisible) : certList;
 
   const resetAdd = () => {
     setCertName("");
@@ -215,22 +241,38 @@ const CertificationManager = React.forwardRef<
         onChange={handleReplaceFile}
       />
       {/* Header row */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold flex items-center gap-1.5">
-          <Award size={16} className="text-provider" />
-          {sectionLabel}
-        </h3>
-        {!atMax && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 gap-1 text-xs border-provider/40 text-provider"
-            onClick={() => setAddOpen(true)}
-          >
-            <ImagePlus size={13} /> Add
-          </Button>
-        )}
-      </div>
+      {!hideTitle ? (
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold flex items-center gap-1.5">
+            <Award size={16} className="text-provider" />
+            {sectionLabel}
+          </h3>
+          {!atMax && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1 text-xs border-provider/40 text-provider"
+              onClick={() => setAddOpen(true)}
+            >
+              <ImagePlus size={13} /> Add
+            </Button>
+          )}
+        </div>
+      ) : (
+        // Caller renders the title (and, if it passes addTriggerRef, the Add button too).
+        !atMax && !addTriggerRef && (
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1 text-xs border-provider/40 text-provider"
+              onClick={() => setAddOpen(true)}
+            >
+              <ImagePlus size={13} /> Add
+            </Button>
+          </div>
+        )
+      )}
 
       {atMax && (
         <p className="text-[10px] text-muted-foreground">
@@ -250,7 +292,7 @@ const CertificationManager = React.forwardRef<
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {certList.map((cert) => {
+          {visibleCerts.map((cert) => {
             const cfg = STATUS_CONFIG[cert.moderation_status];
             return (
               <Card key={cert.id} className="overflow-hidden relative group">
@@ -298,17 +340,33 @@ const CertificationManager = React.forwardRef<
                     </Button>
                   )}
                 </div>
-                {/* Delete overlay */}
+                {/* Delete — always visible (works on touch devices) */}
                 <button
-                  className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label={`Delete ${cert.name}`}
+                  className="absolute top-1 right-1 h-7 w-7 rounded-full bg-black/65 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
                   onClick={() => setDeleteTarget(cert)}
                 >
-                  <X size={12} />
+                  <Trash2 size={13} />
                 </button>
               </Card>
             );
           })}
         </div>
+      )}
+
+      {/* Show all / Show less toggle (only when collapsed view is in use) */}
+      {canCollapse && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="flex items-center justify-center gap-1 w-full rounded-lg py-1.5 text-xs font-medium text-provider hover:bg-provider/5 transition-colors"
+        >
+          {showAll ? "Show less" : `Show all (${certList.length})`}
+          <ChevronDown
+            size={14}
+            className={`transition-transform ${showAll ? "rotate-180" : ""}`}
+          />
+        </button>
       )}
 
       {/* Add Sheet */}

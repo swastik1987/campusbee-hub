@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import UpgradeRequestSheet from "@/components/subscription/UpgradeRequestSheet";
@@ -50,6 +50,7 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronRight,
+  ImagePlus,
 } from "lucide-react";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -68,9 +69,9 @@ const ProviderDashboard = () => {
   const { data: catRequests } = useProviderCategoryRequests(providerId);
 
   const [showBatchPicker, setShowBatchPicker] = useState(false);
-  const [showCerts, setShowCerts] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upcomingOpen, setUpcomingOpen] = useState(false);
+  const certAddTriggerRef = useRef<(() => void) | null>(null);
 
   const actionCount = pendingEnrollments?.length ?? 0;
   const dismissCatReq = useDismissCategoryRequest();
@@ -467,19 +468,20 @@ const ProviderDashboard = () => {
               </h2>
               <Button
                 size="sm"
-                variant="ghost"
-                className="text-xs text-provider h-7"
-                onClick={() => setShowCerts(true)}
+                variant="outline"
+                className="h-8 gap-1 text-xs border-provider/40 text-provider"
+                onClick={() => certAddTriggerRef.current?.()}
               >
-                Manage
+                <ImagePlus size={13} /> Add
               </Button>
             </div>
-            <Card className="p-4 text-sm text-muted-foreground border-dashed cursor-pointer hover:border-provider/50 transition-colors" onClick={() => setShowCerts(true)}>
-              <div className="flex items-center gap-2">
-                <Award size={16} className="text-provider" />
-                <span>Add certificates, degrees & credentials to build trust</span>
-              </div>
-            </Card>
+            <CertificationManager
+              ownerType="provider"
+              providerId={providerId}
+              maxVisible={3}
+              hideTitle
+              addTriggerRef={certAddTriggerRef}
+            />
           </div>
         )}
       </div>
@@ -493,18 +495,6 @@ const ProviderDashboard = () => {
           <Plus size={24} />
         </Button>
       </div>
-
-      {/* Certifications Sheet */}
-      <Sheet open={showCerts} onOpenChange={setShowCerts}>
-        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
-          <SheetHeader className="pb-3">
-            <SheetTitle>My Certifications</SheetTitle>
-          </SheetHeader>
-          {providerId && (
-            <CertificationManager ownerType="provider" providerId={providerId} />
-          )}
-        </SheetContent>
-      </Sheet>
 
       {/* Batch Picker Sheet for Past Attendance */}
       <Sheet open={showBatchPicker} onOpenChange={setShowBatchPicker}>

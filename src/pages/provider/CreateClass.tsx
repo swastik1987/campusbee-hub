@@ -1,7 +1,12 @@
 import { useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useCategories, useCreateClass, useUploadClassImage } from "@/hooks/useClasses";
+import {
+  useCategories,
+  useCreateClass,
+  useUploadClassImage,
+  useDuplicateClassNameCheck,
+} from "@/hooks/useClasses";
 import { moderateClassPublish } from "@/lib/moderation";
 import { supabase } from "@/integrations/supabase/client";
 import ClassLocationPicker from "@/components/location/ClassLocationPicker";
@@ -22,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertTriangle,
   ArrowLeft,
   Camera,
   Clock,
@@ -89,6 +95,16 @@ const CreateClass = () => {
   const { data: allCategories } = useCategories();
   const createClass = useCreateClass();
   const uploadImage = useUploadClassImage();
+
+  // Same-instructor, same-name, same-location (within 500 m) duplicate check.
+  // Non-blocking — surfaces a warning so the instructor can rename for clarity.
+  const { data: duplicates } = useDuplicateClassNameCheck({
+    providerId: providerProfile?.id,
+    title,
+    lat: classLocation?.lat ?? null,
+    lng: classLocation?.lng ?? null,
+  });
+  const hasDuplicate = (duplicates?.length ?? 0) > 0;
 
   const specializationIds = providerProfile?.specialization_category_ids ?? [];
 
@@ -525,6 +541,29 @@ const CreateClass = () => {
               />
             </div>
 
+            {/* Duplicate-name warning — non-blocking */}
+            {hasDuplicate && classLocation && (
+              <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <AlertTriangle size={15} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-800">
+                    You already have a class named "{title.trim()}" near this location
+                  </p>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    Learners may confuse it with your existing class. Consider a more
+                    distinctive name (e.g. add the batch, age group, or timing) so the
+                    listings are easy to tell apart. You can still publish with this
+                    name if you intend to.
+                  </p>
+                  {duplicates?.[0]?.address && (
+                    <p className="text-[11px] text-amber-700/80 mt-1">
+                      Existing: {duplicates[0].address}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Venue Details */}
             <div className="space-y-2">
               <Label>Venue / Landmark<Opt /></Label>
@@ -777,6 +816,24 @@ const CreateClass = () => {
                 </div>
               )}
             </Card>
+
+            {/* Duplicate-name warning — non-blocking, repeated here so it's visible at publish */}
+            {hasDuplicate && (
+              <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <AlertTriangle size={15} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-800">
+                    Duplicate name at the same location
+                  </p>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    You already have a published class named "{title.trim()}" within
+                    500 m of this location. Renaming it (e.g. add batch, age group, or
+                    timing) will help learners pick the right one. You can still publish
+                    with this name.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Info box */}
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
