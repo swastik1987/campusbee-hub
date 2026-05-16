@@ -4,7 +4,8 @@ import { useUser } from "@/contexts/UserContext";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
 import { useUnreadChatCount } from "@/hooks/useEngagement";
 import PersonaSwitcher from "./PersonaSwitcher";
-import { Bell, Home, MessageCircle, User } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Bell, Home, MessageCircle, User, UserCheck } from "lucide-react";
 
 interface HeaderProps {
   showPersonaSwitcher?: boolean;
@@ -16,7 +17,7 @@ interface HeaderProps {
  */
 const Header = React.forwardRef<HTMLElement, HeaderProps>(
   ({ showPersonaSwitcher = true }, ref) => {
-    const { profile } = useUser();
+    const { profile, isCoach, activePersona } = useUser();
     const navigate = useNavigate();
     const location = useLocation();
     const { data: unreadCount } = useUnreadNotificationCount(profile?.id);
@@ -46,6 +47,15 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
               C
             </button>
             {shouldShowPersonaSwitcher && <PersonaSwitcher />}
+            {isCoach && activePersona === "provider" && (
+              <Badge
+                className="ml-1 gap-1 border-0 bg-indigo-100 text-[10px] text-indigo-700"
+                title="You have Coach access"
+              >
+                <UserCheck size={10} />
+                Coach
+              </Badge>
+            )}
           </div>
 
           <div className="flex items-center gap-1">

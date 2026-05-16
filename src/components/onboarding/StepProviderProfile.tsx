@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, GraduationCap, Loader2, User, Users } from "lucide-react";
+import { ChevronLeft, Crown, GraduationCap, Loader2, User, Users } from "lucide-react";
 
 export interface ProviderProfileData {
   providerType: "individual" | "academy";
@@ -83,6 +83,24 @@ const StepProviderProfile = ({ onNext, onBack, isSubmitting = false }: StepProvi
         </div>
       </div>
 
+      {/* Academy → Coaches nudge (Premium feature) */}
+      {providerType === "academy" && (
+        <Card className="flex items-start gap-3 border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100">
+            <Crown size={16} className="text-amber-600" />
+          </div>
+          <div className="flex-1 space-y-0.5">
+            <p className="text-sm font-semibold text-amber-900">
+              Onboard Coaches with Premium
+            </p>
+            <p className="text-xs text-amber-800">
+              Invite multiple coaches to manage your batches and classes.
+              Available with the Premium plan — you can upgrade any time from your dashboard.
+            </p>
+          </div>
+        </Card>
+      )}
+
       {/* Business name */}
       <div className="space-y-2">
         <Label htmlFor="businessName">
@@ -102,7 +120,7 @@ const StepProviderProfile = ({ onNext, onBack, isSubmitting = false }: StepProvi
         <Label htmlFor="bio">Brief description (optional)</Label>
         <Textarea
           id="bio"
-          placeholder="Tell apartment residents what you offer..."
+          placeholder="Tell learners what you offer..."
           value={bio}
           onChange={(e) => setBio(e.target.value)}
           className="rounded-xl resize-none"

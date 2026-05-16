@@ -95,21 +95,39 @@ export function useUploadProviderMedia() {
 
 // ---- Provider Dashboard Data (v2: all queries use provider_id directly) ----
 
-export function useProviderStats(providerId: string | undefined) {
+/**
+ * @param scope Optional coach scoping. When `scopedClassIds` / `scopedBatchIds`
+ * are passed, results are restricted to those IDs (coach view). Admin omits both.
+ */
+export function useProviderStats(
+  providerId: string | undefined,
+  scope?: { scopedClassIds?: string[]; scopedBatchIds?: string[] }
+) {
+  const scopedClassIds = scope?.scopedClassIds;
+  const scopedBatchIds = scope?.scopedBatchIds;
   return useQuery({
-    queryKey: ["provider-stats", providerId],
+    queryKey: [
+      "provider-stats",
+      providerId,
+      scopedClassIds?.join(",") ?? "",
+      scopedBatchIds?.join(",") ?? "",
+    ],
     enabled: !!providerId,
     queryFn: async () => {
-      const { count: classCount } = await supabase
+      let classQuery = supabase
         .from("classes")
         .select("id", { count: "exact", head: true })
         .eq("provider_id", providerId!)
         .eq("status", "published");
+      if (scopedClassIds) classQuery = classQuery.in("id", scopedClassIds);
+      const { count: classCount } = await classQuery;
 
-      const { data: classes } = await supabase
+      let classesQuery = supabase
         .from("classes")
         .select("id")
         .eq("provider_id", providerId!);
+      if (scopedClassIds) classesQuery = classesQuery.in("id", scopedClassIds);
+      const { data: classes } = await classesQuery;
       const classIds = classes?.map((c) => c.id) ?? [];
 
       let studentCount = 0;
@@ -119,7 +137,12 @@ export function useProviderStats(providerId: string | undefined) {
           .from("batches")
           .select("id")
           .in("class_id", classIds);
-        const batchIds = batches?.map((b) => b.id) ?? [];
+        let batchIds = batches?.map((b) => b.id) ?? [];
+        // Coach batch-level scope: intersect with assigned batches
+        if (scopedBatchIds) {
+          const allowed = new Set(scopedBatchIds);
+          batchIds = batchIds.filter((id) => allowed.has(id));
+        }
 
         if (batchIds.length > 0) {
           const { count: sCount } = await supabase
@@ -131,11 +154,31 @@ export function useProviderStats(providerId: string | undefined) {
         }
       }
 
-      const { count: pendingPayments } = await supabase
-        .from("payments")
-        .select("id", { count: "exact", head: true })
-        .eq("provider_id", providerId!)
-        .eq("status", "recorded");
+      // Pending payments — admin sees all for their provider; coach sees only
+      // payments for enrollments in batches they're assigned to (best effort
+      // client-side filter; RLS enforces hard limit).
+      let pendingPayments: number | null = null;
+      if (scopedBatchIds || scopedClassIds) {
+        // Aggregate via enrollments → batches → assigned scope
+        const { data: payRows } = await supabase
+          .from("payments")
+          .select("id, enrollments!inner(batch_id)")
+          .eq("provider_id", providerId!)
+          .eq("status", "recorded");
+        const allowedBatches = new Set(scopedBatchIds ?? []);
+        type PayRow = { id: string; enrollments?: { batch_id: string } | null };
+        const ppRows = ((payRows ?? []) as unknown as PayRow[]).filter((p) =>
+          p.enrollments ? allowedBatches.has(p.enrollments.batch_id) : false
+        );
+        pendingPayments = ppRows.length;
+      } else {
+        const { count } = await supabase
+          .from("payments")
+          .select("id", { count: "exact", head: true })
+          .eq("provider_id", providerId!)
+          .eq("status", "recorded");
+        pendingPayments = count ?? 0;
+      }
 
       return {
         activeClasses: classCount ?? 0,
@@ -146,25 +189,40 @@ export function useProviderStats(providerId: string | undefined) {
   });
 }
 
-export function useProviderTodaySchedule(providerId: string | undefined) {
+export function useProviderTodaySchedule(
+  providerId: string | undefined,
+  scope?: { scopedClassIds?: string[]; scopedBatchIds?: string[] }
+) {
   const today = new Date().getDay(); // 0=Sun
+  const scopedClassIds = scope?.scopedClassIds;
+  const scopedBatchIds = scope?.scopedBatchIds;
   return useQuery({
-    queryKey: ["provider-today-schedule", providerId, today],
+    queryKey: [
+      "provider-today-schedule",
+      providerId,
+      today,
+      scopedClassIds?.join(",") ?? "",
+      scopedBatchIds?.join(",") ?? "",
+    ],
     enabled: !!providerId,
     queryFn: async () => {
-      const { data: classes } = await supabase
+      let classQuery = supabase
         .from("classes")
         .select("id, title")
         .eq("provider_id", providerId!)
         .eq("status", "published");
+      if (scopedClassIds) classQuery = classQuery.in("id", scopedClassIds);
+      const { data: classes } = await classQuery;
       if (!classes?.length) return [];
 
       const classIds = classes.map((c) => c.id);
-      const { data: batches } = await supabase
+      let batchQuery = supabase
         .from("batches")
         .select("id, batch_name, class_id, status")
         .in("class_id", classIds)
         .in("status", ["active", "full"]);
+      if (scopedBatchIds) batchQuery = batchQuery.in("id", scopedBatchIds);
+      const { data: batches } = await batchQuery;
       if (!batches?.length) return [];
 
       const batchIds = batches.map((b) => b.id);
@@ -193,7 +251,12 @@ export function useProviderTodaySchedule(providerId: string | undefined) {
   });
 }
 
-export function useProviderUpcomingSchedule(providerId: string | undefined) {
+export function useProviderUpcomingSchedule(
+  providerId: string | undefined,
+  scope?: { scopedClassIds?: string[]; scopedBatchIds?: string[] }
+) {
+  const scopedClassIds = scope?.scopedClassIds;
+  const scopedBatchIds = scope?.scopedBatchIds;
   const today = new Date();
   const upcomingDays = [1, 2, 3].map((offset) => {
     const d = new Date(today);
@@ -203,22 +266,32 @@ export function useProviderUpcomingSchedule(providerId: string | undefined) {
   const dayNumbers = upcomingDays.map((d) => d.dayOfWeek);
 
   return useQuery({
-    queryKey: ["provider-upcoming-schedule", providerId, dayNumbers.join(",")],
+    queryKey: [
+      "provider-upcoming-schedule",
+      providerId,
+      dayNumbers.join(","),
+      scopedClassIds?.join(",") ?? "",
+      scopedBatchIds?.join(",") ?? "",
+    ],
     enabled: !!providerId,
     queryFn: async () => {
-      const { data: classes } = await supabase
+      let classQuery = supabase
         .from("classes")
         .select("id, title")
         .eq("provider_id", providerId!)
         .eq("status", "published");
+      if (scopedClassIds) classQuery = classQuery.in("id", scopedClassIds);
+      const { data: classes } = await classQuery;
       if (!classes?.length) return [];
 
       const classIds = classes.map((c) => c.id);
-      const { data: batches } = await supabase
+      let batchQuery = supabase
         .from("batches")
         .select("id, batch_name, class_id, status")
         .in("class_id", classIds)
         .in("status", ["active", "full"]);
+      if (scopedBatchIds) batchQuery = batchQuery.in("id", scopedBatchIds);
+      const { data: batches } = await batchQuery;
       if (!batches?.length) return [];
 
       const batchIds = batches.map((b) => b.id);
@@ -362,25 +435,39 @@ export function useDeleteTrainer() {
 
 // ---- Provider: All active batches (for attendance picker) ----
 
-export function useProviderActiveBatches(providerId: string | undefined) {
+export function useProviderActiveBatches(
+  providerId: string | undefined,
+  scope?: { scopedClassIds?: string[]; scopedBatchIds?: string[] }
+) {
+  const scopedClassIds = scope?.scopedClassIds;
+  const scopedBatchIds = scope?.scopedBatchIds;
   return useQuery({
-    queryKey: ["provider-active-batches", providerId],
+    queryKey: [
+      "provider-active-batches",
+      providerId,
+      scopedClassIds?.join(",") ?? "",
+      scopedBatchIds?.join(",") ?? "",
+    ],
     enabled: !!providerId,
     queryFn: async () => {
-      const { data: classes } = await supabase
+      let classQuery = supabase
         .from("classes")
         .select("id, title")
         .eq("provider_id", providerId!)
         .eq("status", "published");
+      if (scopedClassIds) classQuery = classQuery.in("id", scopedClassIds);
+      const { data: classes } = await classQuery;
       if (!classes?.length) return [];
 
       const classIds = classes.map((c) => c.id);
-      const { data: batches, error } = await supabase
+      let batchQuery = supabase
         .from("batches")
         .select("id, batch_name, class_id, status")
         .in("class_id", classIds)
         .in("status", ["active", "full"])
         .order("batch_name");
+      if (scopedBatchIds) batchQuery = batchQuery.in("id", scopedBatchIds);
+      const { data: batches, error } = await batchQuery;
       if (error) throw error;
 
       return (batches ?? []).map((b) => {

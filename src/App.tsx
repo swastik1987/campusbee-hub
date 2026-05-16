@@ -29,6 +29,7 @@ import CreateClass from "./pages/provider/CreateClass";
 import CreateBatch from "./pages/provider/CreateBatch";
 import BecomeProvider from "./pages/provider/BecomeProvider";
 import TrainerManagement from "./pages/provider/TrainerManagement";
+import CoachesManagement from "./pages/provider/CoachesManagement";
 import ProviderStudents from "./pages/provider/ProviderStudents";
 import ProviderPayments from "./pages/provider/ProviderPayments";
 import TakeAttendance from "./pages/provider/TakeAttendance";
@@ -126,7 +127,10 @@ const App = () => (
             <Route path="/provider/classes/new" element={<AuthGuard><CreateClass /></AuthGuard>} />
             <Route path="/provider/classes/:classId" element={<AuthGuard><ProviderClassDetail /></AuthGuard>} />
             <Route path="/provider/classes/:classId/batch/new" element={<AuthGuard><CreateBatch /></AuthGuard>} />
-            <Route path="/provider/trainers" element={<AuthGuard><TrainerManagement /></AuthGuard>} />
+            <Route path="/provider/coaches" element={<AuthGuard><CoachesManagement /></AuthGuard>} />
+            {/* Legacy: trainers UI replaced by coaches. Keep redirect so old links / bookmarks work. */}
+            <Route path="/provider/trainers" element={<Navigate to="/provider/coaches" replace />} />
+            <Route path="/provider/trainers-legacy" element={<AuthGuard><TrainerManagement /></AuthGuard>} />
             <Route path="/provider/students" element={<AuthGuard><ProviderStudents /></AuthGuard>} />
             <Route path="/provider/payments" element={<AuthGuard><ProviderPayments /></AuthGuard>} />
             <Route path="/provider/attendance/:batchId" element={<AuthGuard><TakeAttendance /></AuthGuard>} />

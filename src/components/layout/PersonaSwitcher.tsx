@@ -63,7 +63,7 @@ const PERSONA_CONFIG: Record<
 };
 
 const PersonaSwitcher = React.forwardRef<HTMLButtonElement>((_, ref) => {
-  const { profile, activePersona, activatePersona } = useUser();
+  const { profile, activePersona, activatePersona, isCoach } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -86,7 +86,8 @@ const PersonaSwitcher = React.forwardRef<HTMLButtonElement>((_, ref) => {
   const CurrentIcon = current.icon;
 
   const availablePersonas: Persona[] = ["seeker"];
-  if (profile.is_provider) availablePersonas.push("provider");
+  // Coaches see the Instructor option too, even if they don't own a provider profile
+  if (profile.is_provider || isCoach) availablePersonas.push("provider");
   if (profile.is_platform_admin) availablePersonas.push("platform_admin");
 
   const handleSelect = async (persona: Persona) => {
@@ -221,8 +222,8 @@ const PersonaSwitcher = React.forwardRef<HTMLButtonElement>((_, ref) => {
                 );
               })}
 
-              {/* Start Teaching CTA if not a provider */}
-              {!profile.is_provider && (
+              {/* Start Teaching CTA if neither a provider nor a coach */}
+              {!profile.is_provider && !isCoach && (
                 <button
                   onClick={() => {
                     setOpen(false);

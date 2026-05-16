@@ -435,11 +435,36 @@ export function useProviderProfile(providerId: string | undefined) {
           qualifications, specializations, intro_video_url,
           whatsapp_number, is_verified, subscription_tier,
           users(id, full_name, avatar_url),
-          trainers(id, name, bio, specializations, photo_url, experience_years)
+          coaches!coaches_academy_provider_id_fkey(id, full_name, bio, specializations, photo_url, experience_years, status)
         `)
         .eq("id", providerId!)
         .single();
       if (error) throw error;
+      // Normalise: only active coaches, mapped to the legacy `trainers` shape consumed by callers
+      type CoachRow = {
+        id: string;
+        full_name: string;
+        bio: string | null;
+        specializations: string[] | null;
+        photo_url: string | null;
+        experience_years: number | null;
+        status: string;
+      };
+      type ProviderWithCoaches = typeof data & { coaches?: CoachRow[] | null; trainers?: unknown };
+      const enriched = data as ProviderWithCoaches | null;
+      if (enriched) {
+        const activeCoaches = (enriched.coaches ?? [])
+          .filter((c) => c.status === "active")
+          .map((c) => ({
+            id: c.id,
+            name: c.full_name,
+            bio: c.bio,
+            specializations: c.specializations,
+            photo_url: c.photo_url,
+            experience_years: c.experience_years,
+          }));
+        enriched.trainers = activeCoaches;
+      }
       return data;
     },
   });
@@ -467,6 +492,10 @@ export function useProviderClasses(providerId: string | undefined, _apartmentId?
 }
 
 // ---- Trainers for a provider ----
+// Reads from `coaches` (the v2 replacement for the legacy `trainers` table).
+// The shape returned matches the old trainers schema so callers don't need to
+// change. Only active coaches are exposed publicly (RLS policy
+// `coaches_public_select` enforces this on the server too).
 
 export function useProviderTrainers(providerId: string | undefined) {
   return useQuery({
@@ -474,12 +503,32 @@ export function useProviderTrainers(providerId: string | undefined) {
     enabled: !!providerId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("trainers")
-        .select("id, name, bio, qualifications, experience_years, specializations, photo_url")
-        .eq("provider_id", providerId!)
-        .eq("is_active", true);
+        .from("coaches")
+        .select(
+          "id, full_name, bio, qualifications, experience_years, specializations, photo_url"
+        )
+        .eq("academy_provider_id", providerId!)
+        .eq("status", "active");
       if (error) throw error;
-      return data;
+      // Map full_name → name for backward compatibility with existing UI
+      type CoachRow = {
+        id: string;
+        full_name: string;
+        bio: string | null;
+        qualifications: string | null;
+        experience_years: number | null;
+        specializations: string[] | null;
+        photo_url: string | null;
+      };
+      return ((data ?? []) as unknown as CoachRow[]).map((c) => ({
+        id: c.id,
+        name: c.full_name,
+        bio: c.bio,
+        qualifications: c.qualifications,
+        experience_years: c.experience_years,
+        specializations: c.specializations,
+        photo_url: c.photo_url,
+      }));
     },
   });
 }

@@ -51,6 +51,18 @@ type ProviderProfileRow = {
   home_address: string | null;
 };
 
+/**
+ * A "coach profile" tying the current user to an academy provider as a Coach.
+ * One user may coach at multiple academies → array. Populated on session start
+ * after `accept_coach_invites` runs.
+ */
+export type CoachProfile = {
+  id: string;
+  academy_provider_id: string;
+  full_name: string;
+  academy_business_name: string | null;
+};
+
 type UserContextType = {
   session: Session | null;
   user: User | null;
@@ -58,6 +70,10 @@ type UserContextType = {
   family: FamilyRow | null;
   familyMembers: FamilyMemberRow[];
   providerProfile: ProviderProfileRow | null;
+  /** Active coach memberships for the current user (empty if not a coach) */
+  coachProfiles: CoachProfile[];
+  /** True if the user has at least one active coach role */
+  isCoach: boolean;
   isPremium: boolean;
   loading: boolean;
   isNewUser: boolean;
@@ -78,6 +94,8 @@ const UserContext = createContext<UserContextType>({
   family: null,
   familyMembers: [],
   providerProfile: null,
+  coachProfiles: [],
+  isCoach: false,
   isPremium: false,
   loading: true,
   isNewUser: false,
@@ -105,6 +123,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [family, setFamily] = useState<FamilyRow | null>(null);
   const [familyMembers, setFamilyMembers] = useState<FamilyMemberRow[]>([]);
   const [providerProfile, setProviderProfile] = useState<ProviderProfileRow | null>(null);
+  const [coachProfiles, setCoachProfiles] = useState<CoachProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
   const [activePersona, setActivePersona] = useState<Persona>("seeker");
@@ -180,6 +199,49 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     setProviderProfile(data as ProviderProfileRow | null);
   }, []);
 
+  /**
+   * Auto-accept pending coach invites for this user's email, then fetch active
+   * coach memberships. Tolerates missing RPC/tables (older DB without the
+   * 20260515150000_coaches migration applied yet) by silently no-op'ing.
+   */
+  const fetchCoachProfiles = useCallback(async (userId: string) => {
+    try {
+      // Idempotent — links + activates any 'invited' coach rows for the user's email
+      await supabase.rpc("accept_coach_invites");
+    } catch (e) {
+      console.warn("[CampusBee] accept_coach_invites unavailable:", e);
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("coaches")
+        .select("id, academy_provider_id, full_name, service_providers!coaches_academy_provider_id_fkey(business_name)")
+        .eq("linked_user_id", userId)
+        .eq("status", "active");
+      if (error) {
+        // Table not yet present — leave coachProfiles empty
+        setCoachProfiles([]);
+        return;
+      }
+      type Row = {
+        id: string;
+        academy_provider_id: string;
+        full_name: string;
+        service_providers?: { business_name: string | null } | null;
+      };
+      const rows: CoachProfile[] = ((data ?? []) as unknown as Row[]).map((r) => ({
+        id: r.id,
+        academy_provider_id: r.academy_provider_id,
+        full_name: r.full_name,
+        academy_business_name: r.service_providers?.business_name ?? null,
+      }));
+      setCoachProfiles(rows);
+    } catch (e) {
+      console.warn("[CampusBee] fetchCoachProfiles:", e);
+      setCoachProfiles([]);
+    }
+  }, []);
+
   const fetchOrCreateProfile = useCallback(
     async (authUser: User) => {
       setProfileError(null);
@@ -209,6 +271,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                   console.error("[CampusBee] fetchProviderProfile:", e)
                 )
               : Promise.resolve(),
+            fetchCoachProfiles(prof.id).catch((e) =>
+              console.error("[CampusBee] fetchCoachProfiles:", e)
+            ),
           ]);
           return;
         }
@@ -265,7 +330,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setProfileError(`Unexpected error: ${msg}`);
       }
     },
-    [fetchFamily, fetchProviderProfile]
+    [fetchFamily, fetchProviderProfile, fetchCoachProfiles]
   );
 
   const refreshProfile = useCallback(async () => {
@@ -284,8 +349,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setProviderProfile(null);
       }
+      fetchCoachProfiles(prof.id);
     }
-  }, [user, fetchProviderProfile]);
+  }, [user, fetchProviderProfile, fetchCoachProfiles]);
 
   const refreshFamily = useCallback(async () => {
     if (!profile) return;
@@ -316,7 +382,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     let routePersona: Persona | null = null;
 
     if (path.startsWith("/provider/") || path === "/provider") {
-      if (profile.is_provider) routePersona = "provider";
+      // Coaches access /provider/* even though they don't own a provider profile.
+      if (profile.is_provider || coachProfiles.length > 0) routePersona = "provider";
     } else if (path.startsWith("/platform")) {
       if (profile.is_platform_admin) routePersona = "platform_admin";
     } else if (
@@ -337,7 +404,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       lastSyncedPersona.current = routePersona;
       activatePersona(routePersona);
     }
-  }, [location.pathname, profile, activePersona, activatePersona]);
+  }, [location.pathname, profile, activePersona, activatePersona, coachProfiles.length]);
 
   useEffect(() => {
     let isMounted = true;
@@ -358,6 +425,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setFamily(null);
         setFamilyMembers([]);
         setProviderProfile(null);
+        setCoachProfiles([]);
         setIsNewUser(false);
         setActivePersona("seeker");
         setFamilyRole(null);
@@ -399,6 +467,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         family,
         familyMembers,
         providerProfile,
+        coachProfiles,
+        isCoach: coachProfiles.length > 0,
         isPremium,
         loading,
         isNewUser,

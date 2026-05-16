@@ -9,6 +9,7 @@ import {
   usePendingEnrollments,
   useProviderActiveBatches,
 } from "@/hooks/useProvider";
+import { useEffectiveProviderContext } from "@/hooks/useCoaches";
 import {
   usePendingBatchSwitches,
   useProviderApproveBatchSwitch,
@@ -52,6 +53,7 @@ import {
   XCircle,
   FolderTree,
   Crown,
+  UserPlus,
   ArrowRight,
   ArrowRightLeft,
   ChevronDown,
@@ -69,13 +71,17 @@ const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const ProviderDashboard = () => {
   const navigate = useNavigate();
   const { providerProfile, isPremium } = useUser();
-  const providerId = providerProfile?.id;
+  const ctx = useEffectiveProviderContext();
+  const providerId = ctx.providerId;
+  const scope = ctx.isCoach
+    ? { scopedClassIds: ctx.scopedClassIds, scopedBatchIds: ctx.scopedBatchIds }
+    : undefined;
 
-  const { data: stats, isLoading: statsLoading } = useProviderStats(providerId);
-  const { data: todaySchedule } = useProviderTodaySchedule(providerId);
-  const { data: upcomingSchedule } = useProviderUpcomingSchedule(providerId);
+  const { data: stats, isLoading: statsLoading } = useProviderStats(providerId, scope);
+  const { data: todaySchedule } = useProviderTodaySchedule(providerId, scope);
+  const { data: upcomingSchedule } = useProviderUpcomingSchedule(providerId, scope);
   const { data: pendingEnrollments } = usePendingEnrollments(providerId);
-  const { data: allBatches } = useProviderActiveBatches(providerId);
+  const { data: allBatches } = useProviderActiveBatches(providerId, scope);
   const { data: catRequests } = useProviderCategoryRequests(providerId);
   const { data: pendingSwitches } = usePendingBatchSwitches(providerId);
   const approveSwitch = useProviderApproveBatchSwitch();
@@ -264,8 +270,8 @@ const ProviderDashboard = () => {
           </div>
         </div>
 
-        {/* Subscription tier banner */}
-        {isPremium ? (
+        {/* Subscription / Premium banners — admin only (coaches inherit Premium from the academy) */}
+        {ctx.isAdmin && isPremium ? (
           <Card
             className="flex items-center gap-3 p-3 border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 cursor-pointer"
             onClick={() => navigate("/provider/subscription")}
@@ -287,7 +293,7 @@ const ProviderDashboard = () => {
             <ArrowRight size={14} className="text-amber-500 shrink-0" />
           </Card>
         ) : null}
-        {isPremium && (
+        {ctx.isAdmin && isPremium && (
           <Card
             className="flex cursor-pointer items-center gap-3 border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50 p-3"
             onClick={() => navigate("/provider/sponsored")}
@@ -304,7 +310,7 @@ const ProviderDashboard = () => {
             <ArrowRight size={14} className="shrink-0 text-indigo-500" />
           </Card>
         )}
-        {!isPremium && (
+        {ctx.isAdmin && !isPremium && (
           <Card
             className="flex items-center gap-3 p-3 border-dashed border-amber-200 cursor-pointer hover:bg-amber-50/50 transition-colors"
             onClick={() => setShowUpgrade(true)}
@@ -320,6 +326,43 @@ const ProviderDashboard = () => {
             </div>
             <ArrowRight size={14} className="text-muted-foreground shrink-0" />
           </Card>
+        )}
+
+        {/* Academy + Basic → Coaches upsell. Premium academies see a direct shortcut. Admin only. */}
+        {ctx.isAdmin && providerProfile?.provider_type === "academy" && (
+          isPremium ? (
+            <Card
+              className="flex cursor-pointer items-center gap-3 border-indigo-200 bg-indigo-50/40 p-3"
+              onClick={() => navigate("/provider/coaches")}
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100">
+                <UserPlus size={16} className="text-indigo-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-indigo-900">Manage Coaches</p>
+                <p className="text-[10px] text-indigo-700">
+                  Invite coaches and assign classes &amp; batches
+                </p>
+              </div>
+              <ArrowRight size={14} className="shrink-0 text-indigo-500" />
+            </Card>
+          ) : (
+            <Card
+              className="flex cursor-pointer items-center gap-3 border-dashed border-indigo-200 p-3 hover:bg-indigo-50/40 transition-colors"
+              onClick={() => setShowUpgrade(true)}
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50">
+                <UserPlus size={16} className="text-indigo-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold">Onboard Coaches — Premium</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Add multiple coaches to manage batches and mark attendance
+                </p>
+              </div>
+              <Crown size={14} className="text-amber-400 shrink-0" />
+            </Card>
+          )
         )}
 
         {/* Today's Schedule */}
@@ -422,8 +465,8 @@ const ProviderDashboard = () => {
             </CollapsibleContent>
           </Collapsible>
         )}
-        {/* Category Requests Status — Active (pending + retag_pending) + History */}
-        {(activeCatRequests.length > 0 || historyCatRequests.length > 0) && (
+        {/* Category Requests Status — admin only */}
+        {ctx.isAdmin && (activeCatRequests.length > 0 || historyCatRequests.length > 0) && (
           <div>
             <h2 className="mb-3 text-base font-bold flex items-center gap-2">
               <FolderTree size={18} className="text-provider" />
@@ -631,8 +674,8 @@ const ProviderDashboard = () => {
           </div>
         )}
 
-        {/* Certifications */}
-        {providerId && (
+        {/* Certifications — admin only */}
+        {ctx.isAdmin && providerId && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold flex items-center gap-2">
@@ -659,15 +702,17 @@ const ProviderDashboard = () => {
         )}
       </div>
 
-      {/* FAB */}
-      <div className="fixed bottom-20 right-4 z-30">
-        <Button
-          onClick={() => navigate("/provider/classes/new")}
-          className="h-12 w-12 rounded-full bg-provider hover:bg-provider/90 text-white shadow-lg"
-        >
-          <Plus size={24} />
-        </Button>
-      </div>
+      {/* FAB — only the academy admin can create classes; coaches inherit assignments */}
+      {ctx.isAdmin && (
+        <div className="fixed bottom-20 right-4 z-30">
+          <Button
+            onClick={() => navigate("/provider/classes/new")}
+            className="h-12 w-12 rounded-full bg-provider hover:bg-provider/90 text-white shadow-lg"
+          >
+            <Plus size={24} />
+          </Button>
+        </div>
+      )}
 
       {/* Batch Picker Sheet for Past Attendance */}
       <Sheet open={showBatchPicker} onOpenChange={setShowBatchPicker}>

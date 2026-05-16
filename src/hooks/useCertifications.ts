@@ -124,6 +124,13 @@ export function useSeekerProviderCertifications(providerId: string | undefined) 
   });
 }
 
+/**
+ * Fetches certifications for what the seeker UI calls a "trainer".
+ * Post-coaches-migration, the identifier passed in is actually a coach.id
+ * (legacy trainers were copied into the coaches table). Certifications were
+ * mirrored onto `coach_id` during that migration. We query by both columns to
+ * keep working during the transition window.
+ */
 export function useSeekerTrainerCertifications(trainerId: string | undefined) {
   return useQuery({
     queryKey: ["certifications", "seeker-trainer", trainerId],
@@ -132,8 +139,7 @@ export function useSeekerTrainerCertifications(trainerId: string | undefined) {
       const { data, error } = await (supabase as any)
         .from("certifications")
         .select("id, name, issuing_authority, year_obtained, image_url")
-        .eq("owner_type", "trainer")
-        .eq("trainer_id", trainerId!)
+        .or(`coach_id.eq.${trainerId},trainer_id.eq.${trainerId}`)
         .eq("moderation_status", "approved")
         .order("created_at");
       if (error) throw error;

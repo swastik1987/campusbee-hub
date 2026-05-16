@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useProviderPayments, useConfirmPayment, useDisputePayment } from "@/hooks/useEngagement";
+import { useSendPaymentReminder } from "@/hooks/useCoaches";
 import PremiumGate from "@/components/subscription/PremiumGate";
 import UpgradeRequestSheet from "@/components/subscription/UpgradeRequestSheet";
 import Header from "@/components/layout/Header";
@@ -44,6 +45,21 @@ const ProviderPayments = () => {
 
   const confirmPayment = useConfirmPayment();
   const disputePayment = useDisputePayment();
+  const sendReminder = useSendPaymentReminder();
+  const [reminderInFlight, setReminderInFlight] = useState<string | null>(null);
+
+  const handleSendReminder = async (paymentId: string) => {
+    setReminderInFlight(paymentId);
+    try {
+      await sendReminder.mutateAsync({ paymentId });
+      toast.success("Reminder sent");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to send reminder";
+      toast.error(message);
+    } finally {
+      setReminderInFlight(null);
+    }
+  };
 
   const [disputeSheet, setDisputeSheet] = useState<string | null>(null);
   const [disputeNotes, setDisputeNotes] = useState("");
@@ -205,26 +221,42 @@ const ProviderPayments = () => {
                       )}
 
                       {payment.status === "recorded" && (
-                        <div className="flex gap-2 pt-1">
+                        <div className="space-y-2 pt-1">
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 text-xs text-destructive border-destructive"
+                              onClick={() => { setDisputeSheet(payment.id); setDisputeNotes(""); }}
+                            >
+                              <X size={14} className="mr-1" /> Dispute
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="flex-1 text-xs bg-green-600 hover:bg-green-700 text-white"
+                              onClick={() => handleConfirm(payment.id)}
+                              disabled={confirmPayment.isPending}
+                            >
+                              {confirmPayment.isPending ? (
+                                <Loader2 size={14} className="animate-spin" />
+                              ) : (
+                                <><Check size={14} className="mr-1" /> Confirm</>
+                              )}
+                            </Button>
+                          </div>
                           <Button
                             size="sm"
                             variant="outline"
-                            className="flex-1 text-xs text-destructive border-destructive"
-                            onClick={() => { setDisputeSheet(payment.id); setDisputeNotes(""); }}
+                            className="w-full text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                            onClick={() => handleSendReminder(payment.id)}
+                            disabled={reminderInFlight === payment.id}
                           >
-                            <X size={14} className="mr-1" /> Dispute
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="flex-1 text-xs bg-green-600 hover:bg-green-700 text-white"
-                            onClick={() => handleConfirm(payment.id)}
-                            disabled={confirmPayment.isPending}
-                          >
-                            {confirmPayment.isPending ? (
-                              <Loader2 size={14} className="animate-spin" />
+                            {reminderInFlight === payment.id ? (
+                              <Loader2 size={14} className="animate-spin mr-1" />
                             ) : (
-                              <><Check size={14} className="mr-1" /> Confirm</>
+                              <Bell size={14} className="mr-1" />
                             )}
+                            Send Reminder
                           </Button>
                         </div>
                       )}
