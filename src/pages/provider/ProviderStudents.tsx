@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useUser } from "@/contexts/UserContext";
 import { useProviderEnrollments, useRemovedEnrollments, useUpdateEnrollmentStatus, useProviderStudentNames } from "@/hooks/useEngagement";
 import { useEffectiveProviderContext } from "@/hooks/useCoaches";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -63,11 +65,13 @@ function getAge(dob: string | null): string | null {
 const ProviderStudents = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  // Effective provider context: returns the academy provider_id for both the
-  // owner (admin) and any active coach. For coaches, scopedClassIds /
-  // scopedBatchIds also limit which rows we show.
+  // Resolve the academy provider_id. For owners (admin / individual instructor),
+  // prefer providerProfile.id directly so the page works even before any coach
+  // data has hydrated. For pure coaches, fall back to the academy id derived
+  // from their coach record via useEffectiveProviderContext.
+  const { providerProfile } = useUser();
   const ctx = useEffectiveProviderContext();
-  const effectiveProviderId = ctx.providerId;
+  const effectiveProviderId = providerProfile?.id ?? ctx.providerId;
   const coachClassScope = ctx.isCoach ? ctx.scopedClassIds : undefined;
   const coachBatchScope = ctx.isCoach ? ctx.scopedBatchIds : undefined;
 
@@ -89,7 +93,7 @@ const ProviderStudents = () => {
   const [batchFilter, setBatchFilter] = useState("all");
 
   // Fetch all classes for this provider (admin sees all; coach filtered below)
-  const { data: rawClasses } = useQuery({
+  const { data: rawClasses, error: rawClassesError } = useQuery({
     queryKey: ["provider-classes-for-filter", effectiveProviderId],
     enabled: !!effectiveProviderId,
     queryFn: async () => {
@@ -120,7 +124,7 @@ const ProviderStudents = () => {
     : [classFilter];
 
   // Fetch batches for the active class set
-  const { data: rawBatches } = useQuery({
+  const { data: rawBatches, error: rawBatchesError } = useQuery({
     queryKey: ["provider-batches-for-filter", classIds.join(",")],
     enabled: classIds.length > 0,
     queryFn: async () => {
@@ -160,20 +164,26 @@ const ProviderStudents = () => {
 
   const isRemovedTab = tab === "removed";
   const statusFilter = tab === "pending" ? "pending" : tab === "active" ? "active" : "all";
-  const { data: enrollments, isLoading } = useProviderEnrollments(
+  const { data: enrollments, isLoading, error: enrollmentsError } = useProviderEnrollments(
     isRemovedTab ? [] : activeBatchIds,
     isRemovedTab ? undefined : statusFilter,
   );
-  const { data: removedEnrollments, isLoading: removedLoading } = useRemovedEnrollments(
-    isRemovedTab ? activeBatchIds : [],
-  );
+  const { data: removedEnrollments, isLoading: removedLoading, error: removedError } =
+    useRemovedEnrollments(isRemovedTab ? activeBatchIds : []);
 
   const displayEnrollments = isRemovedTab ? (removedEnrollments ?? []) : (enrollments ?? []);
   const displayLoading = isRemovedTab ? removedLoading : isLoading;
   const updateStatus = useUpdateEnrollmentStatus();
 
   // Fetch student + seeker names via SECURITY DEFINER RPC (bypasses RLS)
-  const { data: studentNames } = useProviderStudentNames(activeBatchIds);
+  const { data: studentNames, error: studentNamesError } =
+    useProviderStudentNames(activeBatchIds);
+
+  // Surface any data-loading error so the page doesn't silently show "No students
+  // found" when the underlying query actually errored (e.g. missing migration,
+  // RLS regression, RPC that depends on a function not yet deployed).
+  const firstError =
+    rawClassesError || rawBatchesError || enrollmentsError || removedError || studentNamesError;
   const nameMap = useMemo(() => {
     const map = new Map<string, NonNullable<typeof studentNames>[0]>();
     studentNames?.forEach((n) => map.set(n.enrollment_id, n));
@@ -218,6 +228,14 @@ const ProviderStudents = () => {
 
       <div className="mx-auto w-full max-w-lg px-4 py-4 space-y-4">
         <h2 className="text-lg font-bold">Students</h2>
+
+        {firstError && (
+          <Alert variant="destructive">
+            <AlertDescription className="text-xs break-words">
+              Couldn&apos;t load student data: {firstError.message}
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Class & Batch Filters */}
         <div className="flex gap-2">
