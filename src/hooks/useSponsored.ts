@@ -30,7 +30,12 @@ export type SponsoredForLocationRow = {
   valid_until: string;
 };
 
-export type FeaturedBannerSurface = "home_banner" | "explore_banner";
+/**
+ * Banner surface enum. The DB-side surface column is a free TEXT but the
+ * CHECK constraint (migration 033) restricts it to `'explore_banner'` only.
+ * The `home_banner` variant was hard-removed by migration 033.
+ */
+export type FeaturedBannerSurface = "explore_banner";
 
 export type FeaturedBannerForLocationRow = {
   id: string;
@@ -61,39 +66,40 @@ export function useSponsoredForLocation(args: {
     enabled: typeof lat === "number" && typeof lng === "number",
     staleTime: 60_000,
     queryFn: async (): Promise<SponsoredForLocationRow[]> => {
-      const { data, error } = await supabase.rpc("sponsored_for_location" as never, {
+      const { data, error } = await supabase.rpc("sponsored_for_location", {
         p_lat: lat as number,
         p_lng: lng as number,
         p_category_id: categoryId ?? null,
-      } as never);
+      });
       if (error) throw error;
       return (data ?? []) as unknown as SponsoredForLocationRow[];
     },
   });
 }
 
-/** Active featured banners for a given surface.  Home banners ignore the
- *  seeker location and return globally; explore banners are region-filtered. */
+/** Active featured banners for the seeker's location. Explore-only post
+ *  migration 033; region-filtered server-side via `featured_banners_for_location`.
+ *  The `surface` argument is preserved for forward-compat (future surfaces)
+ *  but currently must be `"explore_banner"`.
+ */
 export function useFeaturedBannersForLocation(args: {
   surface: FeaturedBannerSurface;
   lat: number | null | undefined;
   lng: number | null | undefined;
 }) {
   const { surface, lat, lng } = args;
-  const enabled =
-    surface === "home_banner" ||
-    (typeof lat === "number" && typeof lng === "number");
+  const enabled = typeof lat === "number" && typeof lng === "number";
 
   return useQuery({
-    queryKey: ["featured-banners", surface, surface === "home_banner" ? null : lat, surface === "home_banner" ? null : lng],
+    queryKey: ["featured-banners", surface, lat, lng],
     enabled,
     staleTime: 60_000,
     queryFn: async (): Promise<FeaturedBannerForLocationRow[]> => {
-      const { data, error } = await supabase.rpc("featured_banners_for_location" as never, {
-        p_lat: surface === "home_banner" ? 0 : (lat as number),
-        p_lng: surface === "home_banner" ? 0 : (lng as number),
+      const { data, error } = await supabase.rpc("featured_banners_for_location", {
+        p_lat: lat as number,
+        p_lng: lng as number,
         p_surface: surface,
-      } as never);
+      });
       if (error) throw error;
       return (data ?? []) as unknown as FeaturedBannerForLocationRow[];
     },
@@ -247,44 +253,34 @@ export function useRequestFeaturedBanner() {
       imageUrl: string;
       targetUrl?: string;
       classId?: string | null;
-      // Required for explore_banner, must be null for home_banner
+      // All banners are explore_banner and region-scoped — required.
       centerAddress?: string;
-      centerLat?: number;
-      centerLng?: number;
-      radiusKm?: number;
+      centerLat: number;
+      centerLng: number;
+      radiusKm: number;
       validFrom: string;
       validUntil: string;
       offAppPaymentRef?: string;
     }) => {
-      const row: Record<string, unknown> = {
+      const row = {
         provider_id: input.providerId,
         class_id: input.classId ?? null,
         surface: input.surface,
         image_url: input.imageUrl,
         target_url: input.targetUrl ?? null,
-        status: "pending",
-        moderation_status: "pending",
+        status: "pending" as const,
+        moderation_status: "pending" as const,
         valid_from: input.validFrom,
         valid_until: input.validUntil,
         off_app_payment_ref: input.offAppPaymentRef ?? null,
+        center_address: input.centerAddress ?? null,
+        center_location: `SRID=4326;POINT(${input.centerLng} ${input.centerLat})`,
+        radius_km: input.radiusKm,
       };
-
-      if (input.surface === "explore_banner") {
-        if (
-          input.centerLat == null ||
-          input.centerLng == null ||
-          input.radiusKm == null
-        ) {
-          throw new Error("explore_banner requires center_lat, center_lng, radius_km");
-        }
-        row.center_address = input.centerAddress ?? null;
-        row.center_location = `SRID=4326;POINT(${input.centerLng} ${input.centerLat})`;
-        row.radius_km = input.radiusKm;
-      }
 
       const { data, error } = await supabase
         .from("featured_banners")
-        .insert(row as never)
+        .insert(row)
         .select("id")
         .single();
       if (error) throw error;
@@ -353,13 +349,13 @@ export function useTrackSponsoredImpression() {
   return (id: string) => {
     if (seenSponsored.has(id)) return;
     seenSponsored.add(id);
-    void supabase.rpc("increment_sponsored_impression" as never, { p_id: id } as never);
+    void supabase.rpc("increment_sponsored_impression", { p_id: id });
   };
 }
 
 export function useTrackSponsoredClick() {
   return (id: string) => {
-    void supabase.rpc("increment_sponsored_click" as never, { p_id: id } as never);
+    void supabase.rpc("increment_sponsored_click", { p_id: id });
   };
 }
 
@@ -367,13 +363,13 @@ export function useTrackBannerImpression() {
   return (id: string) => {
     if (seenBanner.has(id)) return;
     seenBanner.add(id);
-    void supabase.rpc("increment_banner_impression" as never, { p_id: id } as never);
+    void supabase.rpc("increment_banner_impression", { p_id: id });
   };
 }
 
 export function useTrackBannerClick() {
   return (id: string) => {
-    void supabase.rpc("increment_banner_click" as never, { p_id: id } as never);
+    void supabase.rpc("increment_banner_click", { p_id: id });
   };
 }
 

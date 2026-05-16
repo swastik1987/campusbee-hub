@@ -55,71 +55,23 @@ export function useActiveSponsoredClassIds(args?: {
     enabled: typeof lat === "number" && typeof lng === "number",
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("sponsored_for_location" as never, {
+      const { data, error } = await supabase.rpc("sponsored_for_location", {
         p_lat: lat as number,
         p_lng: lng as number,
         p_category_id: categoryId ?? null,
-      } as never);
+      });
       if (error) throw error;
       return new Set<string>(
-        ((data ?? []) as unknown as { class_id: string }[]).map((d) => d.class_id)
+        (data ?? []).map((d) => d.class_id)
       );
     },
   });
 }
 
-// ---- Featured / Sponsored Classes (Seeker) ----
-
-/** Returns active sponsored class listings. Falls back to top-rated published classes. */
-export function useFeaturedClasses(_apartmentId?: string) {
-  return useQuery({
-    queryKey: ["featured-classes"],
-    queryFn: async () => {
-      // Query sponsored_listings that are currently active
-      const today = new Date().toISOString();
-      const { data: sponsored, error: sErr } = await supabase
-        .from("sponsored_listings")
-        .select(`
-          id, class_id, slot_position,
-          classes(
-            id, title, short_description, cover_image_url, class_type,
-            total_rating, rating_count, trial_available, trial_fee, created_at,
-            class_categories(id, name, slug),
-            service_providers(id, business_name, provider_type,
-              users(full_name, avatar_url)
-            )
-          )
-        `)
-        .eq("status", "active")
-        .lte("valid_from", today)
-        .gte("valid_until", today)
-        .order("slot_position")
-        .limit(10);
-
-      if (!sErr && sponsored && sponsored.length > 0) {
-        return sponsored;
-      }
-
-      // Fallback: top-rated published classes
-      const { data, error } = await supabase
-        .from("classes")
-        .select(`
-          id, title, short_description, cover_image_url, class_type,
-          total_rating, rating_count, trial_available, trial_fee, created_at,
-          class_categories(id, name, slug),
-          service_providers(id, business_name, provider_type,
-            users(full_name, avatar_url)
-          )
-        `)
-        .eq("status", "published")
-        .eq("moderation_status", "approved")
-        .order("total_rating", { ascending: false })
-        .limit(10);
-      if (error) throw error;
-      return data;
-    },
-  });
-}
+// ---- New Classes (Seeker) ----
+// `useFeaturedClasses` removed in the May 2026 dead-code sweep — Phase 8
+// surfaces use `useActiveSponsoredClassIds` (above) + `useFeaturedBannersForLocation`
+// from `useSponsored.ts` instead.
 
 export function useNewClasses(_apartmentId?: string) {
   return useQuery({
@@ -511,16 +463,7 @@ export function useProviderTrainers(providerId: string | undefined) {
         .eq("status", "active");
       if (error) throw error;
       // Map full_name → name for backward compatibility with existing UI
-      type CoachRow = {
-        id: string;
-        full_name: string;
-        bio: string | null;
-        qualifications: string | null;
-        experience_years: number | null;
-        specializations: string[] | null;
-        photo_url: string | null;
-      };
-      return ((data ?? []) as unknown as CoachRow[]).map((c) => ({
+      return (data ?? []).map((c) => ({
         id: c.id,
         name: c.full_name,
         bio: c.bio,

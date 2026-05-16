@@ -87,7 +87,7 @@ type FeedItem =
     }
   | {
       kind: "banner";
-      surface: "home_banner" | "explore_banner";
+      surface: "explore_banner";
       id: string;
       requestedAt: string;
       status: string;
@@ -774,7 +774,7 @@ type BannerRowRaw = {
   id: string;
   status: string;
   moderation_status: string;
-  surface: "home_banner" | "explore_banner";
+  surface: "explore_banner";
   image_url: string;
   center_address: string | null;
   radius_km: number | null;
