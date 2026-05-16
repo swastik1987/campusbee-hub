@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useUser } from "@/contexts/UserContext";
 import { useProviderEnrollments, useRemovedEnrollments, useUpdateEnrollmentStatus, useProviderStudentNames } from "@/hooks/useEngagement";
+import { useEffectiveProviderContext } from "@/hooks/useCoaches";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/layout/Header";
@@ -63,7 +63,13 @@ function getAge(dob: string | null): string | null {
 const ProviderStudents = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { providerProfile } = useUser();
+  // Effective provider context: returns the academy provider_id for both the
+  // owner (admin) and any active coach. For coaches, scopedClassIds /
+  // scopedBatchIds also limit which rows we show.
+  const ctx = useEffectiveProviderContext();
+  const effectiveProviderId = ctx.providerId;
+  const coachClassScope = ctx.isCoach ? ctx.scopedClassIds : undefined;
+  const coachBatchScope = ctx.isCoach ? ctx.scopedBatchIds : undefined;
 
   // Derive tab from URL so the Dashboard "Review" link can deep-link here
   const urlTab = searchParams.get("tab") ?? "all";
@@ -82,38 +88,90 @@ const ProviderStudents = () => {
   const [classFilter, setClassFilter] = useState("all");
   const [batchFilter, setBatchFilter] = useState("all");
 
-  // Fetch all classes and batches for this provider (for filters + batch IDs)
-  const { data: providerClasses } = useQuery({
-    queryKey: ["provider-classes-for-filter", providerProfile?.id],
-    enabled: !!providerProfile?.id,
+  // Fetch all academy classes (admin sees all; for a coach we filter client-side
+  // because the allowed set is "scopedClassIds ∪ parent-classes-of-scopedBatchIds"
+  // which is awkward to express in a single SQL where-clause).
+  const { data: academyClasses } = useQuery({
+    queryKey: ["provider-classes-for-filter", effectiveProviderId],
+    enabled: !!effectiveProviderId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("classes")
         .select("id, title")
-        .eq("provider_id", providerProfile!.id)
+        .eq("provider_id", effectiveProviderId!)
         .order("title");
       if (error) throw error;
       return data ?? [];
     },
   });
 
-  const classIds = classFilter === "all"
-    ? providerClasses?.map((c) => c.id) ?? []
-    : [classFilter];
+  // All batches in the academy, then narrow to coach scope client-side.
+  const academyClassIds = useMemo(
+    () => (academyClasses ?? []).map((c) => c.id),
+    [academyClasses],
+  );
 
-  const { data: providerBatches } = useQuery({
-    queryKey: ["provider-batches-for-filter", classIds],
-    enabled: classIds.length > 0,
+  const { data: academyBatches } = useQuery({
+    queryKey: ["provider-batches-for-filter", academyClassIds.join(",")],
+    enabled: academyClassIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("batches")
         .select("id, batch_name, class_id")
-        .in("class_id", classIds)
+        .in("class_id", academyClassIds)
         .order("batch_name");
       if (error) throw error;
       return data ?? [];
     },
   });
+
+  // Compute the coach's allowed batches (and the classes they sit under).
+  // Admin: everything is allowed.
+  const allowedBatchIds = useMemo(() => {
+    if (!academyBatches) return new Set<string>();
+    if (!ctx.isCoach) return new Set(academyBatches.map((b) => b.id));
+    const classAllowed = new Set(coachClassScope ?? []);
+    const batchAllowed = new Set(coachBatchScope ?? []);
+    return new Set(
+      academyBatches
+        .filter((b) => classAllowed.has(b.class_id) || batchAllowed.has(b.id))
+        .map((b) => b.id),
+    );
+  }, [academyBatches, ctx.isCoach, coachClassScope, coachBatchScope]);
+
+  const allowedClassIds = useMemo(() => {
+    if (!academyBatches) return new Set<string>();
+    if (!ctx.isCoach) return new Set(academyClassIds);
+    const out = new Set<string>(coachClassScope ?? []);
+    academyBatches.forEach((b) => {
+      if (allowedBatchIds.has(b.id)) out.add(b.class_id);
+    });
+    return out;
+  }, [academyBatches, academyClassIds, ctx.isCoach, coachClassScope, allowedBatchIds]);
+
+  // Filter visible classes/batches by coach scope.
+  const providerClasses = useMemo(
+    () => (academyClasses ?? []).filter((c) => allowedClassIds.has(c.id)),
+    [academyClasses, allowedClassIds],
+  );
+
+  const classIds = useMemo(
+    () =>
+      classFilter === "all"
+        ? providerClasses.map((c) => c.id)
+        : allowedClassIds.has(classFilter)
+        ? [classFilter]
+        : [],
+    [classFilter, providerClasses, allowedClassIds],
+  );
+
+  const providerBatches = useMemo(
+    () =>
+      (academyBatches ?? []).filter(
+        (b) => classIds.includes(b.class_id) && allowedBatchIds.has(b.id),
+      ),
+    [academyBatches, classIds, allowedBatchIds],
+  );
 
   // Reset batch filter when class filter changes
   const handleClassChange = (val: string) => {
@@ -121,10 +179,14 @@ const ProviderStudents = () => {
     setBatchFilter("all");
   };
 
-  // Determine which batch IDs to query enrollments for
+  // Determine which batch IDs to query enrollments for. `providerBatches` is
+  // already narrowed to the coach's scope above, so we only need to honour the
+  // dropdown selection here.
   const activeBatchIds = useMemo(() => {
-    if (!providerBatches?.length) return [];
-    if (batchFilter !== "all") return [batchFilter];
+    if (!providerBatches.length) return [];
+    if (batchFilter !== "all") {
+      return providerBatches.some((b) => b.id === batchFilter) ? [batchFilter] : [];
+    }
     return providerBatches.map((b) => b.id);
   }, [providerBatches, batchFilter]);
 
