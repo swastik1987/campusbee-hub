@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useMySubscriptionRequests, useRequestPremiumUpgrade } from "@/hooks/useSubscription";
@@ -12,8 +12,90 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Clock, Crown, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BarChart3,
+  Bell,
+  ChevronRight,
+  Clock,
+  Compass,
+  CreditCard,
+  Crown,
+  Image as ImageIcon,
+  Loader2,
+  Sparkles,
+  UserPlus,
+} from "lucide-react";
 import { toast } from "sonner";
+
+// ── Premium benefits ─────────────────────────────────────────────────────────
+const PREMIUM_BENEFITS = [
+  {
+    icon: CreditCard,
+    title: "In-app payment collection",
+    description: "Collect class fees directly through CampusBee — no chasing UPI screenshots.",
+    example:
+      "Send a learner a payment request; they pay via UPI in the app and you see it instantly under Payments.",
+    accent: "from-emerald-100 to-emerald-50",
+    iconBg: "bg-emerald-100",
+    iconColor: "text-emerald-700",
+  },
+  {
+    icon: Bell,
+    title: "Automated payment reminders",
+    description: "Auto-nudge learners with overdue fees so you don't have to chase manually.",
+    example: "A reminder fires 3 days before the due date and again the morning of.",
+    accent: "from-amber-100 to-amber-50",
+    iconBg: "bg-amber-100",
+    iconColor: "text-amber-700",
+  },
+  {
+    icon: UserPlus,
+    title: "Onboard coaches",
+    description: "Invite multiple coaches to manage batches, mark attendance, and send reminders.",
+    example: "Coach Anjali signs in and sees only the Saturday-morning batch she's assigned to.",
+    accent: "from-indigo-100 to-indigo-50",
+    iconBg: "bg-indigo-100",
+    iconColor: "text-indigo-700",
+  },
+  {
+    icon: BarChart3,
+    title: "Advanced analytics",
+    description: "Revenue trends, retention curves, attendance heatmaps, and growth insights.",
+    example: "Spot which batches retain students best across the last 6 months.",
+    accent: "from-violet-100 to-violet-50",
+    iconBg: "bg-violet-100",
+    iconColor: "text-violet-700",
+  },
+  {
+    icon: Compass,
+    title: "Competitor analysis",
+    description: "See pricing, ratings, and density of similar classes around your location.",
+    example: "5 other Bharatanatyam classes within 3 km · average fee ₹2,400/month.",
+    accent: "from-sky-100 to-sky-50",
+    iconBg: "bg-sky-100",
+    iconColor: "text-sky-700",
+  },
+  {
+    icon: Sparkles,
+    title: "Sponsored listings",
+    description: "Top-3 placement in nearby Explore with a gold \"Featured\" tag.",
+    example: "Your class appears at the very top for every learner within a 5 km radius.",
+    accent: "from-amber-100 to-orange-50",
+    iconBg: "bg-amber-100",
+    iconColor: "text-amber-700",
+  },
+  {
+    icon: ImageIcon,
+    title: "Featured banner placements",
+    description: "Eye-catching banner art on Explore and category pages.",
+    example: "Custom 16:9 artwork rotates on the seeker home screen and category landing pages.",
+    accent: "from-pink-100 to-pink-50",
+    iconBg: "bg-pink-100",
+    iconColor: "text-pink-700",
+  },
+] as const;
 
 // ── Payment instructions — update before going live ─────────────────────────
 const UPI_ID = "campusbee@ybl";
@@ -33,6 +115,13 @@ const UpgradeRequestSheet = React.forwardRef<HTMLDivElement, UpgradeRequestSheet
 
     const [notes, setNotes] = useState("");
     const [paymentRef, setPaymentRef] = useState("");
+    // Two-step flow: lead with benefits, then payment form on continue.
+    const [view, setView] = useState<"benefits" | "pay">("benefits");
+
+    // Reset to benefits view every time the sheet (re)opens.
+    useEffect(() => {
+      if (open) setView("benefits");
+    }, [open]);
 
     const hasPending = requests?.some((r) => r.status === "pending");
 
@@ -63,8 +152,17 @@ const UpgradeRequestSheet = React.forwardRef<HTMLDivElement, UpgradeRequestSheet
 
           <SheetHeader className="mb-5">
             <SheetTitle className="flex items-center gap-2">
+              {view === "pay" && !hasPending && (
+                <button
+                  onClick={() => setView("benefits")}
+                  className="mr-1 flex h-6 w-6 items-center justify-center rounded-full hover:bg-accent"
+                  title="Back to benefits"
+                >
+                  <ArrowLeft size={14} />
+                </button>
+              )}
               <Crown size={18} className="text-amber-500" />
-              Upgrade to Premium
+              {view === "pay" && !hasPending ? "Complete Payment" : "Upgrade to Premium"}
             </SheetTitle>
           </SheetHeader>
 
@@ -91,18 +189,95 @@ const UpgradeRequestSheet = React.forwardRef<HTMLDivElement, UpgradeRequestSheet
                 View Request Status
               </Button>
             </div>
-          ) : (
-            /* ── Submission form ────────────────────────────────────────── */
-            <div className="space-y-5">
-              {/* Premium highlight */}
+          ) : view === "benefits" ? (
+            /* ── Benefits screen ────────────────────────────────────────── */
+            <div className="space-y-4">
+              {/* Hero */}
               <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Crown size={16} className="text-amber-600" />
-                  <p className="text-sm font-bold text-amber-900">Premium Plan</p>
+                  <p className="text-sm font-bold text-amber-900">
+                    Everything in Premium
+                  </p>
                 </div>
-                <p className="text-xs text-amber-700">
-                  Contact us for pricing · Activation within 24 h of payment verification
+                <p className="text-xs text-amber-800">
+                  Grow your business with payment collection, analytics, sponsored slots, and a
+                  Coach team — all in one upgrade.
                 </p>
+              </div>
+
+              {/* Benefit cards */}
+              <div className="space-y-2.5">
+                {PREMIUM_BENEFITS.map((b) => {
+                  const Icon = b.icon;
+                  return (
+                    <div
+                      key={b.title}
+                      className={`rounded-xl border bg-gradient-to-br ${b.accent} p-3.5`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${b.iconBg}`}
+                        >
+                          <Icon size={16} className={b.iconColor} />
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <p className="text-sm font-semibold text-foreground leading-tight">
+                            {b.title}
+                          </p>
+                          <p className="text-[11px] text-foreground/80 leading-snug">
+                            {b.description}
+                          </p>
+                          <p className="text-[10px] italic text-muted-foreground leading-snug">
+                            {b.example}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Pricing line */}
+              <p className="text-center text-[11px] text-muted-foreground">
+                Pricing on request · Activation within 24 hours of payment verification.
+              </p>
+
+              {/* CTAs */}
+              <div className="space-y-2 pt-1">
+                <Button
+                  className="w-full h-11 gap-2 bg-amber-500 hover:bg-amber-600 text-white"
+                  onClick={() => setView("pay")}
+                >
+                  <Crown size={16} />
+                  Continue to Upgrade
+                  <ArrowRight size={14} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full h-9 text-xs text-muted-foreground"
+                  onClick={() => onOpenChange(false)}
+                >
+                  Maybe later
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* ── Payment / submission form ──────────────────────────────── */
+            <div className="space-y-5">
+              {/* Plan reminder + back to benefits */}
+              <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-3">
+                <div className="flex items-center gap-2">
+                  <Crown size={14} className="text-amber-600" />
+                  <p className="text-xs font-semibold text-amber-900">Premium upgrade</p>
+                </div>
+                <button
+                  onClick={() => setView("benefits")}
+                  className="flex items-center gap-1 text-[10px] font-medium text-amber-700 hover:text-amber-900"
+                >
+                  Review benefits
+                  <ChevronRight size={11} />
+                </button>
               </div>
 
               {/* Payment instructions */}
