@@ -1,11 +1,13 @@
 # CampusBee — Project Reference Guide (v2)
 
 > **This document is the complete project context for Claude Code.**
-> Reflects the **v2 scope** (post-pivot, current as of May 2026) — apartment binding removed, geo-based discovery, provider subscription tiers, AI content moderation.
+> Reflects the **v2 scope** (post-pivot, current as of May 2026) — apartment binding removed, geo-based discovery, provider subscription tiers, AI content moderation, Premium-only Coach team for academies, admin-configurable subscription pricing.
 > See `IMPLEMENTATION_PLAN_V2.md` for the phased migration roadmap and post-MVP backlog.
 > Pre-pivot v1 migrations are archived under `supabase/migrations/_archive_v1/`.
 
 > **UI persona naming (May 2026):** the seeker persona is shown to users as **"Learner"** and the provider persona as **"Instructor"**. Database column names (`is_provider`, `last_active_persona = 'seeker' | 'provider'`, etc.) are unchanged — only the user-facing labels were renamed. PersonaSwitcher and onboarding copy use Learner/Instructor.
+
+> **Coaches (May 2026):** Premium academy instructors can invite Coaches by name + email. A Coach is a logged-in user (not a separate persona) with restricted access on the provider surface — they see only the classes / batches they're assigned to. The Coach badge appears in the header next to the persona switcher when the active persona is `provider` and the user has at least one active coach record. The legacy `trainers` UI was replaced by `/provider/coaches`; the public provider profile now reads from `coaches`. Migration `20260515150000_coaches.sql` is mandatory before this feature works; `20260516120000_coach_student_names.sql` extends the student-names RPC so coaches can read names too.
 
 ---
 
@@ -19,6 +21,8 @@
 3. **Two provider subscription tiers** — Basic (free) and Premium (paid; manually granted during MVP).
 4. **AI content moderation** auto-screens every provider-uploaded image and text field. Borderline cases queue for platform-admin review.
 5. **Sponsored listings & featured banners** are Premium-only and manually approved by platform admin.
+6. **Coaches feature (Premium-only, academy providers).** Academy admins invite multiple Coaches by name + email; each coach gets scoped access to assigned classes / batches for attendance, payments, and reminders. Temporary swaps with auto-revert supported. Replaces the older `trainers` table for both team management and the public provider profile.
+7. **Admin-configurable subscription pricing.** Monthly + Annual plans (with MRP + selling price, discount auto-computed) live in `subscription_plans`. Platform UPI ID, optional QR image, and bank details live in `platform_payment_details`. Instructors pick a plan before paying; the request RPC validates the amount matches the active plan and `approve_subscription_request` auto-derives the expiry date (30 / 365 days) from the chosen period.
 
 ---
 
@@ -64,20 +68,31 @@
 | Create classes & batches | ✅ | ✅ |
 | Manage classes & students | ✅ | ✅ |
 | Mark attendance | ✅ | ✅ |
+| Record payments (track-only) + manual reminder button | ✅ | ✅ |
 | In-app chat with seekers | ✅ | ✅ |
 | Basic dashboard & reports | ✅ | ✅ |
 | Class materials uploads | ✅ | ✅ |
 | Demo / trial sessions | ✅ | ✅ |
 | Reviews & announcements | ✅ | ✅ |
 | **In-app payment collection** | ❌ | ✅ |
-| **Automated payment reminders to students** | ❌ | ✅ |
+| **Automated payment reminders (cron)** | ❌ | ✅ |
+| **Onboard Coaches** *(academy only — invite team, assign classes/batches, temporary swaps)* | ❌ | ✅ |
 | **Advanced analytics dashboard** | ❌ | ✅ |
 | **Competitor analysis (location/category/pricing)** | ❌ | ✅ |
 | **Seller insights for growth** | ❌ | ✅ |
 | **Featured banner placements** | ❌ | ✅ |
 | **Sponsored listings (top-3 in explore with "Featured" tag)** | ❌ | ✅ |
 
-**Provisioning during MVP (payments deferred):** provider taps "Upgrade to Premium" → request lands in platform-admin queue → admin verifies off-app payment (UPI/bank transfer) → toggles `subscription_tier = premium` and sets `valid_until`. Same workflow for sponsored slot and featured banner requests.
+**Provisioning during MVP (payments deferred):**
+1. Platform admin configures Monthly + Annual plans at `/platform/settings` (MRP, selling price, Active toggle) plus UPI / bank payment details.
+2. Provider taps "Upgrade to Premium" → 3-step sheet (Benefits → Plan picker → Payment) populated from `subscription_plans` + `platform_payment_details`.
+3. Provider pays off-app and submits with payment reference → `request_premium_upgrade` RPC inserts a `provider_subscription_requests` row carrying `billing_period` + `amount_paid` (validated to match the active plan).
+4. Platform admin sees the request in `/platform/subscriptions` with the plan chip and ₹amount-paid pill, verifies the off-app payment, and approves.
+5. `approve_subscription_request` derives `subscription_valid_until` from the request's `billing_period` (`+30` / `+365` days) when admin leaves the date blank; admin can still override with an explicit date.
+
+If no plans are active, the upgrade sheet shows a "Premium pricing is being finalised" coming-soon card so providers can't submit a payment-less request.
+
+Sponsored slot and featured banner requests follow the same admin-queue pattern via `sponsored_listings` / `featured_banners` directly.
 
 **Seekers** never pay any subscription. Seekers who are also providers see Premium gating only on the provider persona.
 
@@ -165,7 +180,7 @@ campusbee-hub/
 │   │   │   └── ClassLocationPicker.tsx # Wraps MapplsPicker for the CreateClass step (mandatory)
 │   │   ├── subscription/
 │   │   │   ├── PremiumGate.tsx
-│   │   │   └── UpgradeRequestSheet.tsx
+│   │   │   └── UpgradeRequestSheet.tsx # 3-step: Benefits → Plan picker (Monthly/Annual) → Payment. Pulls from subscription_plans + platform_payment_details.
 │   │   ├── moderation/
 │   │   │   └── ModerationStatusBadge.tsx
 │   │   ├── onboarding/
@@ -185,8 +200,8 @@ campusbee-hub/
 │   │   │   ├── CertificationGallery.tsx
 │   │   │   └── ErrorState.tsx
 │   │   ├── layout/
-│   │   │   ├── Header.tsx             # Unified top nav; PersonaSwitcher hidden on /profile, /family, /chat, /notifications
-│   │   │   └── PersonaSwitcher.tsx    # Labels: Learner / Instructor / Platform Admin
+│   │   │   ├── Header.tsx             # Unified top nav; PersonaSwitcher hidden on /profile, /family, /chat, /notifications; renders a "Coach" badge next to the switcher when isCoach + activePersona='provider'
+│   │   │   └── PersonaSwitcher.tsx    # Labels: Learner / Instructor / Platform Admin. Coaches also see the Instructor option even without is_provider.
 │   │   ├── AuthDrawer.tsx             # Google + Apple OAuth + email-password
 │   │   ├── AuthGuard.tsx
 │   │   ├── BottomNav.tsx              # NO-OP stub (kept for import compatibility — top nav only)
@@ -199,17 +214,18 @@ campusbee-hub/
 │   │   ├── Notifications.tsx
 │   │   ├── NotFound.tsx
 │   │   ├── seeker/                    # 11 pages (no /home)
-│   │   ├── provider/                  # 17 pages (incl. ProviderCategories; ProviderSponsored not yet built)
-│   │   └── platform/                  # 9 pages (Dashboard, Moderation, Subscriptions, Sponsored, Providers, Categories, Analytics, Settings, Layout)
+│   │   ├── provider/                  # 18 pages — includes CoachesManagement (Premium academy team mgmt); /provider/trainers now redirects to /provider/coaches; TrainerManagement kept as `trainers-legacy` shim.
+│   │   └── platform/                  # 9 pages (Dashboard, Moderation, Subscriptions, Sponsored, Providers, Categories, Analytics, Settings, Layout) — Settings now also edits subscription_plans + platform_payment_details
 │   ├── hooks/
 │   │   ├── useLocation.ts             # geocode, reverse-geocode, distance helpers, useUpdateSeekerLocation mutation
 │   │   ├── useSubscription.ts
 │   │   ├── useModeration.ts
 │   │   ├── useCategoryRequests.ts     # NEW — provider submits / admin reviews
-│   │   ├── useCertifications.ts       # NEW — owner=provider|trainer, max 5, moderated
-│   │   ├── usePlatformAdmin.ts        # Moderation queue, subscription grants, sponsored, category-request approvals
-│   │   ├── useProvider.ts             # tier-aware
-│   │   ├── useSeeker.ts               # location-aware
+│   │   ├── useCertifications.ts       # NEW — owner=provider|trainer, max 5, moderated. Read hook falls back trainer_id↔coach_id for back-compat.
+│   │   ├── useCoaches.ts              # NEW — invite/assign/swap/remove coaches, send_payment_reminder, useEffectiveProviderContext (admin vs coach scope resolver)
+│   │   ├── usePlatformAdmin.ts        # Moderation, subscription grants (now via approve_subscription_request RPC), sponsored, category-request approvals, subscription_plans + platform_payment_details CRUD
+│   │   ├── useProvider.ts             # tier-aware + coach-scope-aware (useProviderStats / TodaySchedule / UpcomingSchedule / ActiveBatches accept optional CoachScope and resolve via resolveCoachScopedIds — UNION semantics, not intersection)
+│   │   ├── useSeeker.ts               # location-aware; useProviderTrainers + useProviderProfile now read from `coaches` and remap full_name→name for legacy callers
 │   │   ├── useClasses.ts              # PostGIS nearby + denormalized lat/lng client filtering
 │   │   ├── useClassMaterials.ts
 │   │   ├── useDemoSessions.ts
@@ -223,7 +239,7 @@ campusbee-hub/
 │   │   ├── use-mobile.tsx
 │   │   └── use-toast.ts
 │   ├── contexts/
-│   │   └── UserContext.tsx            # No apartment, adds providerSubscription
+│   │   └── UserContext.tsx            # No apartment; exposes providerProfile + coachProfiles + isCoach. Runs accept_coach_invites on every session and shows the splash until profile resolves (prevents AuthGuard bouncing /provider/* on first paint).
 │   ├── integrations/
 │   │   ├── supabase/
 │   │   │   ├── client.ts
@@ -254,10 +270,11 @@ campusbee-hub/
 │   └── functions/
 │       ├── ai-moderate-content/       # NEW
 │       ├── refresh-sponsored-slots/   # NEW (cron — expire & rotate)
+│       ├── revert-expired-coach-assignments/ # NEW (daily cron — temporary swap auto-revert)
 │       ├── check-pending-invites/
 │       ├── expire-family-invites/
 │       ├── expire-waitlist-offers/
-│       ├── generate-payment-reminders/  # Premium-gated
+│       ├── generate-payment-reminders/  # Premium-gated cron
 │       ├── handle-invite-accept/
 │       ├── process-waitlist/
 │       └── send-notifications/
@@ -308,16 +325,17 @@ campusbee-hub/
 | `/provider/classes/new` | CreateClass | **5-step flow**: Category → Details → Location (mandatory) → Schedule + social links → Review. `is_home_based` checkbox + `home_radius_km`. Certifications block. Pending-category support (creates classes with `category_id = null` + `pending_category_request_id` set). |
 | `/provider/classes/:classId` | ProviderClassDetail | Edit, batches, addons, materials, social links, distance/schedule preview |
 | `/provider/classes/:classId/batch/new` | CreateBatch | Schedule, pricing, capacity, **grade multi-select** (`batches.grades TEXT[]`), `ClockTimePicker` for start/end |
-| `/provider/trainers` | TrainerManagement | Add/edit trainers (academy) + per-trainer certifications |
-| `/provider/students` | ProviderStudents | Enrolled students with seeker + family-member names via `get_provider_enrolled_student_names` SECURITY DEFINER RPC (migration 020b) — avoids recursive users-RLS |
-| `/provider/payments` | ProviderPayments | Record + confirm payments (Premium = collect in-app + reminders) |
+| `/provider/coaches` | CoachesManagement | **Premium + academy only.** Invite coaches by name + email, assign class- or batch-scope, optional temporary swaps with `valid_from` / `valid_until` (auto-reverts via cron), soft-remove. Wrapped in `<PremiumGate>` — Basic academies see the upgrade CTA. |
+| ~~`/provider/trainers`~~ | — | **Replaced by `/provider/coaches`.** Path 302-redirects there. `TrainerManagement.tsx` is retained at `/provider/trainers-legacy` as a fallback for one release. |
+| `/provider/students` | ProviderStudents | Enrolled students with seeker + family-member names via `get_provider_student_names` SECURITY DEFINER RPC (migration 020b, extended in `20260516120000_coach_student_names.sql` to accept assigned coaches alongside the academy owner). Resolves providerId from `providerProfile.id` directly for owners, falls back to `useEffectiveProviderContext` for pure coaches. |
+| `/provider/payments` | ProviderPayments | Record + confirm payments (Premium = collect in-app + reminders). Adds a "Send Reminder" button per recorded payment that invokes `send_payment_reminder` RPC (admin OR assigned coach authorized; logs to `payment_reminder_log`). |
 | `/provider/attendance/:batchId` | TakeAttendance | Daily + past-date marking |
 | `/provider/announcements` | Announcements | Post/manage |
 | `/provider/analytics` | ProviderAnalytics | Basic charts; **Premium tab unlocks competitor analysis, growth insights** |
 | `/provider/classes/:classId/materials` | ProviderMaterials | Resource uploads |
 | `/provider/classes/:classId/demos` | ProviderDemoSessions | Trial mgmt |
 | `/provider/reviews` | ProviderReviews | View & reply |
-| `/provider/subscription` | ProviderSubscription | Current tier, upgrade request, history |
+| `/provider/subscription` | ProviderSubscription | Current tier, upgrade request, history. Upgrade now opens the 3-step sheet (Benefits → Plan picker → Payment); plan choice + amount are persisted on the request. |
 | `/provider/categories` | ProviderCategories | **NEW** — provider-initiated category / sub-category request workflow. Submit new category (with icon + sub-categories) or new sub-category under an existing parent. Status tracking; on approval the corresponding pending classes are backfilled automatically. |
 | ~~`/provider/terms`~~ | — | **REMOVED** (no apartment commercial terms in v2) |
 | ~~`/provider/sponsored`~~ | — | **NOT YET BUILT** — Phase 8 surface still pending |
@@ -330,10 +348,10 @@ campusbee-hub/
 | `/platform/categories` | PlatformCategories | Hierarchical categories + **category request review** (approve/reject/retag pending provider submissions; on approve, runs `approve_category_request` RPC which inserts the new category, seeds any sub-categories, backfills classes that referenced the pending request, and notifies the provider) |
 | `/platform/analytics` | PlatformAnalytics | Platform-wide metrics |
 | `/platform/moderation` | PlatformModeration | Review queue (images & text), approve/reject. Now handles `class_title`, `class_description`, `certification` ref types in addition to the original five. |
-| `/platform/subscriptions` | PlatformSubscriptions | Premium upgrade requests, active, expired |
+| `/platform/subscriptions` | PlatformSubscriptions | Premium upgrade requests, active, expired. Cards now show the chosen billing-period chip (Monthly / Annual) + ₹amount-paid pill. Approve sheet's "Valid Until" is optional — leave blank and the `approve_subscription_request` RPC auto-fills from the plan's `duration_days`. |
 | `/platform/sponsored` | PlatformSponsored | Sponsored / featured slot requests, calendar (admin side only — provider-facing surface still missing) |
 | `/platform/providers` | PlatformProviders | Directory, suspend/reinstate, verification badge |
-| `/platform/settings` | PlatformSettings | **NEW** — key-value editor for `platform_settings` (default radius, trust-marker thresholds, sponsored slot count, moderation thresholds) |
+| `/platform/settings` | PlatformSettings | Instructor demo video + **Subscription Pricing card** (Monthly / Annual MRP + Selling Price + Active toggle with live discount %) + **Payment Details card** (UPI ID, optional UPI QR upload to `provider-media/platform/`, bank a/c, IFSC, bank name, account holder) + generic key-value editor for the rest of `platform_settings`. |
 
 ### ~~Apartment Admin~~ — **ENTIRE PERSONA REMOVED**
 
@@ -364,9 +382,14 @@ campusbee-hub/
 - **`service_providers`** — `id, user_id (→ users.id internal), business_name, provider_type (individual/academy), bio, experience_years, qualifications TEXT, specializations, specialization_category_ids, logo_url, whatsapp_number, is_verified, home_address TEXT, home_location geography(Point, 4326), subscription_tier (basic/premium) DEFAULT 'basic', subscription_valid_until TIMESTAMPTZ, suspended_at, suspension_reason, intro_video_url, upi_id, upi_qr_image_url`
   - **Removed:** all `provider_apartment_registrations` columns
   - `intro_video_url, upi_id, upi_qr_image_url` added by migration 018b
-- **`trainers`** — `id, provider_id, name, email, phone, specialization, bio, is_active`
-- **`provider_subscription_requests`** — `id, provider_id, requested_tier, status (pending/approved/rejected), notes, off_app_payment_ref, requested_at, reviewed_by, reviewed_at, granted_until`
-- **`certifications`** — **NEW (migration 022).** `id, owner_type ('provider'|'trainer'), provider_id, trainer_id, name, issuing_authority, year_obtained, image_url, moderation_status, moderation_notes, created_at`. Max 5 per owner. Image goes through `ai-moderate-content` with `ref_type='certification'`.
+- **`trainers`** — `id, provider_id, name, email, phone, specialization, bio, is_active` — **DEPRECATED.** Display rows were migrated into `coaches` by `20260515150000_coaches.sql`. Table kept for one release as a fallback; new code should read/write `coaches`.
+- **`coaches`** — **NEW (migration 20260515150000).** `id, academy_provider_id (→ service_providers), full_name, email, phone, bio, qualifications, experience_years, specializations TEXT[], photo_url, linked_user_id (→ users — set on first login via accept_coach_invites), status ('invited'|'active'|'removed'), invited_at, accepted_at, removed_at, invited_by, created_at, updated_at`. UNIQUE index on `(academy_provider_id, LOWER(email))` for non-removed rows. RLS: academy admins full CRUD on their academy's rows; the coach themselves can SELECT their own row; active rows are public-readable so they show on `/provider-profile/:id`.
+- **`coach_assignments`** — **NEW (migration 20260515150000).** `id, coach_id, scope_type ('class'|'batch'), scope_id, is_temporary, original_coach_id (for swap revert), valid_from, valid_until, status ('active'|'ended'|'scheduled'), created_by, created_at, updated_at`. Unique partial index on `(scope_type, scope_id)` WHERE status='active' — only one active coach per scope at a time.
+- **`provider_subscription_requests`** — `id, provider_id, requested_tier, status (pending/approved/rejected), notes, off_app_payment_ref, requested_at, reviewed_by, reviewed_at, granted_until, billing_period ('monthly'|'annual'), amount_paid NUMERIC(10,2)`. The latter two added by `20260517120000_subscription_plans.sql`.
+- **`subscription_plans`** — **NEW (migration 20260517120000).** `id, billing_period UNIQUE ('monthly'|'annual'), mrp NUMERIC(10,2), price NUMERIC(10,2), currency DEFAULT 'INR', duration_days, is_active, created_at, updated_at, updated_by`. Two rows seeded as inactive; admin enables after pricing. Public read of `is_active=true` rows; admin full CRUD.
+- **`platform_payment_details`** — **NEW (migration 20260517120000).** Singleton (CHECK + UNIQUE on a `singleton BOOLEAN` flag). Columns: `id, upi_id, upi_qr_url, bank_account, ifsc, bank_name, account_holder, updated_at, updated_by`. One empty row seeded by the migration. Public read; admin CRUD.
+- **`payment_reminder_log`** — **NEW (migration 20260515150000).** `id, payment_id, enrollment_id, sent_by, channel ('in_app'|'email'|'whatsapp'), notes, sent_at`. Inserted by the `send_payment_reminder` RPC each time the admin or an assigned coach taps the manual reminder button.
+- **`certifications`** — `id, owner_type ('provider'|'trainer'), provider_id, trainer_id, coach_id, name, issuing_authority, year_obtained, image_url, moderation_status, moderation_notes, created_at`. Max 5 per owner. `coach_id` was added by `20260515150000_coaches.sql` and existing `trainer_id` values were mirrored across. The seeker-facing `useSeekerTrainerCertifications` hook queries on `coach_id OR trainer_id` for back-compat.
 - **`category_requests`** — **NEW (migration 028).** `id, provider_id, request_type ('new_category'|'new_subcategory'), parent_category_id, requested_name, requested_icon, requested_subcategories TEXT[], description, status ('pending'|'approved'|'rejected'|'retag_pending'|'retag_declined'), admin_notes, admin_modified_name, admin_modified_icon, retag_category_id, reviewed_by, reviewed_at, created_category_id, requested_at, updated_at`. Replaces the older `022_category_requests_and_certifications.sql` request shape — re-created in 028 with retag flow + RPC helpers (`approve_category_request`, `reject_category_request`, `retag_category_request`, `respond_to_category_retag`).
 
 ### Classes & Curriculum
@@ -460,6 +483,9 @@ v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **n
 | L4 | `20260513051521_*.sql` | Same fix for `certifications` `providers_manage_own_certs` policy. |
 | L5 | `20260513055502_*.sql` | Extends `moderation_flags.ref_type` CHECK to include `class_title`, `class_description`, `certification`. |
 | L6 | `20260513060707_*.sql` | Fixes admin RLS on `category_requests` (was comparing `users.id` to `auth.uid()` — should be `auth_id`); refines `approve_category_request` RPC to backfill `classes.category_id` and clear `classes.pending_category_request_id` for any class that was waiting on the request. |
+| L7 | `20260515150000_coaches.sql` | **Coaches feature (mandatory for the Premium academy team workflow).** Creates `coaches`, `coach_assignments`, `payment_reminder_log`; copies legacy `trainers` rows into `coaches` (status='active', `linked_user_id=NULL` until invited); mirrors `certifications.trainer_id → coach_id`; adds SECURITY DEFINER helpers (`current_coach_ids`, `current_academy_provider_ids`, `is_coach_of_class`, `is_coach_of_batch`, `is_academy_member`); extends RLS on `classes`, `batches`, `attendance_records`, `payments`, `enrollments`, `class_materials`, `announcements` to include the coach branch; adds RPCs (`invite_coach`, `assign_coach`, `end_coach_assignment`, `remove_coach`, `accept_coach_invites`, `revert_expired_coach_assignments`, `send_payment_reminder`). Re-runnable. **Apply manually before testing.** |
+| L8 | `20260516120000_coach_student_names.sql` | Widens `get_provider_student_names` RPC's security guard so a coach assigned to a batch can read student + seeker names for it, not just the academy owner. **Defensively detects whether `is_coach_of_batch` exists** before referencing it, so it's safe to apply before or after L7. |
+| L9 | `20260517120000_subscription_plans.sql` | Creates `subscription_plans` (monthly + annual rows, seeded inactive) and `platform_payment_details` singleton. Adds `billing_period` + `amount_paid` to `provider_subscription_requests`. Rewrites `request_premium_upgrade` RPC to require/validate the plan + amount, and `approve_subscription_request` to derive `subscription_valid_until` from the request's billing period when admin doesn't override. Drops the legacy 3-arg `request_premium_upgrade` signature. |
 
 ---
 
@@ -469,6 +495,7 @@ v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **n
 |---|---|
 | `ai-moderate-content` | **Phase 3 — DEPLOYED.** Receives `{ref_type, ref_id, owner_user_id, text?, image_url?}`. Images → Sightengine (nudity-2.1, offensive, weapon, recreational_drug); score ≥0.85 → rejected, 0.45–0.85 → in_review, <0.45 → approved. Text → Gemini gemini-2.0-flash safetyRatings; any HIGH → rejected, any MEDIUM → in_review, all LOW/NEGLIGIBLE → approved. Calls `submit_for_moderation` RPC (service_role), which mirrors status to source row and notifies owner on rejection. Returns `{status, flagId}`. |
 | `refresh-sponsored-slots` | **NEW.** Cron — expires past `valid_until`, recalculates active slot positions per region. |
+| `revert-expired-coach-assignments` | **NEW (May 2026).** Daily cron — calls `revert_expired_coach_assignments()` RPC which ends `coach_assignments` rows whose `valid_until` has passed and reinstates the `original_coach_id` for temporary swaps. Must be scheduled in Supabase cron (suggested `0 2 * * *` IST). |
 | `check-pending-invites` | Family invite monitor (unchanged) |
 | `expire-family-invites` | 24-h auto-expire (unchanged) |
 | `expire-waitlist-offers` | Waitlist offer timeout (unchanged) |
@@ -500,6 +527,11 @@ v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **n
 - Avoid PostgREST nested-filter dot notation across 3+ tables — use step-by-step queries or RPC.
 - Realtime for chat + notifications.
 - **Geo queries go through RPC** (`rpc('nearby_classes', {...})`) — PostgREST cannot do PostGIS predicates inline.
+- **PostgREST FK disambiguation:** when a table has more than one FK pointing at the same target (e.g. `enrollments.batch_id` + `enrollments.pending_switch_to_batch_id` both → `batches`, added in migration `029_learner_drop_and_switch.sql`), a bare `batches(...)` embed throws *"Could not embed because more than one relationship was found"* and the query returns zero rows silently. **Always spell the FK column** in such embeds:
+  ```ts
+  .select(`id, batch_id, batches!batch_id(id, batch_name, ...)`)
+  ```
+  Affected hooks (already fixed): `useProviderEnrollments`, `useRemovedEnrollments`, `useMyEnrollments`, `useEnrollmentDetail`, `useEnrollmentGrowth`, `useProviderRevenue`. Watch for this whenever a new FK to a "popular" table is added.
 
 ### RLS (Row Level Security)
 - Every table has policies. Patterns:
@@ -512,6 +544,11 @@ v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **n
   - `is_provider_owner(provider_id)`
   - `nearby_classes(seeker_loc, radius_km, category_id?)`
   - `get_pending_moderation_count()` (admin dashboard)
+  - **Coach helpers (migration 20260515150000):**
+    - `current_coach_ids()` → SETOF UUID of the caller's active coach rows
+    - `current_academy_provider_ids()` → SETOF UUID combining owned providers + academies where the caller is an active coach
+    - `is_coach_of_class(class_id)` / `is_coach_of_batch(batch_id)` → BOOL, true if the caller has an active assignment covering that scope (class-level assignment covers all its batches)
+    - `is_academy_member(provider_id)` → BOOL, true if owner OR active coach at that academy. Used by the `classes_coach_select` / `batches_coach_select` read-only-on-other-academy-data policies.
 
 ### Notifications
 - `send_notification(p_user_id, p_title, p_body, p_type, p_ref_type, p_ref_id)` RPC unchanged.
@@ -529,9 +566,11 @@ v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **n
 - **Moderation status** rendered as `<ModerationStatusBadge status={...} />`.
 
 ### State Management
-- UserContext provides: `session, user, profile, family, familyMembers, providerProfile, providerSubscription, activePersona, familyRole, familyLinkId`.
+- UserContext provides: `session, user, profile, family, familyMembers, providerProfile, coachProfiles, isCoach, isPremium, activePersona, familyRole, familyLinkId, profileError, activatePersona, refreshProfile, refreshFamily`.
   - **Removed:** `currentApartment`, `apartments`.
-- Route-based persona sync via `useLocation` + ref-guarded `useEffect`.
+- Route-based persona sync via `useLocation` + ref-guarded `useEffect`. `/provider/*` paths flip `activePersona='provider'` when **either** `profile.is_provider` OR `coachProfiles.length > 0` is true.
+- On every session start, `fetchCoachProfiles` runs `accept_coach_invites` RPC (links any `coaches.email` matching the session email to the user, flips them to `status='active'`) and then loads the resulting coach rows into `coachProfiles`.
+- AuthGuard keeps the loading splash up while `loading` is false but `profile` is still null — this prevents `/provider/*` (and other protected routes) bouncing to `/` on first paint when the Supabase auth callback flips `loading=false` before `fetchOrCreateProfile` resolves. Coaches get through the provider guard via the `canAccessProvider = profile.is_provider || isCoach` check.
 
 ### TypeScript
 - Strict mode.
@@ -557,30 +596,38 @@ v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **n
 - Self-onboard, auto-approved
 - Class create/edit with **per-class location** + home-based checkbox
 - Batch scheduling, capacity, pricing
-- Trainer management (academy)
 - Mark attendance (today + past)
-- Record payments (track-only — no in-app collection)
+- Record payments (track-only — no in-app collection) + manual "Send Reminder" button per pending payment
 - Post announcements, upload materials, manage demos
 - View basic analytics, reviews
 - Chat with seekers
-- See "Upgrade to Premium" CTAs
+- See "Upgrade to Premium" CTAs (3-step benefits → plan → payment sheet) and, for Academy providers specifically, an "Onboard Coaches — Premium" dashboard upsell
 
 ### Provider — Premium (Paid; manually granted in MVP)
 - Everything in Basic, plus:
-- **In-app payment collection** + automated reminders
+- **In-app payment collection** + automated reminder cron (`generate-payment-reminders`)
+- **Onboard Coaches** *(academy only)* — invite by name + email, assign class- or batch-scope, optional temporary swaps with auto-revert
 - **Advanced analytics:** competitor analysis (location/category/pricing), revenue trend, retention, growth insights
 - **Sponsored listing requests** (top-3 in nearby explore)
 - **Featured banner placements**
 - Premium badge on profile
 
+### Coach (a sub-role, not a separate persona)
+- Lives entirely under the provider surface; activated automatically when an academy admin invites a user's email and that user signs in. No separate signup flow.
+- `coaches.linked_user_id` is the canonical link; `accept_coach_invites` RPC runs on every session and matches by `LOWER(email)`.
+- Sees the Instructor option in PersonaSwitcher even without `is_provider`, and shows a "Coach" badge in the Header.
+- Dashboard, students, attendance, payments, materials, announcements are all **scoped** via `useEffectiveProviderContext` (UNION of class-level + batch-level assignments) and the matching RLS policies. Read-only on other academy classes via `is_academy_member`.
+- Can mark attendance, send manual payment reminders, and manage their own assigned content. Cannot create classes, edit pricing, request Premium, manage subscription, or manage other coaches.
+
 ### Platform Admin
 - Global dashboard (active providers, classes, enrollments by city/category)
-- Categories (hierarchical)
+- Categories (hierarchical) + category-request approval (`approve_category_request`, retag flow)
 - Platform-wide analytics & growth metrics
 - **Moderation queue** — review flagged images & text, approve/reject/escalate
-- **Subscriptions** — review Premium upgrade requests, manually grant + record off-app payment
+- **Subscriptions** — review Premium upgrade requests (now showing chosen plan + ₹amount paid), approve via `approve_subscription_request` RPC (auto-derives expiry from billing period if no override)
 - **Sponsored slots** — review requests, approve with valid-from/until + radius, monitor active slots
 - **Providers directory** — suspend/reinstate, verify, mark trusted
+- **Settings** — instructor demo video, **Monthly + Annual subscription pricing** (MRP, Selling Price, Active toggle), **Payment Details** (UPI ID + QR upload, bank account, IFSC, bank name, account holder), plus generic key-value editor for the rest of `platform_settings`
 
 ### ~~Apartment Admin~~
 - **Removed in v2.**
@@ -619,12 +666,46 @@ Never write `batches.current_enrollment_count` or flip `batches.status` between 
 ### Public Class Detail Page
 `/class/:classId` is anonymous-accessible (migration 024 grants `anon` SELECT on `classes`, `service_providers`, `users`, `trainers`, `batches`, `batch_schedules`). Shareable links go through this URL. Sensitive user columns (email, mobile, home_address) must never be in the column list of a query rendered on this page.
 
-### Premium Provisioning Workflow
-- Provider taps "Upgrade to Premium" on `/provider/subscription` → opens `<UpgradeRequestSheet>` with off-app payment instructions (UPI ID, bank details).
-- Provider submits with optional payment reference → `provider_subscription_requests` row created (`status = pending`).
-- Platform admin sees in `/platform/subscriptions`, verifies payment off-app, taps Approve with `valid_until` date.
-- RPC `approve_subscription_request(request_id, valid_until)` SECURITY DEFINER updates `service_providers.subscription_tier = 'premium', subscription_valid_until = ...` and notifies provider.
-- Same workflow for sponsored slot requests via `sponsored_listings` table directly (status pending → approved).
+### Premium Provisioning Workflow (May 2026 — plan-based)
+Three-step `<UpgradeRequestSheet>` on `/provider/dashboard` and `/provider/subscription`:
+
+1. **Benefits** — hero card + 7 benefit cards (in-app payments, automated reminders, Coach onboarding, advanced analytics, competitor analysis, sponsored listings, featured banners) with icon, title, description, and a real-world example each. CTAs: *Continue to Upgrade* / *Maybe later*.
+2. **Plan picker** — reads `subscription_plans` where `is_active=true`. Renders Monthly + Annual cards with big selling price, struck-through MRP when there's a discount, "Save ₹X (Y%)" emerald pill, monthly-equivalent line on annual, "Best value" pill when annual beats monthly. Auto-selects the bigger-discount plan. If no plans are active, shows a **"Premium pricing is being finalised"** coming-soon card and blocks submission.
+3. **Payment** — reads `platform_payment_details` (UPI ID + optional QR + bank a/c). Shows the exact `Pay ₹X` headline, payment-reference input (UPI TXN / UTR), optional notes. Submit calls `request_premium_upgrade(provider_id, notes, off_app_payment_ref, billing_period, amount_paid)` — the RPC validates `amount_paid` matches the active plan's `price` (±1 INR tolerance) and rejects if no pending-request guard fails.
+
+Platform admin queue (`/platform/subscriptions`):
+- Each request card shows a Monthly/Annual chip and ₹amount-paid pill alongside the existing payment reference + notes.
+- Approve sheet's "Valid Until" date is **optional** — leaving it blank triggers `approve_subscription_request(request_id, NULL)` which reads the request's `billing_period`, looks up the plan's `duration_days`, and sets `subscription_valid_until = NOW() + (30 | 365) days`. Admin can still pass an explicit date to override.
+- Approve RPC also flips `service_providers.subscription_tier='premium'` and fires a `subscription_approved` notification with the expiry date.
+
+Sponsored slot + featured banner requests follow the same admin-queue pattern but against `sponsored_listings` / `featured_banners` directly (no separate request table; the row's `status` is the workflow).
+
+### Coach Onboarding & Scope (May 2026)
+Premium-only for academy providers (`provider_type='academy' AND subscription_tier='premium'`). Wrapped in `<PremiumGate>` so Basic academies see an upgrade CTA instead.
+
+**Invite flow** (`/provider/coaches`):
+1. Admin enters name + email + optional bio/phone/qualifications/experience.
+2. `invite_coach` RPC inserts a `coaches` row with `status='invited'`. If the email already matches a `users.email`, `linked_user_id` is set and status flips straight to `'active'`.
+3. On the invited user's next login, `accept_coach_invites` RPC (called from `UserContext.fetchCoachProfiles`) matches `LOWER(email)` and activates them. They land on `/provider/dashboard` with a "Coach" badge in the Header.
+
+**Assignment scope** (UNION semantics — class assignment covers all its batches; batch assignments add specific batches across classes):
+- `assign_coach(coach_id, scope_type, scope_id, is_temporary?, valid_from?, valid_until?)` RPC.
+- A unique partial index on `coach_assignments(scope_type, scope_id) WHERE status='active'` ensures only one active coach per scope at a time. Re-assigning ends the previous active row.
+- For temporary swaps (`is_temporary=true`), the row's `original_coach_id` is set to whoever was active before, and the daily cron (`revert-expired-coach-assignments`) reinstates them when `valid_until` passes.
+
+**RLS coach branch** — every operational table that previously only allowed the owner now also accepts the assigned coach via the SECURITY DEFINER helpers listed above. Read-only on other academy classes via `is_academy_member`; edit/insert restricted to scoped batches via `is_coach_of_batch`.
+
+**Page scoping** — `useEffectiveProviderContext()` returns `{ providerId, role, isAdmin, isCoach, scopedClassIds, scopedBatchIds }`. Owner short-circuits to admin context immediately when `providerProfile.id` is set. Pages that need scope (`ProviderDashboard`, `ProviderStudents`, `CoachesManagement`, etc.) call `resolveCoachScopedIds` server-side (single SELECT against the academy's classes + batches, then client-side UNION filter). **Pitfall to avoid:** `if (scopedBatchIds)` is `true` for `[]` in JS — never use that to gate filtering; always check `if (scopedBatchIds && scopedBatchIds.length > 0)` or apply the union explicitly.
+
+**Removal** — `remove_coach(coach_id)` ends all active assignments and marks the coach `status='removed'`. Historical attendance, payment reminders, and audit data stay intact.
+
+### Send Payment Reminder (manual button)
+`/provider/payments` shows a "Send Reminder" outline button on every `status='recorded'` row. Calls `send_payment_reminder(payment_id, notes?)` which:
+1. Authorizes the caller (academy owner OR `is_coach_of_batch(enrollment.batch_id)`).
+2. Inserts a `payment_reminder_log` row (channel='in_app' for now).
+3. Fires a `payment_reminder` notification to the payer (`payments.user_id`) with the amount and class title.
+
+The existing `generate-payment-reminders` cron continues to fire automatically for Premium providers' batches — both routes coexist.
 
 ### Family Account Linking (unchanged from v1)
 Multiple adults link to a single family. Primary member sends invite link. Linked members get equal access. See `CLAUDE-PHASE2-FAMILY-LINKING.md`.
@@ -714,3 +795,48 @@ After making changes, verify:
 - [ ] Any new `moderation_flags.ref_type` value is added to the CHECK constraint via a migration
 - [ ] `batches.current_enrollment_count` and `batches.status` are never written by app code (trigger handles them)
 - [ ] Persona labels in UI use **Learner** / **Instructor** (not Seeker / Provider)
+- [ ] **Coach scope is honoured** — provider pages that show class/batch/student/payment data use `useEffectiveProviderContext()`; new RLS additions on operational tables include the `is_coach_of_*` branch alongside the owner branch.
+- [ ] **PostgREST embeds disambiguated** — any embed off `enrollments` to `batches` uses `batches!batch_id(...)`, not bare `batches(...)`.
+- [ ] **No hardcoded UPI / bank / pricing strings** — payment + plan data must come from `platform_payment_details` and `subscription_plans`. Hardcoded fallbacks are anti-pattern; show the "Coming soon" state instead.
+- [ ] Coach-aware tables (`classes`, `batches`, `enrollments`, `payments`, `attendance_records`, `class_materials`, `announcements`) keep both the owner policy AND the new coach policy as additive (OR'd) — never replace.
+- [ ] New writes to `coaches` and `coach_assignments` go through their RPCs (`invite_coach`, `assign_coach`, etc.), not direct table inserts, so the security guards run.
+
+---
+
+## PIPELINE / OPEN ITEMS
+
+Live tracking of items in flight or queued. Move to "done" when shipped + verified in prod.
+
+### Awaiting manual action on Supabase
+- [ ] Apply migration `20260515150000_coaches.sql` (coaches + RLS + RPCs + payment_reminder_log).
+- [ ] Apply migration `20260516120000_coach_student_names.sql` (widens names RPC to include coaches).
+- [ ] Apply migration `20260517120000_subscription_plans.sql` (plans + payment_details + extended subscription_requests).
+- [ ] Deploy edge function `revert-expired-coach-assignments` and schedule a daily cron (suggested `0 2 * * *` IST).
+- [ ] Configure Monthly + Annual plans at `/platform/settings` and flip them Active. Required before the upgrade sheet renders a plan-picker (otherwise the "Coming soon" state shows).
+- [ ] Configure platform UPI ID + bank details at `/platform/settings` so the payment screen has something to display.
+- [ ] Regenerate Supabase types (`src/integrations/supabase/types.ts`) after applying the three new migrations. Until then, the new tables (`coaches`, `coach_assignments`, `subscription_plans`, `platform_payment_details`, `payment_reminder_log`) are queried untyped; the residual lint `any` shims in `useCoaches.ts`, `useSubscription.ts`, `usePlatformAdmin.ts`, `UserContext.tsx` can be removed once types regenerate.
+
+### Coaches — known follow-ups
+- [ ] Drop the legacy `trainers` table after one release of running on `coaches` in prod without issue. Pre-flight: ensure no app code reads `trainers` anymore; the migration kept it as a fallback for safety.
+- [ ] Drop `certifications.trainer_id` once the `coach_id` backfill is verified and no reads against `trainer_id` remain. The current `useSeekerTrainerCertifications` queries `coach_id OR trainer_id` for safety during the transition.
+- [ ] Move the `/provider/trainers-legacy` shim → 410 / NotFound after one release.
+- [ ] CSV import for bulk coach invites (current UI is one-at-a-time).
+- [ ] Coach-self-view page (read-only profile + my-assignments list) — currently a coach goes straight to the academy dashboard with scoped data; no dedicated "my coach profile" surface yet.
+
+### Subscription pricing — known follow-ups
+- [ ] Add a quarterly plan slot (schema check constraint already permits only `monthly` / `annual` — needs migration to extend).
+- [ ] Multi-currency support (currently `INR` hardcoded as default; `subscription_plans.currency` column exists but UI doesn't expose it).
+- [ ] Auto-renewal flow — current model expires hard; admin must approve a new request to re-grant. Renewals via in-app payment gateway are post-MVP.
+- [ ] Pro-rated upgrades between Monthly → Annual mid-cycle (not supported; provider has to wait for current period to end).
+- [ ] Tax / GST line item on the payment screen and admin approval card.
+
+### Phase 8 polish (carried from original plan, still pending)
+- [ ] `/provider/sponsored` UI — providers can already see sponsored slots run via admin grants, but there's no provider-facing surface to request a slot. Admin side at `/platform/sponsored` is in place.
+- [ ] Featured banner upload UI on the provider side (admin side approves; provider currently has no upload entry point).
+- [ ] Merge of sponsored top-3 into `/explore` is partial — `useFeaturedListings` exists but the visual integration (gold "Featured" badge above organic results) is half-shipped.
+- [ ] Competitor analysis dashboard on `/provider/analytics` is wired data-wise (`useCompetitorClasses`) but the chart surface is minimal.
+
+### Tech debt / cleanup
+- [ ] `useEngagement.ts`, `useSeeker.ts`, and a few provider pages still use `any` types around the `payment.users` / `enrollment.batches` PostgREST embeds. These can be tightened once Supabase types regenerate.
+- [ ] `BottomNav.tsx` is a no-op stub but still imported in several pages — can be removed after a sweep.
+- [ ] Several deprecated `useProvider.ts` exports (`useProviderRegistrations`, `useProviderPendingTerms`, etc.) return empty stubs for v1 compatibility — safe to delete after confirming no callers remain.
