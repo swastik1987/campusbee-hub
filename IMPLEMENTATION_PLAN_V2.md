@@ -3,7 +3,15 @@
 > Companion to `CLAUDE.md` (v2). Sequenced phases for migrating CampusBee from apartment-scoped marketplace to location-based, subscription-tiered, AI-moderated marketplace.
 > Each phase ends in a deployable, demo-able state. Phases that can run in parallel are marked.
 
-> **Status snapshot — May 14, 2026:** Phases 0–7 substantively complete. Phase 8 (sponsored listings & featured banners) ~30% complete (admin surface + read hook in place; provider-facing pages + cron edge function still missing). Phase 9 (stabilization) ongoing as hotfixes land. Phase 10 (cutover) blocked on Phase 8 + open backlog items below. See **Current Backlog** section at the end of this file.
+> **Status snapshot — May 17, 2026:**
+> - ✅ Phases 0–7 complete.
+> - ✅ Phase 11 (**Coaches for Premium academies**) complete pending manual migration application.
+> - ✅ Phase 12 (**Admin-configurable subscription pricing + payment details + plan-based upgrade flow**) complete pending manual migration application + admin configuration.
+> - 🟡 Phase 8 (sponsored listings & featured banners) ~30% — admin surface + read hook in place; provider-facing pages, cron edge fn, top-3 Explore merge, banner flow still missing.
+> - 🟡 Phase 9 (stabilization) — partially trimmed; several cleanup items resolved, others still open (see Backlog § B).
+> - ⛔ Phase 10 (cutover) blocked on Phase 8 + remaining backlog items.
+>
+> Three migrations and one edge function are **waiting on manual apply / deploy** before the latest features are live (Backlog § A). See "Recommended Next Steps" at the end of this file for the prioritised picklist.
 
 ---
 
@@ -305,6 +313,8 @@
 
 **Actual outcome:** `/provider/subscription`, `PremiumGate`, `UpgradeRequestSheet`, tier badge in dashboard, and Premium gates on Payments + Analytics shipped (`ea5803e`). `generate-payment-reminders` cron filters to Premium providers only.
 
+**Subsequent evolution (May 2026):** The single-step UpgradeRequestSheet was replaced by a **3-step flow** (Benefits → Plan picker → Payment, commits `2b89af0`, `62e3957`). Plans + payment details are now admin-configurable rather than hardcoded — see **Phase 12** below for the full upgrade-flow rewrite. Phase 7's scope is unchanged; Phase 12 builds on top of it.
+
 ---
 
 ## Phase 8 — Sponsored Listings & Featured Banners (Premium monetization surfaces) — 🟡 IN PROGRESS (~30%)
@@ -395,6 +405,89 @@
 
 ---
 
+## Phase 11 — Coaches for Premium Academies (Team management) — ✅ COMPLETE (pending migration apply)
+
+**Goal:** Academy providers on Premium can invite multiple Coaches by name + email. Each Coach logs in with that email, gets a "Coach" tag in the header, and accesses only the classes / batches they're assigned to (mark attendance, send payment reminders, manage their batches). Admins can do permanent re-assignments or temporary time-bound swaps with auto-revert.
+
+### Schema (migration `20260515150000_coaches.sql`)
+- `coaches` — auth-linkable team member rows per academy; one row per (academy, email); `status ∈ {invited, active, removed}`; `linked_user_id` set on first login.
+- `coach_assignments` — `scope_type ∈ {class, batch}` with optional `is_temporary`, `original_coach_id`, `valid_from`, `valid_until`. UNIQUE partial index ensures one active coach per scope.
+- `certifications.coach_id` added; values mirrored from `trainer_id` during a one-time backfill.
+- `payment_reminder_log` — audit trail for the manual "Send Reminder" button (channel='in_app' for now).
+- SECURITY DEFINER helpers: `current_coach_ids`, `current_academy_provider_ids`, `is_coach_of_class`, `is_coach_of_batch`, `is_academy_member`.
+- RLS coach branch added (additively, OR'd with existing owner policies) to `classes`, `batches`, `attendance_records`, `payments`, `enrollments`, `class_materials`, `announcements`.
+- RPCs: `invite_coach`, `assign_coach`, `end_coach_assignment`, `remove_coach`, `accept_coach_invites`, `revert_expired_coach_assignments`, `send_payment_reminder`.
+
+### Companion migration
+- `20260516120000_coach_student_names.sql` — widens `get_provider_student_names` RPC's security guard so a coach assigned to a batch can read student + seeker names for it. Defensively detects whether `is_coach_of_batch` exists before referencing it, so it's safe to apply before or after the main coaches migration.
+
+### Frontend
+- `src/pages/provider/CoachesManagement.tsx` (`/provider/coaches`) — invite by name + email, assign at class or batch scope, optional temporary swap with `valid_from` / `valid_until`, soft-remove with confirmation. Wrapped in `<PremiumGate>`.
+- `src/hooks/useCoaches.ts` — `useCoaches`, `useCoachAssignments`, `useMyCoachAssignments`, `useInviteCoach`, `useAssignCoach`, `useEndCoachAssignment`, `useRemoveCoach`, `useSendPaymentReminder`, `useEffectiveProviderContext` (admin vs coach scope resolver — single source of truth for which provider_id to query against).
+- `UserContext.tsx` extended with `coachProfiles`, `isCoach`; auto-runs `accept_coach_invites` on every session and fetches active coach memberships. Splash kept up until profile resolves to prevent AuthGuard bouncing /provider/* on first paint.
+- `Header.tsx` shows a "Coach" badge next to the persona switcher when `isCoach && activePersona === 'provider'`.
+- `PersonaSwitcher.tsx` lets coaches switch to the Instructor persona even without `is_provider`.
+- `ProviderDashboard.tsx` and `ProviderStudents.tsx` use `useEffectiveProviderContext()` and apply UNION scope semantics for coaches; admin-only banners (subscription, certifications, category requests, FAB) hidden for coaches.
+- `ProviderPayments.tsx` adds a manual "Send Reminder" button on every recorded-status row.
+- `useSeeker.useProviderTrainers` + `useProviderProfile` now read from `coaches` (status='active') and remap `full_name → name` for back-compat. `useSeekerTrainerCertifications` queries `coach_id OR trainer_id`.
+
+### Routes
+- `/provider/coaches` (new) wrapped in `<PremiumGate>`; `/provider/trainers` 302s to it; `/provider/trainers-legacy` retains the original page for one release as a fallback.
+
+### Edge function
+- `revert-expired-coach-assignments` (`supabase/functions/...`) — calls the RPC of the same name. Schedule a daily cron (suggested `0 2 * * *` IST).
+
+### Verification
+- Academy admin invites a coach → email already maps to a learner → coach auto-activated on next login → Coach badge appears in header.
+- Coach lands on /provider/dashboard → sees only assigned classes / students / payments / batches.
+- Admin temporarily reassigns a batch to coach B from `2026-05-20` to `2026-05-22` → cron auto-reverts to coach A at midnight on 23rd.
+- Admin OR coach taps "Send Reminder" on a pending payment → learner gets a notification; row inserted in `payment_reminder_log`.
+
+**Exit criteria:** Premium academy can run their team end-to-end without admin intervention.
+
+**Status (May 17, 2026):** All code committed and pushed (commits `3f04d5f` → `edf6983`, `8beeb17`, `84b4bac`). Migration `20260515150000_coaches.sql` and companion `20260516120000_coach_student_names.sql` must be applied manually in Supabase SQL editor. Edge function must be deployed + cron-scheduled.
+
+---
+
+## Phase 12 — Admin-Configurable Subscription Pricing & Payment Details — ✅ COMPLETE (pending migration apply + admin config)
+
+**Goal:** Platform admin sets Monthly + Annual plan pricing (MRP + Selling Price + Active toggle) and the platform's UPI / bank payment details from `/platform/settings`. Instructors pick a plan in the upgrade sheet before paying; the request RPC validates the amount and `approve_subscription_request` derives the expiry date from the chosen plan.
+
+### Schema (migration `20260517120000_subscription_plans.sql`)
+- `subscription_plans` — one row per `billing_period ∈ {monthly, annual}` with `mrp`, `price`, `currency`, `duration_days`, `is_active`. Seeded inactive; admin enables after pricing. Public read on active rows; admin CRUD.
+- `platform_payment_details` — singleton (CHECK + UNIQUE on a flag column). Columns: `upi_id`, `upi_qr_url`, `bank_account`, `ifsc`, `bank_name`, `account_holder`. Public read; admin CRUD.
+- `provider_subscription_requests` extended with `billing_period TEXT CHECK IN ('monthly','annual')` + `amount_paid NUMERIC(10,2)`.
+- `request_premium_upgrade` RPC rewritten to require + validate `billing_period` and `amount_paid` (±1 INR tolerance against the active plan's price). Drops the legacy 3-arg signature.
+- `approve_subscription_request` RPC derives `subscription_valid_until = NOW() + (duration_days)` from the request's `billing_period` when admin doesn't pass an explicit override.
+
+### Frontend
+- `/platform/settings` gains two new admin cards:
+  - **Subscription Pricing** — Monthly + Annual rows with MRP / Selling Price inputs, Active toggle, live discount % readout, per-row Save.
+  - **Payment Details** — UPI ID (required), optional UPI QR upload (stored under `provider-media/platform/`), bank account, IFSC, bank name, account holder, single Save.
+- `src/hooks/usePlatformAdmin.ts` — new hooks: `useAllSubscriptionPlans`, `useUpdateSubscriptionPlan`, `useAdminPlatformPaymentDetails`, `useUpdatePlatformPaymentDetails`, `useUploadPlatformQr`. `useApproveSubscription` switched to use the `approve_subscription_request` RPC (lets admin leave the date blank for auto-derived expiry).
+- `src/hooks/useSubscription.ts` — public-read hooks `useActiveSubscriptionPlans`, `usePlatformPaymentDetails`; updated `useRequestPremiumUpgrade` to pass `billingPeriod` + `amountPaid` through the RPC.
+- `UpgradeRequestSheet.tsx` rewritten as a **3-step flow** (Benefits → Plan Picker → Payment):
+  - Benefits screen (commit `2b89af0`) — hero + 7 benefit cards (icon + title + description + real-world example) covering in-app payments, automated reminders, Coach onboarding, advanced analytics, competitor analysis, sponsored listings, featured banners.
+  - Plan Picker — Monthly + Annual cards with large selling price, struck-through MRP when discounted, "Save ₹X (Y%)" emerald pill, monthly-equivalent line on annual, "Best value" pill when annual beats monthly. Auto-selects the bigger-discount plan. If no plans active, replaced with a "Premium pricing is being finalised" coming-soon card.
+  - Payment — reads `platform_payment_details`, shows "Pay ₹X" headline, payment reference + notes, Submit calls the new RPC.
+- `PlatformSubscriptions.tsx` request cards show a Monthly/Annual chip + ₹amount-paid pill; approve sheet's "Valid Until" date is optional.
+
+### Verification
+- Admin sets Annual to ₹6,999 (MRP ₹9,999), enables both plans → instructor sees both cards in the picker with "Save ₹3,000 (30%)" and "Best value" pills.
+- Instructor pays ₹6,999 off-app, submits with UTR → admin sees Annual chip + ₹6,999 pill → approves with blank date → `subscription_valid_until` set to NOW() + 365 days automatically.
+- Admin pricing-card discount auto-recomputes live; toggling Active off hides the plan from the picker.
+- If admin hasn't seeded prices yet, the picker shows "Coming soon" and instructor can't submit.
+
+**Exit criteria:** Pricing + payment are fully admin-controlled; no hardcoded UPI / bank / ₹ values remain in code.
+
+**Status (May 17, 2026):** All code committed and pushed (commit `62e3957`). Migration `20260517120000_subscription_plans.sql` must be applied manually. Admin must then visit `/platform/settings` and:
+1. Set the Monthly + Annual MRP / Selling Price and toggle Active.
+2. Fill UPI ID + bank details (and optionally upload a UPI QR).
+
+Until both are done, the upgrade sheet stays in its "Coming soon" fallback.
+
+---
+
 ## Parallelization map
 
 ```
@@ -441,48 +534,174 @@ With a small team (2 frontend + 1 backend): **3–4 weeks**.
 
 ---
 
-## Current Backlog (as of May 14, 2026)
+## Current Backlog (as of May 17, 2026)
 
 > This section is the **single source of truth** for what's still pending. Update as items land. Items are roughly ordered by user-visible impact, not strict dependency.
 
-### A. Phase 8 — Sponsored & Featured (highest priority, blocks Premium monetization)
+### A. Manual deploy / configuration on Supabase — *blocks new features from going live*
+1. **Apply migration `20260515150000_coaches.sql`** (Phase 11). Coaches feature is dead on prod until this runs.
+2. **Apply migration `20260516120000_coach_student_names.sql`** (Phase 11 companion).
+3. **Apply migration `20260517120000_subscription_plans.sql`** (Phase 12). Until this lands, the new upgrade sheet errors and the plan-validation RPC fails.
+4. **Deploy edge function `revert-expired-coach-assignments`** and schedule daily cron (suggested `0 2 * * *` IST).
+5. **Configure Monthly + Annual plans** at `/platform/settings` and flip Active. Without this, the upgrade picker shows the "Coming soon" card.
+6. **Configure platform UPI ID + bank details** at `/platform/settings`. Without this, the payment screen has nothing to render.
+7. **Regenerate Supabase types** (`supabase gen types typescript --linked > src/integrations/supabase/types.ts`) after the three migrations land. This removes the residual `any` shims in `useCoaches.ts`, `useSubscription.ts`, `usePlatformAdmin.ts`, `UserContext.tsx`.
+
+### B. Phase 8 — Sponsored & Featured (highest user-visible priority — blocks full Premium monetization)
 1. **`/provider/sponsored` page** — pick a class, pick region center + radius_km, valid_from/until, optional banner image upload (moderated). Status indicator + history table.
 2. **Explore top-3 merge** — `useActiveFeaturedListings({lat, lng})` results merged into the first 3 cards with a "Featured" badge. Tie-break by `slot_position`.
 3. **`refresh-sponsored-slots` cron edge function** — every 15 min: expire past `valid_until`, recompute `slot_position` per region (deterministic by `requested_at`).
 4. **`featured_banners` flow** — table already in schema spec; build the request UI + admin approval + rotating banner on home / explore (per region).
 5. **Impression / click instrumentation** — increment `sponsored_listings.impression_count` on card render and `click_count` on tap; debounced to avoid scroll spam.
 
-### B. Stabilization & polish (Phase 9 carryover)
-1. **Carryover-feature regression sweep** — Playwright happy-path coverage for: family CRUD, family linking invite/accept, demo sessions seeker→provider round trip, materials, waitlist auto-offer, chat realtime, reviews + provider reply, announcements, attendance (today + past), notifications bell badge.
-2. **Cleanup** — remove `provider_apartment_registrations` references still present in [EnrollmentDetail.tsx](src/pages/seeker/EnrollmentDetail.tsx) and [InviteAccept.tsx](src/pages/seeker/InviteAccept.tsx). Remove `is_apartment_admin` from [database.ts](src/types/database.ts).
-3. **Deprecated hooks** — delete the `@deprecated` apartment helpers in [useFamily.ts](src/hooks/useFamily.ts) and [usePlatformAdmin.ts](src/hooks/usePlatformAdmin.ts) once confirmed unused.
-4. **Re-onboarding nudge for users with `seeker_home_location IS NULL`** — currently they can hit `/explore` with no nearby results.
-5. **PostGIS RPC fallback path** — Explore currently filters client-side from denormalized lat/lng. Wire the `nearby_classes` RPC as the canonical server-side path once dataset grows past a few hundred classes.
+### C. Coaches — known follow-ups (post-Phase 11)
+1. **Drop the legacy `trainers` table** after one release of running on `coaches` in prod without issue. Pre-flight: ensure no app code reads `trainers`; the migration kept it as a safety fallback.
+2. **Drop `certifications.trainer_id`** once the `coach_id` backfill is verified. `useSeekerTrainerCertifications` currently queries both columns for back-compat.
+3. **Retire the `/provider/trainers-legacy` shim** after one release.
+4. **CSV import for bulk coach invites** — current UI is one-at-a-time.
+5. **Dedicated coach-self-view page** (read-only profile + my-assignments list) — currently a coach goes straight to the academy dashboard with scoped data; no "my coach profile" surface yet.
+6. **Channel options for `payment_reminder_log`** — table already has `channel ∈ {in_app, email, whatsapp}`. Only `in_app` is wired today; email + WhatsApp dispatch is post-MVP.
 
-### C. Trust, safety, abuse handling
+### D. Subscription pricing — known follow-ups (post-Phase 12)
+1. **Quarterly plan slot** — `subscription_plans.billing_period` CHECK currently permits only `monthly` / `annual`. Adding a quarterly tier needs a migration to extend the constraint + UI for the third card.
+2. **Multi-currency support** — `subscription_plans.currency` column exists but the UI uses `₹` and INR formatters everywhere. Picker + admin pages need a currency-aware formatter.
+3. **Auto-renewal flow** — current model expires hard; admin must approve a new request to re-grant. Renewals via in-app payment gateway are post-MVP.
+4. **Pro-rated upgrades mid-cycle** — Monthly → Annual switch in the middle of a billing period isn't supported; provider has to wait for current period to end.
+5. **Tax / GST line item** on the payment screen and admin approval card.
+
+### E. Stabilization & polish (Phase 9 carryover)
+1. **Carryover-feature regression sweep** — Playwright happy-path coverage for: family CRUD, family linking invite/accept, demo sessions seeker→provider round trip, materials, waitlist auto-offer, chat realtime, reviews + provider reply, announcements, attendance (today + past), notifications bell badge, **Coach assign/reassign/temporary-swap**, **Upgrade-to-Premium plan-picker → admin approval round trip**.
+2. **Cleanup of remaining v1 references** *(still pending — verified May 17, 2026)*:
+   - `src/pages/seeker/EnrollmentDetail.tsx` lines 171, 257 — `cls.provider_apartment_registrations.service_providers` lookups.
+   - `src/pages/seeker/InviteAccept.tsx` line 98 — `invite.families.apartment_complexes.name`.
+   - `src/types/database.ts` — `is_apartment_admin` (line 16), `apartment_id` (lines 48, 60, 129, 406, 480).
+3. **Deprecated hook stubs** — `useProviderRegistrations`, `useProviderPendingTerms`, `useRespondToTerms`, `useProviderClassActionItems`, `useRespondToClassTerms` in `useProvider.ts` are no-op stubs for v1 callers. Delete after a final grep confirms no consumers.
+4. **`BottomNav` stub removal** — file is a no-op but still imported in several pages. Sweep + remove.
+5. **PostgREST FK disambiguation guardrail** — add an ESLint custom rule (or pre-commit grep) that flags `from("enrollments").select(...batches(...)` without a `!batch_id` hint. See CLAUDE.md § Data Fetching for the pattern.
+6. **Re-onboarding nudge for users with `seeker_home_location IS NULL`** — currently they can hit `/explore` with no nearby results.
+7. **PostGIS RPC fallback path** — Explore currently filters client-side from denormalized lat/lng. Wire `nearby_classes` RPC as the canonical server-side path once dataset grows past a few hundred classes.
+
+### F. Trust, safety, abuse handling
 1. **Repeat-violation suspension** — auto-suspend providers with N moderation rejections in M days (CLAUDE.md § "Strict no-tolerance categories").
 2. **Appeal flow** — provider taps "Appeal" on a rejected item → admin sees in moderation queue with appeal note.
 3. **Rate-limit category requests** — providers currently can submit unlimited requests; cap at e.g. 3 pending per provider.
+4. **Rate-limit coach invites + payment reminders** — academy could spam reminder notifications. Cap at e.g. 1 manual reminder per payment per 24 h.
 
-### D. Performance & analytics
+### G. Performance & analytics
 1. **`EXPLAIN ANALYZE` on `nearby_classes`** at 10k-class load; confirm GIST index usage. Defer unless dataset projection demands.
-2. **Provider Premium analytics tab** — competitor analysis, retention, growth insights (currently the tab exists behind PremiumGate but the queries are stubbed).
+2. **Provider Premium analytics tab** — competitor analysis, retention, growth insights. Tab exists behind `<PremiumGate>` but queries are stubbed; `useCompetitorClasses` returns data but charts are minimal.
 3. **Platform analytics charts** — Recharts views for active providers, classes, enrollments by city/category over time.
 
-### E. Cutover prep (Phase 10)
+### H. Cutover prep (Phase 10)
 1. Take v1 DB snapshot for archive.
 2. Run Supabase advisors → resolve all warnings.
-3. Update marketing copy on Landing page.
-4. Producer's guide + admin runbook docs.
-5. Update [README.md](README.md) to reflect v2 architecture.
+3. Update marketing copy on Landing page to reflect the Coach + Premium plan-picker positioning.
+4. Producer's guide + admin runbook docs (now needs to cover: configuring plans + payment, inviting Coaches, approving subscriptions with auto-derived dates).
+5. Update [README.md](README.md) to reflect v2 architecture + Coaches + plan-based provisioning.
 
-### F. Nice-to-haves (post-MVP)
+### I. Nice-to-haves (post-MVP)
 - Phone OTP auth.
 - Multiple seeker home locations (home + office).
 - `provider_home_travel_radius_km` separate from per-class `home_radius_km`.
-- Razorpay webhook → auto-grant Premium (replace manual approval).
-- Geocode result caching table (`geocode_cache`) for cost control.
+- Razorpay webhook → auto-grant Premium (replaces manual approval and removes admin SLA bottleneck).
+- Geocode result caching table (`geocode_cache`) for Mappls cost control.
 - H3 hex bucketing if class count exceeds ~100k.
+- Coach-side mobile push for assignment / temporary-swap events.
+
+---
+
+## Recommended Next Steps
+
+> A pragmatic, sequenced picklist. Each sprint ends at a demoable / verifiable checkpoint. Calibrate to your team size — single-dev estimates in parentheses.
+
+### Sprint 0 — Unblock production (~half day, single dev) — *do this first*
+The features we've already coded are sitting on the branch but inert in prod until manual actions land.
+
+1. **Take a Supabase backup** (one click in the dashboard) before applying any migration.
+2. **Apply the three migrations in order, in the Supabase SQL editor:**
+   - `20260515150000_coaches.sql`
+   - `20260516120000_coach_student_names.sql`
+   - `20260517120000_subscription_plans.sql`
+3. **Regenerate types:** `supabase gen types typescript --linked > src/integrations/supabase/types.ts`, commit.
+4. **Deploy edge function** `revert-expired-coach-assignments` and schedule a daily cron (`0 2 * * *` IST suggested).
+5. **Configure pricing** at `/platform/settings` → Subscription Pricing: set MRP / Selling Price for Monthly and Annual; flip Active for at least one. Live discount % renders automatically.
+6. **Configure payment details** at `/platform/settings` → Payment Details: UPI ID (required), optional UPI QR upload, full bank section.
+7. **Smoke test:**
+   - Log in as an academy provider, invite a coach by email. Log in as that email; confirm Coach badge in header + scoped dashboard.
+   - Log in as a Basic provider; open the upgrade sheet from `/provider/dashboard`. Verify Benefits → Plan Picker → Payment flow renders end-to-end.
+   - Submit a test upgrade request, approve from `/platform/subscriptions` leaving the date blank. Confirm `subscription_valid_until` auto-derives to +30 / +365 days.
+
+**Exit:** Coaches + admin-configurable Premium are live; type-shims removed; one sample request flowed through.
+
+---
+
+### Sprint 1 — Phase 8 sponsored & featured (~1 week, single dev)
+This is the biggest user-visible gap. The data path exists; the surfaces don't.
+
+1. **Build `/provider/sponsored` page** — class picker, region + radius + date inputs, optional banner upload (goes through the moderation pipeline), status / history table.
+2. **Wire Explore top-3 merge** — pull `useActiveFeaturedListings({lat, lng})`, merge ahead of organic results, render with gold "Featured" badge.
+3. **Build & deploy `refresh-sponsored-slots` cron** (every 15 min): expire past `valid_until`, recompute `slot_position` per region. Mirrors the `revert-expired-coach-assignments` shape.
+4. **Build `featured_banners` flow** — provider upload UI (moderated) → admin queue → rotating banner on Landing/Explore for seekers in the banner's region.
+5. **Add impression / click instrumentation** — increment `sponsored_listings.impression_count` on card render (IntersectionObserver), `click_count` on tap. Debounce both.
+
+**Exit:** Premium provider can request and run a sponsored campaign end-to-end; seekers see Featured cards; banner appears for in-region seekers.
+
+---
+
+### Sprint 2 — Stabilization sweep (~3–4 days)
+Pay down accumulated tech debt before cutover so it doesn't bite during prod use.
+
+1. **Strip remaining v1 references** (backlog § E.2): rewrite `EnrollmentDetail.tsx`, `InviteAccept.tsx`, `types/database.ts` to use v2 schema only.
+2. **Delete deprecated stub hooks** (§ E.3) and `BottomNav.tsx` after a final grep.
+3. **Add the FK-disambiguation guard** (§ E.5) — ESLint rule or pre-commit grep that flags bare `batches(...)` embeds off `enrollments`. Documented but not enforced.
+4. **Re-onboarding nudge for users with NULL `seeker_home_location`** (§ E.6).
+5. **Playwright happy-path coverage** (§ E.1) — one e2e test per major flow including the new Coach assign + plan-picker flows.
+
+**Exit:** `grep -r "provider_apartment_registrations\|is_apartment_admin\|apartment_id" src/` returns zero. CI Playwright green.
+
+---
+
+### Sprint 3 — Trust & safety hardening (~2–3 days)
+Risk-mitigation before opening up signups beyond a closed pilot.
+
+1. **Rate-limit coach invites + manual reminders** (§ F.4) — RPC-level guard.
+2. **Rate-limit category requests** (§ F.3).
+3. **Repeat-violation auto-suspension** (§ F.1).
+4. **Appeal flow** (§ F.2) — adds a "Request Appeal" button on rejected items; admin sees appealed flags first in `/platform/moderation`.
+
+**Exit:** abusive paths blocked; admin queue surfaces appeals.
+
+---
+
+### Sprint 4 — Premium analytics depth (~3–5 days)
+Now that pricing is live and Premium is sellable, deliver on the value prop.
+
+1. **Provider Premium analytics tab** (§ G.2) — wire competitor analysis (we already fetch the data), retention curves, attendance heatmaps, revenue trend.
+2. **Platform analytics charts** (§ G.3) — Recharts views for active providers, classes, enrollments by city / category over time.
+
+**Exit:** the "Advanced Analytics" Premium benefit lives up to its description in the upgrade sheet.
+
+---
+
+### Sprint 5 — Cutover & launch (~2–3 days)
+Phase 10 in name.
+
+1. v1 snapshot for archive, run Supabase advisors, resolve warnings (§ H.1, § H.2).
+2. Landing-page marketing copy + Premium positioning refresh (§ H.3).
+3. Producer's guide + admin runbook (§ H.4).
+4. README refresh (§ H.5).
+5. DNS / env swap → flip production.
+
+**Exit:** v2 in production, v1 decommissioned.
+
+---
+
+### Post-launch (Sprint 6+)
+Pull from backlog § C (Coaches follow-ups), § D (subscription pricing follow-ups), and § I (nice-to-haves) based on early customer feedback and observed usage patterns. Highest-leverage candidates:
+- Razorpay webhook → auto-grant Premium (removes the admin SLA bottleneck — eats most of the manual-approval overhead).
+- Email + WhatsApp channels for the manual payment reminder.
+- CSV bulk-invite for coaches.
+- Drop legacy `trainers` table + retire `/provider/trainers-legacy` shim once you have a clean release on `coaches`.
 
 ---
 
