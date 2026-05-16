@@ -338,7 +338,7 @@ export function usePendingBatchSwitches(providerId: string | undefined) {
       // they should already be in `batches` because we filtered by all provider classes.
       const memberIds = Array.from(
         new Set(rows.map((r: any) => r.family_member_id).filter(Boolean)),
-      );
+      ) as string[];
       const { data: members } = memberIds.length
         ? await supabase
             .from("family_members")
