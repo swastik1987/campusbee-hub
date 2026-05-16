@@ -1,7 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { useMySubscriptionRequests, useRequestPremiumUpgrade } from "@/hooks/useSubscription";
+import {
+  useMySubscriptionRequests,
+  useRequestPremiumUpgrade,
+  useActiveSubscriptionPlans,
+  usePlatformPaymentDetails,
+  type BillingPeriod,
+} from "@/hooks/useSubscription";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +23,7 @@ import {
   ArrowRight,
   BarChart3,
   Bell,
+  Check,
   ChevronRight,
   Clock,
   Compass,
@@ -97,9 +104,11 @@ const PREMIUM_BENEFITS = [
   },
 ] as const;
 
-// ── Payment instructions — update before going live ─────────────────────────
-const UPI_ID = "campusbee@ybl";
-const BANK_DETAILS = "A/C: 1234567890  |  IFSC: SBIN0001234  |  State Bank of India";
+// Payment instructions are now admin-configurable via /platform/settings
+// (subscription_plans + platform_payment_details).
+
+const formatInr = (n: number) =>
+  `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
 interface UpgradeRequestSheetProps {
   open: boolean;
@@ -110,34 +119,66 @@ const UpgradeRequestSheet = React.forwardRef<HTMLDivElement, UpgradeRequestSheet
   ({ open, onOpenChange }, ref) => {
     const { providerProfile } = useUser();
     const { data: requests } = useMySubscriptionRequests(providerProfile?.id);
+    const { data: plans, isLoading: plansLoading } = useActiveSubscriptionPlans();
+    const { data: paymentDetails } = usePlatformPaymentDetails();
     const upgrade = useRequestPremiumUpgrade();
     const navigate = useNavigate();
 
     const [notes, setNotes] = useState("");
     const [paymentRef, setPaymentRef] = useState("");
-    // Two-step flow: lead with benefits, then payment form on continue.
-    const [view, setView] = useState<"benefits" | "pay">("benefits");
+    const [selectedPeriod, setSelectedPeriod] = useState<BillingPeriod | null>(null);
+    // Three-step flow: benefits → plan → pay
+    const [view, setView] = useState<"benefits" | "plan" | "pay">("benefits");
 
-    // Reset to benefits view every time the sheet (re)opens.
+    // Reset state every time the sheet (re)opens.
     useEffect(() => {
-      if (open) setView("benefits");
+      if (!open) return;
+      setView("benefits");
+      setSelectedPeriod(null);
+      setNotes("");
+      setPaymentRef("");
     }, [open]);
 
     const hasPending = requests?.some((r) => r.status === "pending");
 
+    // Pre-pick the plan with the bigger discount on entry to the plan screen.
+    const monthlyPlan = plans?.find((p) => p.billing_period === "monthly");
+    const annualPlan = plans?.find((p) => p.billing_period === "annual");
+    const plansConfigured = (plans?.length ?? 0) > 0;
+
+    useEffect(() => {
+      if (view !== "plan" || selectedPeriod) return;
+      if (!annualPlan && !monthlyPlan) return;
+      const monthlyDiscount = monthlyPlan && monthlyPlan.mrp > 0
+        ? (monthlyPlan.mrp - monthlyPlan.price) / monthlyPlan.mrp : 0;
+      const annualDiscount = annualPlan && annualPlan.mrp > 0
+        ? (annualPlan.mrp - annualPlan.price) / annualPlan.mrp : 0;
+      setSelectedPeriod(annualDiscount >= monthlyDiscount ? "annual" : "monthly");
+    }, [view, selectedPeriod, monthlyPlan, annualPlan]);
+
+    const selectedPlan = useMemo(
+      () => plans?.find((p) => p.billing_period === selectedPeriod) ?? null,
+      [plans, selectedPeriod],
+    );
+
     const handleSubmit = async () => {
+      if (!selectedPlan) {
+        toast.error("Please select a plan");
+        return;
+      }
       try {
         await upgrade.mutateAsync({
           notes: notes.trim() || undefined,
           offAppPaymentRef: paymentRef.trim() || undefined,
+          billingPeriod: selectedPlan.billing_period,
+          amountPaid: selectedPlan.price,
         });
         toast.success("Upgrade request submitted! We'll review it within 24 hours.");
         onOpenChange(false);
-        setNotes("");
-        setPaymentRef("");
         navigate("/provider/subscription");
-      } catch {
-        toast.error("Failed to submit request. Please try again.");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to submit request.";
+        toast.error(msg);
       }
     };
 
@@ -152,17 +193,23 @@ const UpgradeRequestSheet = React.forwardRef<HTMLDivElement, UpgradeRequestSheet
 
           <SheetHeader className="mb-5">
             <SheetTitle className="flex items-center gap-2">
-              {view === "pay" && !hasPending && (
+              {!hasPending && view !== "benefits" && (
                 <button
-                  onClick={() => setView("benefits")}
+                  onClick={() => setView(view === "pay" ? "plan" : "benefits")}
                   className="mr-1 flex h-6 w-6 items-center justify-center rounded-full hover:bg-accent"
-                  title="Back to benefits"
+                  title="Back"
                 >
                   <ArrowLeft size={14} />
                 </button>
               )}
               <Crown size={18} className="text-amber-500" />
-              {view === "pay" && !hasPending ? "Complete Payment" : "Upgrade to Premium"}
+              {hasPending
+                ? "Upgrade to Premium"
+                : view === "pay"
+                  ? "Complete Payment"
+                  : view === "plan"
+                    ? "Choose your plan"
+                    : "Upgrade to Premium"}
             </SheetTitle>
           </SheetHeader>
 
@@ -240,14 +287,14 @@ const UpgradeRequestSheet = React.forwardRef<HTMLDivElement, UpgradeRequestSheet
 
               {/* Pricing line */}
               <p className="text-center text-[11px] text-muted-foreground">
-                Pricing on request · Activation within 24 hours of payment verification.
+                Choose a monthly or annual plan on the next step · Activation within 24 hours of payment verification.
               </p>
 
               {/* CTAs */}
               <div className="space-y-2 pt-1">
                 <Button
                   className="w-full h-11 gap-2 bg-amber-500 hover:bg-amber-600 text-white"
-                  onClick={() => setView("pay")}
+                  onClick={() => setView("plan")}
                 >
                   <Crown size={16} />
                   Continue to Upgrade
@@ -262,38 +309,212 @@ const UpgradeRequestSheet = React.forwardRef<HTMLDivElement, UpgradeRequestSheet
                 </Button>
               </div>
             </div>
+          ) : view === "plan" ? (
+            /* ── Plan picker ────────────────────────────────────────────── */
+            <div className="space-y-4">
+              {plansLoading ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 size={20} className="animate-spin text-muted-foreground" />
+                </div>
+              ) : !plansConfigured ? (
+                /* Coming soon — no active plans configured by admin */
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-5 text-center space-y-3">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+                    <Clock size={20} className="text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900">
+                      Premium pricing is being finalised
+                    </p>
+                    <p className="mt-1 text-xs text-amber-800 max-w-xs mx-auto">
+                      We'll notify you the moment Premium becomes available. In the meantime,
+                      keep building your classes on Basic.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onOpenChange(false)}
+                  >
+                    Got it
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Pick a billing period. You can renew or change after the period ends.
+                  </p>
+
+                  <div className="space-y-3">
+                    {(["monthly", "annual"] as const).map((period) => {
+                      const plan = plans?.find((p) => p.billing_period === period);
+                      if (!plan) return null;
+                      const selected = selectedPeriod === period;
+                      const hasDiscount = plan.mrp > 0 && plan.price < plan.mrp;
+                      const savedAmount = hasDiscount ? plan.mrp - plan.price : 0;
+                      const savedPct = hasDiscount ? Math.round((savedAmount / plan.mrp) * 100) : 0;
+                      const monthlyEquivalent =
+                        period === "annual" ? Math.round(plan.price / 12) : null;
+                      const isAnnualBetter =
+                        period === "annual" &&
+                        monthlyPlan &&
+                        monthlyEquivalent !== null &&
+                        monthlyEquivalent < monthlyPlan.price;
+                      return (
+                        <button
+                          key={period}
+                          onClick={() => setSelectedPeriod(period)}
+                          className={`w-full text-left rounded-xl border-2 p-4 transition-all ${
+                            selected
+                              ? "border-amber-500 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm"
+                              : "border-border bg-card hover:border-amber-200"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-bold capitalize">{period}</p>
+                                {period === "annual" && isAnnualBetter && (
+                                  <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700">
+                                    Best value
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                {period === "monthly" ? "Billed every month" : "Billed once a year"}
+                              </p>
+                            </div>
+                            <div
+                              className={`flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors ${
+                                selected
+                                  ? "border-amber-500 bg-amber-500 text-white"
+                                  : "border-muted-foreground/30"
+                              }`}
+                            >
+                              {selected && <Check size={13} strokeWidth={3} />}
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex items-baseline gap-2">
+                            <span className="text-2xl font-bold tracking-tight">
+                              {formatInr(plan.price)}
+                            </span>
+                            {hasDiscount && (
+                              <span className="text-sm text-muted-foreground line-through">
+                                {formatInr(plan.mrp)}
+                              </span>
+                            )}
+                            {hasDiscount && (
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                                Save {formatInr(savedAmount)} ({savedPct}%)
+                              </span>
+                            )}
+                          </div>
+
+                          {monthlyEquivalent !== null && (
+                            <p className="mt-1 text-[10px] text-muted-foreground">
+                              ≈ {formatInr(monthlyEquivalent)}/month
+                            </p>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    className="w-full h-11 gap-2 bg-amber-500 hover:bg-amber-600 text-white"
+                    onClick={() => setView("pay")}
+                    disabled={!selectedPlan}
+                  >
+                    Continue with {selectedPeriod ?? "plan"}
+                    <ArrowRight size={14} />
+                  </Button>
+                </>
+              )}
+            </div>
           ) : (
             /* ── Payment / submission form ──────────────────────────────── */
             <div className="space-y-5">
-              {/* Plan reminder + back to benefits */}
+              {/* Plan summary + back to plan */}
               <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-3">
                 <div className="flex items-center gap-2">
                   <Crown size={14} className="text-amber-600" />
-                  <p className="text-xs font-semibold text-amber-900">Premium upgrade</p>
+                  <div>
+                    <p className="text-xs font-semibold text-amber-900 capitalize">
+                      {selectedPlan?.billing_period ?? "—"} plan
+                    </p>
+                    {selectedPlan && (
+                      <p className="text-[10px] text-amber-800">
+                        Pay {formatInr(selectedPlan.price)}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <button
-                  onClick={() => setView("benefits")}
+                  onClick={() => setView("plan")}
                   className="flex items-center gap-1 text-[10px] font-medium text-amber-700 hover:text-amber-900"
                 >
-                  Review benefits
+                  Change plan
                   <ChevronRight size={11} />
                 </button>
               </div>
 
-              {/* Payment instructions */}
+              {/* Big amount-due headline */}
+              {selectedPlan && (
+                <div className="text-center">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Amount due
+                  </p>
+                  <p className="text-3xl font-bold tracking-tight">
+                    {formatInr(selectedPlan.price)}
+                  </p>
+                </div>
+              )}
+
+              {/* Payment instructions — read from platform_payment_details */}
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   Payment Instructions
                 </p>
-                <div className="rounded-lg bg-muted/60 p-3 space-y-2.5">
-                  <div>
-                    <p className="text-[10px] text-muted-foreground mb-0.5">UPI ID</p>
-                    <p className="text-sm font-mono font-semibold">{UPI_ID}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground mb-0.5">Bank Transfer</p>
-                    <p className="text-xs font-mono">{BANK_DETAILS}</p>
-                  </div>
+                <div className="rounded-lg bg-muted/60 p-3 space-y-3">
+                  {paymentDetails?.upi_id ? (
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">UPI ID</p>
+                        <p className="text-sm font-mono font-semibold break-all">
+                          {paymentDetails.upi_id}
+                        </p>
+                      </div>
+                      {paymentDetails.upi_qr_url && (
+                        <img
+                          src={paymentDetails.upi_qr_url}
+                          alt="UPI QR"
+                          className="h-20 w-20 shrink-0 rounded-lg border bg-white object-contain"
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] italic text-muted-foreground">
+                      UPI not configured — contact the platform admin.
+                    </p>
+                  )}
+
+                  {(paymentDetails?.bank_account || paymentDetails?.ifsc) && (
+                    <div className="border-t pt-2">
+                      <p className="text-[10px] text-muted-foreground mb-0.5">Bank Transfer</p>
+                      {paymentDetails.account_holder && (
+                        <p className="text-xs">{paymentDetails.account_holder}</p>
+                      )}
+                      <p className="text-xs font-mono">
+                        A/C: {paymentDetails.bank_account ?? "—"}
+                        {paymentDetails.ifsc && ` · IFSC: ${paymentDetails.ifsc}`}
+                      </p>
+                      {paymentDetails.bank_name && (
+                        <p className="text-xs">{paymentDetails.bank_name}</p>
+                      )}
+                    </div>
+                  )}
+
                   <p className="text-[10px] text-muted-foreground italic">
                     Add your business name in the payment remarks for faster processing.
                   </p>
@@ -332,7 +553,7 @@ const UpgradeRequestSheet = React.forwardRef<HTMLDivElement, UpgradeRequestSheet
               <Button
                 className="w-full h-11 gap-2 bg-amber-500 hover:bg-amber-600 text-white"
                 onClick={handleSubmit}
-                disabled={upgrade.isPending}
+                disabled={upgrade.isPending || !selectedPlan}
               >
                 {upgrade.isPending ? (
                   <Loader2 size={16} className="animate-spin" />

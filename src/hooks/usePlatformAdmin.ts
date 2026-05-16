@@ -112,6 +112,7 @@ export function usePlatformSubscriptionRequests(status?: string) {
         .select(`
           id, provider_id, requested_tier, status, notes, off_app_payment_ref,
           requested_at, reviewed_by, reviewed_at, granted_until,
+          billing_period, amount_paid,
           service_providers(id, business_name, subscription_tier,
             users(full_name, email, avatar_url)
           )
@@ -134,32 +135,14 @@ export function useApproveSubscription() {
   return useMutation({
     mutationFn: async (input: {
       requestId: string;
-      reviewedBy: string;
-      grantedUntil: string;
+      /** Optional explicit override. If omitted, RPC derives from billing_period. */
+      grantedUntil?: string;
     }) => {
-      // Approve the request
-      const { data: req, error: reqErr } = await supabase
-        .from("provider_subscription_requests")
-        .update({
-          status: "approved",
-          reviewed_by: input.reviewedBy,
-          reviewed_at: new Date().toISOString(),
-          granted_until: input.grantedUntil,
-        })
-        .eq("id", input.requestId)
-        .select("provider_id")
-        .single();
-      if (reqErr) throw reqErr;
-
-      // Upgrade provider tier
-      const { error: provErr } = await supabase
-        .from("service_providers")
-        .update({
-          subscription_tier: "premium",
-          subscription_valid_until: input.grantedUntil,
-        })
-        .eq("id", req.provider_id);
-      if (provErr) throw provErr;
+      const { error } = await supabase.rpc("approve_subscription_request", {
+        p_request_id: input.requestId,
+        p_valid_until: input.grantedUntil ?? null,
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["platform-subscription-requests"] });
@@ -454,6 +437,140 @@ export function useUpdatePlatformSetting() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-settings"] }),
+  });
+}
+
+// ---- Subscription Plans (admin: read & edit) -------------------------------
+
+export type AdminSubscriptionPlan = {
+  id: string;
+  billing_period: "monthly" | "annual";
+  mrp: number;
+  price: number;
+  currency: string;
+  duration_days: number;
+  is_active: boolean;
+  updated_at: string;
+};
+
+export function useAllSubscriptionPlans() {
+  return useQuery({
+    queryKey: ["subscription-plans", "all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("subscription_plans")
+        .select("id, billing_period, mrp, price, currency, duration_days, is_active, updated_at")
+        .order("duration_days");
+      if (error) throw error;
+      return (data ?? []) as AdminSubscriptionPlan[];
+    },
+  });
+}
+
+export function useUpdateSubscriptionPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      billingPeriod: "monthly" | "annual";
+      mrp: number;
+      price: number;
+      isActive: boolean;
+      updatedBy?: string;
+    }) => {
+      const { error } = await supabase
+        .from("subscription_plans")
+        .update({
+          mrp: input.mrp,
+          price: input.price,
+          is_active: input.isActive,
+          updated_by: input.updatedBy ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("billing_period", input.billingPeriod);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["subscription-plans"] });
+    },
+  });
+}
+
+// ---- Platform Payment Details (admin: read & edit) -------------------------
+
+export type AdminPlatformPaymentDetails = {
+  id: string;
+  upi_id: string | null;
+  upi_qr_url: string | null;
+  bank_account: string | null;
+  ifsc: string | null;
+  bank_name: string | null;
+  account_holder: string | null;
+  updated_at: string;
+};
+
+export function useAdminPlatformPaymentDetails() {
+  return useQuery({
+    queryKey: ["platform-payment-details", "admin"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_payment_details")
+        .select("id, upi_id, upi_qr_url, bank_account, ifsc, bank_name, account_holder, updated_at")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as AdminPlatformPaymentDetails | null;
+    },
+  });
+}
+
+export function useUpdatePlatformPaymentDetails() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      id: string;
+      upiId: string | null;
+      upiQrUrl?: string | null;
+      bankAccount: string | null;
+      ifsc: string | null;
+      bankName: string | null;
+      accountHolder: string | null;
+      updatedBy?: string;
+    }) => {
+      const patch: Record<string, unknown> = {
+        upi_id: input.upiId,
+        bank_account: input.bankAccount,
+        ifsc: input.ifsc,
+        bank_name: input.bankName,
+        account_holder: input.accountHolder,
+        updated_by: input.updatedBy ?? null,
+        updated_at: new Date().toISOString(),
+      };
+      if (input.upiQrUrl !== undefined) patch.upi_qr_url = input.upiQrUrl;
+      const { error } = await supabase
+        .from("platform_payment_details")
+        .update(patch)
+        .eq("id", input.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform-payment-details"] });
+    },
+  });
+}
+
+/** Upload UPI QR image to provider-media bucket under a `platform/` folder. */
+export function useUploadPlatformQr() {
+  return useMutation({
+    mutationFn: async ({ file }: { file: File }) => {
+      const ext = file.name.split(".").pop() ?? "png";
+      const path = `platform/upi-qr-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage
+        .from("provider-media")
+        .upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = supabase.storage.from("provider-media").getPublicUrl(path);
+      return data.publicUrl;
+    },
   });
 }
 

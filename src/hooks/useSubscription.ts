@@ -12,12 +12,72 @@ export function useMySubscriptionRequests(providerId?: string) {
       const { data, error } = await supabase
         .from("provider_subscription_requests")
         .select(
-          "id, provider_id, requested_tier, status, notes, off_app_payment_ref, requested_at, reviewed_at, granted_until"
+          "id, provider_id, requested_tier, status, notes, off_app_payment_ref, requested_at, reviewed_at, granted_until, billing_period, amount_paid"
         )
         .eq("provider_id", providerId!)
         .order("requested_at", { ascending: false });
       if (error) throw error;
       return data;
+    },
+  });
+}
+
+// ── Subscription Plans (read) ────────────────────────────────────────────────
+
+export type BillingPeriod = "monthly" | "annual";
+
+export type SubscriptionPlan = {
+  id: string;
+  billing_period: BillingPeriod;
+  mrp: number;
+  price: number;
+  currency: string;
+  duration_days: number;
+  is_active: boolean;
+  updated_at: string;
+};
+
+/**
+ * Returns ACTIVE subscription plans (monthly + annual). Used by the upgrade
+ * sheet. Admin's edit-everything hook lives in usePlatformAdmin.
+ */
+export function useActiveSubscriptionPlans() {
+  return useQuery({
+    queryKey: ["subscription-plans", "active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("subscription_plans")
+        .select("id, billing_period, mrp, price, currency, duration_days, is_active, updated_at")
+        .eq("is_active", true)
+        .order("duration_days");
+      if (error) throw error;
+      return (data ?? []) as SubscriptionPlan[];
+    },
+  });
+}
+
+// ── Platform Payment Details (read) ──────────────────────────────────────────
+
+export type PlatformPaymentDetails = {
+  upi_id: string | null;
+  upi_qr_url: string | null;
+  bank_account: string | null;
+  ifsc: string | null;
+  bank_name: string | null;
+  account_holder: string | null;
+};
+
+export function usePlatformPaymentDetails() {
+  return useQuery({
+    queryKey: ["platform-payment-details"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_payment_details")
+        .select("upi_id, upi_qr_url, bank_account, ifsc, bank_name, account_holder")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as PlatformPaymentDetails | null;
     },
   });
 }
@@ -32,25 +92,24 @@ export function useRequestPremiumUpgrade() {
     mutationFn: async ({
       notes,
       offAppPaymentRef,
+      billingPeriod,
+      amountPaid,
     }: {
       notes?: string;
       offAppPaymentRef?: string;
+      billingPeriod: BillingPeriod;
+      amountPaid: number;
     }) => {
       if (!providerProfile?.id) throw new Error("No provider profile");
-      const { data, error } = await supabase
-        .from("provider_subscription_requests")
-        .insert({
-          provider_id: providerProfile.id,
-          requested_tier: "premium",
-          status: "pending",
-          notes: notes || null,
-          off_app_payment_ref: offAppPaymentRef || null,
-          requested_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
+      const { data, error } = await supabase.rpc("request_premium_upgrade", {
+        p_provider_id: providerProfile.id,
+        p_notes: notes || null,
+        p_off_app_payment_ref: offAppPaymentRef || null,
+        p_billing_period: billingPeriod,
+        p_amount_paid: amountPaid,
+      });
       if (error) throw error;
-      return data;
+      return data as string; // request id
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-subscription-requests"] });

@@ -19,7 +19,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Calendar, Crown, Loader2, XCircle } from "lucide-react";
+import { Calendar, Crown, Loader2, Repeat, Wallet, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 type TabValue = "pending" | "approved" | "rejected";
@@ -43,18 +43,20 @@ const PlatformSubscriptions = () => {
   const reject = useRejectSubscription();
 
   const handleApprove = async () => {
-    if (!approveId || !profile || !grantedUntil) return;
+    if (!approveId || !profile) return;
     try {
       await approve.mutateAsync({
         requestId: approveId,
-        reviewedBy: profile.id,
-        grantedUntil: new Date(grantedUntil).toISOString(),
+        // If the admin entered an explicit date, use it; otherwise the RPC
+        // derives the expiry from the request's billing_period (30 / 365 days).
+        grantedUntil: grantedUntil ? new Date(grantedUntil).toISOString() : undefined,
       });
       toast.success("Subscription approved — provider upgraded to Premium");
       setApproveId(null);
       setGrantedUntil("");
-    } catch {
-      toast.error("Failed to approve subscription");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to approve subscription";
+      toast.error(msg);
     }
   };
 
@@ -160,6 +162,24 @@ const PlatformSubscriptions = () => {
                   </span>
                 </div>
 
+                {/* Plan + amount paid */}
+                {(req.billing_period || req.amount_paid != null) && (
+                  <div className="flex flex-wrap gap-2">
+                    {req.billing_period && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                        <Repeat size={10} />
+                        <span className="capitalize">{req.billing_period}</span>
+                      </span>
+                    )}
+                    {req.amount_paid != null && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                        <Wallet size={10} />
+                        ₹{Number(req.amount_paid).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {/* Payment reference */}
                 {req.off_app_payment_ref && (
                   <div className="rounded-lg bg-muted/60 px-3 py-2">
@@ -234,7 +254,8 @@ const PlatformSubscriptions = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>
-                Premium Valid Until <span className="text-destructive">*</span>
+                Premium Valid Until{" "}
+                <span className="text-muted-foreground font-normal text-xs">(optional)</span>
               </Label>
               <Input
                 type="date"
@@ -244,13 +265,14 @@ const PlatformSubscriptions = () => {
                 className="h-11"
               />
               <p className="text-xs text-muted-foreground">
-                Instructor's subscription will auto-expire after this date.
+                Leave blank to auto-set from the chosen plan (Monthly → +30 days, Annual → +365 days).
+                Subscription will auto-expire on this date.
               </p>
             </div>
             <Button
               className="w-full h-11 gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
               onClick={handleApprove}
-              disabled={!grantedUntil || approve.isPending}
+              disabled={approve.isPending}
             >
               {approve.isPending ? (
                 <Loader2 size={16} className="animate-spin" />
