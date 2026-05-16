@@ -381,6 +381,7 @@ export type Database = {
       }
       certifications: {
         Row: {
+          coach_id: string | null
           created_at: string
           id: string
           image_url: string
@@ -394,6 +395,7 @@ export type Database = {
           year_obtained: number | null
         }
         Insert: {
+          coach_id?: string | null
           created_at?: string
           id?: string
           image_url: string
@@ -407,6 +409,7 @@ export type Database = {
           year_obtained?: number | null
         }
         Update: {
+          coach_id?: string | null
           created_at?: string
           id?: string
           image_url?: string
@@ -420,6 +423,13 @@ export type Database = {
           year_obtained?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "certifications_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "certifications_provider_id_fkey"
             columns: ["provider_id"]
@@ -833,6 +843,158 @@ export type Database = {
           },
         ]
       }
+      coach_assignments: {
+        Row: {
+          coach_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_temporary: boolean
+          original_coach_id: string | null
+          scope_id: string
+          scope_type: string
+          status: string
+          updated_at: string | null
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_temporary?: boolean
+          original_coach_id?: string | null
+          scope_id: string
+          scope_type: string
+          status?: string
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_temporary?: boolean
+          original_coach_id?: string | null
+          scope_id?: string
+          scope_type?: string
+          status?: string
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_assignments_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coach_assignments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coach_assignments_original_coach_id_fkey"
+            columns: ["original_coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coaches: {
+        Row: {
+          academy_provider_id: string
+          accepted_at: string | null
+          bio: string | null
+          created_at: string | null
+          email: string
+          experience_years: number | null
+          full_name: string
+          id: string
+          invited_at: string | null
+          invited_by: string | null
+          linked_user_id: string | null
+          phone: string | null
+          photo_url: string | null
+          qualifications: string | null
+          removed_at: string | null
+          specializations: string[] | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          academy_provider_id: string
+          accepted_at?: string | null
+          bio?: string | null
+          created_at?: string | null
+          email: string
+          experience_years?: number | null
+          full_name: string
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          linked_user_id?: string | null
+          phone?: string | null
+          photo_url?: string | null
+          qualifications?: string | null
+          removed_at?: string | null
+          specializations?: string[] | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          academy_provider_id?: string
+          accepted_at?: string | null
+          bio?: string | null
+          created_at?: string | null
+          email?: string
+          experience_years?: number | null
+          full_name?: string
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          linked_user_id?: string | null
+          phone?: string | null
+          photo_url?: string | null
+          qualifications?: string | null
+          removed_at?: string | null
+          specializations?: string[] | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coaches_academy_provider_id_fkey"
+            columns: ["academy_provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coaches_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coaches_linked_user_id_fkey"
+            columns: ["linked_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demo_registrations: {
         Row: {
           created_at: string
@@ -953,8 +1115,10 @@ export type Database = {
           family_member_id: string
           id: string
           notes: string | null
+          pending_switch_to_batch_id: string | null
           selected_addon_ids: string[]
           status: string
+          switch_requested_at: string | null
           updated_at: string
         }
         Insert: {
@@ -968,8 +1132,10 @@ export type Database = {
           family_member_id: string
           id?: string
           notes?: string | null
+          pending_switch_to_batch_id?: string | null
           selected_addon_ids?: string[]
           status?: string
+          switch_requested_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -983,8 +1149,10 @@ export type Database = {
           family_member_id?: string
           id?: string
           notes?: string | null
+          pending_switch_to_batch_id?: string | null
           selected_addon_ids?: string[]
           status?: string
+          switch_requested_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1007,6 +1175,13 @@ export type Database = {
             columns: ["family_member_id"]
             isOneToOne: false
             referencedRelation: "family_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_pending_switch_to_batch_id_fkey"
+            columns: ["pending_switch_to_batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
             referencedColumns: ["id"]
           },
         ]
@@ -1519,6 +1694,58 @@ export type Database = {
           {
             foreignKeyName: "notifications_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_reminder_log: {
+        Row: {
+          channel: string
+          enrollment_id: string | null
+          id: string
+          notes: string | null
+          payment_id: string | null
+          sent_at: string | null
+          sent_by: string
+        }
+        Insert: {
+          channel?: string
+          enrollment_id?: string | null
+          id?: string
+          notes?: string | null
+          payment_id?: string | null
+          sent_at?: string | null
+          sent_by: string
+        }
+        Update: {
+          channel?: string
+          enrollment_id?: string | null
+          id?: string
+          notes?: string | null
+          payment_id?: string | null
+          sent_at?: string | null
+          sent_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_reminder_log_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_reminder_log_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_reminder_log_sent_by_fkey"
+            columns: ["sent_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -2483,6 +2710,7 @@ export type Database = {
         Returns: unknown
       }
       _st_within: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      accept_coach_invites: { Args: never; Returns: number }
       addauth: { Args: { "": string }; Returns: boolean }
       addgeometrycolumn:
         | {
@@ -2535,6 +2763,36 @@ export type Database = {
         Args: { p_request_id: string; p_valid_until: string }
         Returns: undefined
       }
+      assign_coach: {
+        Args: {
+          p_coach_id: string
+          p_is_temporary?: boolean
+          p_scope_id: string
+          p_scope_type: string
+          p_valid_from?: string
+          p_valid_until?: string
+        }
+        Returns: {
+          coach_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_temporary: boolean
+          original_coach_id: string | null
+          scope_id: string
+          scope_type: string
+          status: string
+          updated_at: string | null
+          valid_from: string | null
+          valid_until: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "coach_assignments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       bulk_approve_certifications: {
         Args: { p_cert_ids: string[]; p_notes?: string; p_provider_id: string }
         Returns: {
@@ -2543,6 +2801,8 @@ export type Database = {
         }[]
       }
       create_own_family: { Args: never; Returns: string }
+      current_academy_provider_ids: { Args: never; Returns: string[] }
+      current_coach_ids: { Args: never; Returns: string[] }
       current_user_id: { Args: never; Returns: string }
       delete_family_member: {
         Args: { p_member_id: string }
@@ -2588,6 +2848,29 @@ export type Database = {
         Returns: unknown
       }
       enablelongtransactions: { Args: never; Returns: string }
+      end_coach_assignment: {
+        Args: { p_assignment_id: string }
+        Returns: {
+          coach_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_temporary: boolean
+          original_coach_id: string | null
+          scope_id: string
+          scope_type: string
+          status: string
+          updated_at: string | null
+          valid_from: string | null
+          valid_until: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "coach_assignments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       ensure_self_family_member: {
         Args: { p_family_id: string; p_full_name: string }
         Returns: string
@@ -2741,11 +3024,53 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
+      invite_coach: {
+        Args: {
+          p_academy_provider_id: string
+          p_bio?: string
+          p_email: string
+          p_experience_years?: number
+          p_full_name: string
+          p_phone?: string
+          p_photo_url?: string
+          p_qualifications?: string
+          p_specializations?: string[]
+        }
+        Returns: {
+          academy_provider_id: string
+          accepted_at: string | null
+          bio: string | null
+          created_at: string | null
+          email: string
+          experience_years: number | null
+          full_name: string
+          id: string
+          invited_at: string | null
+          invited_by: string | null
+          linked_user_id: string | null
+          phone: string | null
+          photo_url: string | null
+          qualifications: string | null
+          removed_at: string | null
+          specializations: string[] | null
+          status: string
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "coaches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      is_academy_member: { Args: { p_provider_id: string }; Returns: boolean }
       is_chat_participant: {
         Args: { p_conversation_id: string }
         Returns: boolean
       }
       is_class_owner: { Args: { p_class_id: string }; Returns: boolean }
+      is_coach_of_batch: { Args: { p_batch_id: string }; Returns: boolean }
+      is_coach_of_class: { Args: { p_class_id: string }; Returns: boolean }
       is_enrolled_by_my_provider: {
         Args: { p_user_id: string }
         Returns: boolean
@@ -2754,6 +3079,22 @@ export type Database = {
       is_platform_admin: { Args: never; Returns: boolean }
       is_premium: { Args: { p_provider_id: string }; Returns: boolean }
       is_provider_owner: { Args: { p_provider_id: string }; Returns: boolean }
+      learner_cancel_batch_switch: {
+        Args: { p_enrollment_id: string }
+        Returns: undefined
+      }
+      learner_drop_enrollment: {
+        Args: { p_enrollment_id: string }
+        Returns: undefined
+      }
+      learner_request_batch_switch: {
+        Args: {
+          p_enrollment_id: string
+          p_reason?: string
+          p_to_batch_id: string
+        }
+        Returns: undefined
+      }
       longtransactionsenabled: { Args: never; Returns: boolean }
       mark_conversation_read: {
         Args: { p_conversation_id: string }
@@ -2830,9 +3171,17 @@ export type Database = {
       }
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
+      provider_approve_batch_switch: {
+        Args: { p_enrollment_id: string }
+        Returns: undefined
+      }
       provider_of_enrollment: {
         Args: { p_enrollment_id: string }
         Returns: boolean
+      }
+      provider_reject_batch_switch: {
+        Args: { p_enrollment_id: string; p_reason?: string }
+        Returns: undefined
       }
       publish_legal_document: {
         Args: {
@@ -2873,6 +3222,35 @@ export type Database = {
         Args: { p_reason: string; p_request_id: string }
         Returns: undefined
       }
+      remove_coach: {
+        Args: { p_coach_id: string }
+        Returns: {
+          academy_provider_id: string
+          accepted_at: string | null
+          bio: string | null
+          created_at: string | null
+          email: string
+          experience_years: number | null
+          full_name: string
+          id: string
+          invited_at: string | null
+          invited_by: string | null
+          linked_user_id: string | null
+          phone: string | null
+          photo_url: string | null
+          qualifications: string | null
+          removed_at: string | null
+          specializations: string[] | null
+          status: string
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "coaches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       request_premium_upgrade: {
         Args: {
           p_notes?: string
@@ -2902,6 +3280,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      revert_expired_coach_assignments: { Args: never; Returns: number }
       send_notification: {
         Args: {
           p_body: string
@@ -2912,6 +3291,24 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      send_payment_reminder: {
+        Args: { p_notes?: string; p_payment_id: string }
+        Returns: {
+          channel: string
+          enrollment_id: string | null
+          id: string
+          notes: string | null
+          payment_id: string | null
+          sent_at: string | null
+          sent_by: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "payment_reminder_log"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       sponsored_for_location: {
         Args: { p_category_id?: string; p_lat: number; p_lng: number }
