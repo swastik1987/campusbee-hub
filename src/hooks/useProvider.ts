@@ -96,15 +96,59 @@ export function useUploadProviderMedia() {
 // ---- Provider Dashboard Data (v2: all queries use provider_id directly) ----
 
 /**
- * @param scope Optional coach scoping. When `scopedClassIds` / `scopedBatchIds`
- * are passed, results are restricted to those IDs (coach view). Admin omits both.
+ * Coach scope model:
+ *   A coach can be assigned at CLASS scope (covers every batch in that class)
+ *   or at BATCH scope (just that one batch). The two sets are UNIONed —
+ *   i.e. allowed_batches = batches WHERE class_id ∈ scopedClassIds OR id ∈ scopedBatchIds.
+ *   Allowed classes = scopedClassIds ∪ parent-class-of(scopedBatchIds).
+ *
+ *   `isCoachScope` flips on when EITHER list is provided. Admin omits the
+ *   scope entirely (omitted means "no scope filter — admin sees everything").
+ */
+type CoachScope = { scopedClassIds?: string[]; scopedBatchIds?: string[] };
+
+async function resolveCoachScopedIds(
+  providerId: string,
+  scope: CoachScope,
+): Promise<{ classIds: string[]; batchIds: string[] }> {
+  const scopedClassIds = new Set(scope.scopedClassIds ?? []);
+  const scopedBatchIds = new Set(scope.scopedBatchIds ?? []);
+
+  // Pull every class for the academy, then narrow client-side to the union.
+  const { data: classes } = await supabase
+    .from("classes")
+    .select("id")
+    .eq("provider_id", providerId);
+  const classIds = (classes ?? []).map((c) => c.id);
+  if (classIds.length === 0) return { classIds: [], batchIds: [] };
+
+  const { data: batches } = await supabase
+    .from("batches")
+    .select("id, class_id")
+    .in("class_id", classIds);
+  const allowedBatches = (batches ?? []).filter(
+    (b) => scopedClassIds.has(b.class_id) || scopedBatchIds.has(b.id),
+  );
+  const allowedClassIds = new Set<string>(scopedClassIds);
+  allowedBatches.forEach((b) => allowedClassIds.add(b.class_id));
+
+  return {
+    classIds: Array.from(allowedClassIds),
+    batchIds: allowedBatches.map((b) => b.id),
+  };
+}
+
+/**
+ * @param scope Optional coach scoping. When provided, results are limited to
+ * the union of `scopedClassIds`-batches and `scopedBatchIds`. Admin omits.
  */
 export function useProviderStats(
   providerId: string | undefined,
-  scope?: { scopedClassIds?: string[]; scopedBatchIds?: string[] }
+  scope?: CoachScope
 ) {
   const scopedClassIds = scope?.scopedClassIds;
   const scopedBatchIds = scope?.scopedBatchIds;
+  const isCoachScope = !!scope;
   return useQuery({
     queryKey: [
       "provider-stats",
@@ -114,63 +158,81 @@ export function useProviderStats(
     ],
     enabled: !!providerId,
     queryFn: async () => {
-      let classQuery = supabase
-        .from("classes")
-        .select("id", { count: "exact", head: true })
-        .eq("provider_id", providerId!)
-        .eq("status", "published");
-      if (scopedClassIds) classQuery = classQuery.in("id", scopedClassIds);
-      const { count: classCount } = await classQuery;
+      let allowedClassIds: string[] | null = null;
+      let allowedBatchIds: string[] | null = null;
+      if (isCoachScope) {
+        const resolved = await resolveCoachScopedIds(providerId!, scope!);
+        allowedClassIds = resolved.classIds;
+        allowedBatchIds = resolved.batchIds;
+      }
 
-      let classesQuery = supabase
-        .from("classes")
-        .select("id")
-        .eq("provider_id", providerId!);
-      if (scopedClassIds) classesQuery = classesQuery.in("id", scopedClassIds);
-      const { data: classes } = await classesQuery;
-      const classIds = classes?.map((c) => c.id) ?? [];
-
-      let studentCount = 0;
-
-      if (classIds.length > 0) {
-        const { data: batches } = await supabase
-          .from("batches")
-          .select("id")
-          .in("class_id", classIds);
-        let batchIds = batches?.map((b) => b.id) ?? [];
-        // Coach batch-level scope: intersect with assigned batches
-        if (scopedBatchIds) {
-          const allowed = new Set(scopedBatchIds);
-          batchIds = batchIds.filter((id) => allowed.has(id));
-        }
-
-        if (batchIds.length > 0) {
-          const { count: sCount } = await supabase
-            .from("enrollments")
+      // ── Active classes count (published only) ───────────────────────────
+      let classCount = 0;
+      if (isCoachScope) {
+        if (allowedClassIds && allowedClassIds.length > 0) {
+          const { count } = await supabase
+            .from("classes")
             .select("id", { count: "exact", head: true })
-            .in("batch_id", batchIds)
-            .eq("status", "active");
-          studentCount = sCount ?? 0;
+            .eq("provider_id", providerId!)
+            .eq("status", "published")
+            .in("id", allowedClassIds);
+          classCount = count ?? 0;
+        }
+      } else {
+        const { count } = await supabase
+          .from("classes")
+          .select("id", { count: "exact", head: true })
+          .eq("provider_id", providerId!)
+          .eq("status", "published");
+        classCount = count ?? 0;
+      }
+
+      // ── Active students count ───────────────────────────────────────────
+      let studentCount = 0;
+      let batchIds: string[] = [];
+
+      if (isCoachScope) {
+        batchIds = allowedBatchIds ?? [];
+      } else {
+        const { data: classes } = await supabase
+          .from("classes")
+          .select("id")
+          .eq("provider_id", providerId!);
+        const classIds = classes?.map((c) => c.id) ?? [];
+        if (classIds.length > 0) {
+          const { data: batches } = await supabase
+            .from("batches")
+            .select("id")
+            .in("class_id", classIds);
+          batchIds = batches?.map((b) => b.id) ?? [];
         }
       }
 
-      // Pending payments — admin sees all for their provider; coach sees only
-      // payments for enrollments in batches they're assigned to (best effort
-      // client-side filter; RLS enforces hard limit).
-      let pendingPayments: number | null = null;
-      if (scopedBatchIds || scopedClassIds) {
-        // Aggregate via enrollments → batches → assigned scope
-        const { data: payRows } = await supabase
-          .from("payments")
-          .select("id, enrollments!inner(batch_id)")
-          .eq("provider_id", providerId!)
-          .eq("status", "recorded");
-        const allowedBatches = new Set(scopedBatchIds ?? []);
-        type PayRow = { id: string; enrollments?: { batch_id: string } | null };
-        const ppRows = ((payRows ?? []) as unknown as PayRow[]).filter((p) =>
-          p.enrollments ? allowedBatches.has(p.enrollments.batch_id) : false
-        );
-        pendingPayments = ppRows.length;
+      if (batchIds.length > 0) {
+        const { count: sCount } = await supabase
+          .from("enrollments")
+          .select("id", { count: "exact", head: true })
+          .in("batch_id", batchIds)
+          .eq("status", "active");
+        studentCount = sCount ?? 0;
+      }
+
+      // ── Pending payments ────────────────────────────────────────────────
+      let pendingPayments = 0;
+      if (isCoachScope) {
+        if (batchIds.length > 0) {
+          // Find pending payments whose enrollment belongs to an allowed batch
+          const { data: payRows } = await supabase
+            .from("payments")
+            .select("id, enrollments!inner(batch_id)")
+            .eq("provider_id", providerId!)
+            .eq("status", "recorded");
+          const allowed = new Set(batchIds);
+          type PayRow = { id: string; enrollments?: { batch_id: string } | null };
+          pendingPayments = ((payRows ?? []) as unknown as PayRow[]).filter((p) =>
+            p.enrollments ? allowed.has(p.enrollments.batch_id) : false
+          ).length;
+        }
       } else {
         const { count } = await supabase
           .from("payments")
@@ -181,9 +243,9 @@ export function useProviderStats(
       }
 
       return {
-        activeClasses: classCount ?? 0,
+        activeClasses: classCount,
         activeStudents: studentCount,
-        pendingPayments: pendingPayments ?? 0,
+        pendingPayments,
       };
     },
   });
@@ -191,11 +253,12 @@ export function useProviderStats(
 
 export function useProviderTodaySchedule(
   providerId: string | undefined,
-  scope?: { scopedClassIds?: string[]; scopedBatchIds?: string[] }
+  scope?: CoachScope
 ) {
   const today = new Date().getDay(); // 0=Sun
   const scopedClassIds = scope?.scopedClassIds;
   const scopedBatchIds = scope?.scopedBatchIds;
+  const isCoachScope = !!scope;
   return useQuery({
     queryKey: [
       "provider-today-schedule",
@@ -206,12 +269,21 @@ export function useProviderTodaySchedule(
     ],
     enabled: !!providerId,
     queryFn: async () => {
+      let allowedClassIds: Set<string> | null = null;
+      let allowedBatchIds: Set<string> | null = null;
+      if (isCoachScope) {
+        const resolved = await resolveCoachScopedIds(providerId!, scope!);
+        allowedClassIds = new Set(resolved.classIds);
+        allowedBatchIds = new Set(resolved.batchIds);
+        if (allowedClassIds.size === 0) return [];
+      }
+
       let classQuery = supabase
         .from("classes")
         .select("id, title")
         .eq("provider_id", providerId!)
         .eq("status", "published");
-      if (scopedClassIds) classQuery = classQuery.in("id", scopedClassIds);
+      if (allowedClassIds) classQuery = classQuery.in("id", Array.from(allowedClassIds));
       const { data: classes } = await classQuery;
       if (!classes?.length) return [];
 
@@ -221,7 +293,9 @@ export function useProviderTodaySchedule(
         .select("id, batch_name, class_id, status")
         .in("class_id", classIds)
         .in("status", ["active", "full"]);
-      if (scopedBatchIds) batchQuery = batchQuery.in("id", scopedBatchIds);
+      if (allowedBatchIds && allowedBatchIds.size > 0) {
+        batchQuery = batchQuery.in("id", Array.from(allowedBatchIds));
+      }
       const { data: batches } = await batchQuery;
       if (!batches?.length) return [];
 
@@ -253,10 +327,11 @@ export function useProviderTodaySchedule(
 
 export function useProviderUpcomingSchedule(
   providerId: string | undefined,
-  scope?: { scopedClassIds?: string[]; scopedBatchIds?: string[] }
+  scope?: CoachScope
 ) {
   const scopedClassIds = scope?.scopedClassIds;
   const scopedBatchIds = scope?.scopedBatchIds;
+  const isCoachScope = !!scope;
   const today = new Date();
   const upcomingDays = [1, 2, 3].map((offset) => {
     const d = new Date(today);
@@ -275,12 +350,21 @@ export function useProviderUpcomingSchedule(
     ],
     enabled: !!providerId,
     queryFn: async () => {
+      let allowedClassIds: Set<string> | null = null;
+      let allowedBatchIds: Set<string> | null = null;
+      if (isCoachScope) {
+        const resolved = await resolveCoachScopedIds(providerId!, scope!);
+        allowedClassIds = new Set(resolved.classIds);
+        allowedBatchIds = new Set(resolved.batchIds);
+        if (allowedClassIds.size === 0) return [];
+      }
+
       let classQuery = supabase
         .from("classes")
         .select("id, title")
         .eq("provider_id", providerId!)
         .eq("status", "published");
-      if (scopedClassIds) classQuery = classQuery.in("id", scopedClassIds);
+      if (allowedClassIds) classQuery = classQuery.in("id", Array.from(allowedClassIds));
       const { data: classes } = await classQuery;
       if (!classes?.length) return [];
 
@@ -290,7 +374,9 @@ export function useProviderUpcomingSchedule(
         .select("id, batch_name, class_id, status")
         .in("class_id", classIds)
         .in("status", ["active", "full"]);
-      if (scopedBatchIds) batchQuery = batchQuery.in("id", scopedBatchIds);
+      if (allowedBatchIds && allowedBatchIds.size > 0) {
+        batchQuery = batchQuery.in("id", Array.from(allowedBatchIds));
+      }
       const { data: batches } = await batchQuery;
       if (!batches?.length) return [];
 
@@ -437,10 +523,11 @@ export function useDeleteTrainer() {
 
 export function useProviderActiveBatches(
   providerId: string | undefined,
-  scope?: { scopedClassIds?: string[]; scopedBatchIds?: string[] }
+  scope?: CoachScope
 ) {
   const scopedClassIds = scope?.scopedClassIds;
   const scopedBatchIds = scope?.scopedBatchIds;
+  const isCoachScope = !!scope;
   return useQuery({
     queryKey: [
       "provider-active-batches",
@@ -450,12 +537,21 @@ export function useProviderActiveBatches(
     ],
     enabled: !!providerId,
     queryFn: async () => {
+      let allowedClassIds: Set<string> | null = null;
+      let allowedBatchIds: Set<string> | null = null;
+      if (isCoachScope) {
+        const resolved = await resolveCoachScopedIds(providerId!, scope!);
+        allowedClassIds = new Set(resolved.classIds);
+        allowedBatchIds = new Set(resolved.batchIds);
+        if (allowedClassIds.size === 0) return [];
+      }
+
       let classQuery = supabase
         .from("classes")
         .select("id, title")
         .eq("provider_id", providerId!)
         .eq("status", "published");
-      if (scopedClassIds) classQuery = classQuery.in("id", scopedClassIds);
+      if (allowedClassIds) classQuery = classQuery.in("id", Array.from(allowedClassIds));
       const { data: classes } = await classQuery;
       if (!classes?.length) return [];
 
@@ -466,7 +562,9 @@ export function useProviderActiveBatches(
         .in("class_id", classIds)
         .in("status", ["active", "full"])
         .order("batch_name");
-      if (scopedBatchIds) batchQuery = batchQuery.in("id", scopedBatchIds);
+      if (allowedBatchIds && allowedBatchIds.size > 0) {
+        batchQuery = batchQuery.in("id", Array.from(allowedBatchIds));
+      }
       const { data: batches, error } = await batchQuery;
       if (error) throw error;
 
