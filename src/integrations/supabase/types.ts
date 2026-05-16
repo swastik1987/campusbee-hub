@@ -1869,6 +1869,53 @@ export type Database = {
           },
         ]
       }
+      platform_payment_details: {
+        Row: {
+          account_holder: string | null
+          bank_account: string | null
+          bank_name: string | null
+          id: string
+          ifsc: string | null
+          singleton: boolean
+          updated_at: string
+          updated_by: string | null
+          upi_id: string | null
+          upi_qr_url: string | null
+        }
+        Insert: {
+          account_holder?: string | null
+          bank_account?: string | null
+          bank_name?: string | null
+          id?: string
+          ifsc?: string | null
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          upi_id?: string | null
+          upi_qr_url?: string | null
+        }
+        Update: {
+          account_holder?: string | null
+          bank_account?: string | null
+          bank_name?: string | null
+          id?: string
+          ifsc?: string | null
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          upi_id?: string | null
+          upi_qr_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_payment_details_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_settings: {
         Row: {
           description: string | null
@@ -1903,6 +1950,8 @@ export type Database = {
       }
       provider_subscription_requests: {
         Row: {
+          amount_paid: number | null
+          billing_period: string | null
           granted_until: string | null
           id: string
           notes: string | null
@@ -1916,6 +1965,8 @@ export type Database = {
           status: string
         }
         Insert: {
+          amount_paid?: number | null
+          billing_period?: string | null
           granted_until?: string | null
           id?: string
           notes?: string | null
@@ -1929,6 +1980,8 @@ export type Database = {
           status?: string
         }
         Update: {
+          amount_paid?: number | null
+          billing_period?: string | null
           granted_until?: string | null
           id?: string
           notes?: string | null
@@ -2277,6 +2330,53 @@ export type Database = {
           {
             foreignKeyName: "sponsored_listings_reviewed_by_fkey"
             columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_plans: {
+        Row: {
+          billing_period: string
+          created_at: string
+          currency: string
+          duration_days: number
+          id: string
+          is_active: boolean
+          mrp: number
+          price: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          billing_period: string
+          created_at?: string
+          currency?: string
+          duration_days: number
+          id?: string
+          is_active?: boolean
+          mrp?: number
+          price?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          billing_period?: string
+          created_at?: string
+          currency?: string
+          duration_days?: number
+          id?: string
+          is_active?: boolean
+          mrp?: number
+          price?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_plans_updated_by_fkey"
+            columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -2760,7 +2860,7 @@ export type Database = {
         Returns: string
       }
       approve_subscription_request: {
-        Args: { p_request_id: string; p_valid_until: string }
+        Args: { p_request_id: string; p_valid_until?: string }
         Returns: undefined
       }
       assign_coach: {
@@ -3253,6 +3353,8 @@ export type Database = {
       }
       request_premium_upgrade: {
         Args: {
+          p_amount_paid?: number
+          p_billing_period?: string
           p_notes?: string
           p_off_app_payment_ref?: string
           p_provider_id: string
