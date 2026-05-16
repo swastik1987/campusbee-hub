@@ -19,7 +19,7 @@ const REQUIRES_FAMILY_PREFIXES = [
 ];
 
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
-  const { session, loading, family, profile } = useUser();
+  const { session, loading, family, profile, isCoach } = useUser();
   const location = useLocation();
 
   if (loading) {
@@ -38,6 +38,21 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/auth" replace />;
   }
 
+  // Session present but profile hasn't finished hydrating yet — keep the loading
+  // splash up instead of falsely redirecting. The auth-state callback flips
+  // `loading=false` before `fetchOrCreateProfile` resolves, which used to make
+  // protected routes bounce to "/" on first paint.
+  if (!profile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <img src="/logo-icon.png" alt="CampusBee" className="h-12 w-12 object-contain animate-fade-in" />
+          <p className="text-muted-foreground text-sm animate-fade-up">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   const path = location.pathname;
 
   // Always allow onboarding-exempt routes for any authenticated user
@@ -47,15 +62,19 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
 
   // Platform admin routes
   if (ADMIN_ROUTES.some((r) => path.startsWith(r))) {
-    if (profile?.is_platform_admin) {
+    if (profile.is_platform_admin) {
       return <>{children}</>;
     }
     return <Navigate to="/" replace />;
   }
 
-  // Allow provider routes for users with provider profile (no family required)
-  if (path.startsWith(PROVIDER_ROUTES_PREFIX) || (path.startsWith("/chat") && profile?.is_provider)) {
-    if (profile?.is_provider) {
+  // Provider routes: academy admins (is_provider) AND coaches (linked via the
+  // coaches table) can access. Coaches don't own a service_providers row but
+  // legitimately need /provider/dashboard, /provider/attendance/:batchId,
+  // /provider/payments, etc. for their assigned scope.
+  const canAccessProvider = profile.is_provider || isCoach;
+  if (path.startsWith(PROVIDER_ROUTES_PREFIX) || (path.startsWith("/chat") && canAccessProvider)) {
+    if (canAccessProvider) {
       return <>{children}</>;
     }
     return <Navigate to="/" replace />;
