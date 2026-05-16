@@ -96,7 +96,7 @@ export function useEnrollmentGrowth(providerId?: string, months = 6) {
       // Fetch all enrollments for this provider's classes
       const { data: enrollments, error } = await supabase
         .from("enrollments")
-        .select("id, created_at, batches(classes(provider_id))")
+        .select("id, created_at, batches!batch_id(classes(provider_id))")
         .order("created_at");
       if (error) throw error;
 

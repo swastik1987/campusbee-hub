@@ -721,7 +721,7 @@ export function useMyEnrollments(userId: string | undefined, status?: string) {
           id, status, enrolled_at, selected_addon_ids, notes, created_at,
           pending_switch_to_batch_id, switch_requested_at,
           family_members(id, full_name, relationship, avatar_url),
-          batches(
+          batches!batch_id(
             id, batch_name, skill_level, fee_amount, fee_frequency, status,
             start_date, end_date, max_batch_size, current_enrollment_count,
             trainers(id, name, photo_url),
@@ -764,7 +764,7 @@ export function useEnrollmentDetail(enrollmentId: string | undefined) {
           id, status, enrolled_at, selected_addon_ids, notes, created_at,
           pending_switch_to_batch_id, switch_requested_at,
           family_members(id, full_name, relationship, avatar_url, age_group),
-          batches(
+          batches!batch_id(
             id, batch_name, skill_level, fee_amount, fee_frequency, status,
             start_date, end_date, total_sessions, max_batch_size, current_enrollment_count,
             class_id,

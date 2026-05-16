@@ -10,7 +10,7 @@ export function useProviderRevenue(providerId: string | undefined, months: numbe
     queryFn: async () => {
       const { data: payments, error } = await supabase
         .from("payments")
-        .select("id, amount, status, payment_type, paid_at, created_at, enrollment_id, enrollments(batch_id, batches(class_id, classes(title)))")
+        .select("id, amount, status, payment_type, paid_at, created_at, enrollment_id, enrollments(batch_id, batches!batch_id(class_id, classes(title)))")
         .eq("provider_id", providerId!)
         .eq("status", "confirmed")
         .order("paid_at", { ascending: false });

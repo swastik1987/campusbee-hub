@@ -105,11 +105,15 @@ export function useProviderEnrollments(batchIds: string[], status?: string) {
     queryKey: ["provider-enrollments", batchIds, status],
     enabled: batchIds.length > 0,
     queryFn: async () => {
+      // After migration 029_learner_drop_and_switch added a second FK
+      // (enrollments.pending_switch_to_batch_id → batches), PostgREST can no
+      // longer infer the relationship for a bare `batches(...)` embed. We
+      // disambiguate by spelling the FK column explicitly.
       let query = supabase
         .from("enrollments")
         .select(`
           id, batch_id, family_member_id, enrolled_by, status, enrolled_at, approved_at, dropped_at, notes, created_at,
-          batches(id, batch_name, class_id, fee_amount, fee_frequency, start_date, end_date, status, max_batch_size, current_enrollment_count,
+          batches!batch_id(id, batch_name, class_id, fee_amount, fee_frequency, start_date, end_date, status, max_batch_size, current_enrollment_count,
             classes(id, title),
             batch_schedules(day_of_week, start_time, end_time)
           ),
@@ -139,7 +143,7 @@ export function useRemovedEnrollments(batchIds: string[]) {
         .from("enrollments")
         .select(`
           id, batch_id, family_member_id, enrolled_by, status, enrolled_at, dropped_at, drop_reason, created_at,
-          batches(id, batch_name, class_id, fee_amount, fee_frequency,
+          batches!batch_id(id, batch_name, class_id, fee_amount, fee_frequency,
             classes(id, title),
             batch_schedules(day_of_week, start_time, end_time)
           )
