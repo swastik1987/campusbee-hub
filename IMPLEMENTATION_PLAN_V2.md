@@ -3,15 +3,15 @@
 > Companion to `CLAUDE.md` (v2). Sequenced phases for migrating CampusBee from apartment-scoped marketplace to location-based, subscription-tiered, AI-moderated marketplace.
 > Each phase ends in a deployable, demo-able state. Phases that can run in parallel are marked.
 
-> **Status snapshot — May 17, 2026:**
+> **Status snapshot — May 17, 2026 (updated):**
 > - ✅ Phases 0–7 complete.
-> - ✅ Phase 11 (**Coaches for Premium academies**) complete pending manual migration application.
-> - ✅ Phase 12 (**Admin-configurable subscription pricing + payment details + plan-based upgrade flow**) complete pending manual migration application + admin configuration.
-> - 🟡 Phase 8 (sponsored listings & featured banners) ~30% — admin surface + read hook in place; provider-facing pages, cron edge fn, top-3 Explore merge, banner flow still missing.
-> - 🟡 Phase 9 (stabilization) — partially trimmed; several cleanup items resolved, others still open (see Backlog § B).
-> - ⛔ Phase 10 (cutover) blocked on Phase 8 + remaining backlog items.
+> - ✅ Phase 8 (**Sponsored & Featured**) complete on Supabase + frontend — provider page, banner carousel, refresh cron, impression / click instrumentation all live. See "Phase 8 — Audit" section below for the two correctness fixes layered in May 17.
+> - ✅ Phase 11 (**Coaches for Premium academies**) complete; all migrations applied + edge fn deployed.
+> - ✅ Phase 12 (**Admin-configurable subscription pricing + payment details + plan-based upgrade flow**) complete; admin has configured Monthly + Annual plans.
+> - 🟡 Phase 9 (stabilization) — partially trimmed; several cleanup items resolved, others still open (see Backlog § E).
+> - ⛔ Phase 10 (cutover) blocked on remaining stabilization + cleanup items.
 >
-> Three migrations and one edge function are **waiting on manual apply / deploy** before the latest features are live (Backlog § A). See "Recommended Next Steps" at the end of this file for the prioritised picklist.
+> See "Recommended Next Steps" at the end of this file for the prioritised picklist.
 
 ---
 
@@ -317,7 +317,7 @@
 
 ---
 
-## Phase 8 — Sponsored Listings & Featured Banners (Premium monetization surfaces) — 🟡 IN PROGRESS (~30%)
+## Phase 8 — Sponsored Listings & Featured Banners (Premium monetization surfaces) — ✅ COMPLETE
 
 **Goal:** Premium providers can request sponsored slots; sponsored classes appear in seeker explore top-3.
 
@@ -343,14 +343,27 @@
 
 **Exit criteria:** seekers see a sponsored class; provider sees impression/click counts.
 
-**Current status (May 14, 2026):**
-- ✅ `sponsored_listings` table + admin queue (`/platform/sponsored`) exist.
-- ✅ `useActiveFeaturedListings` reads active sponsored rows by region.
-- ❌ Provider-facing `/provider/sponsored` page **NOT yet built**.
-- ❌ `refresh-sponsored-slots` cron edge function **NOT yet deployed**.
-- ❌ Top-3 merge into Explore + "Featured" badge is **not wired** in the UI (only data path is ready).
-- ❌ `featured_banners` table flow (request → approve → render on home) **NOT yet built**.
-- ❌ `click_count` / `impression_count` increment instrumentation **missing**.
+**Actual outcome (and design adjustments):**
+- **`/provider/sponsored` page** shipped with two tabs (Sponsored Slots + Featured Banners), request sheets, status / views / clicks / CTR per row, cancel action.
+- **`refresh-sponsored-slots` cron** deployed (every 15 min); delegates to `refresh_sponsored_lifecycle()` SECURITY DEFINER RPC that handles both `sponsored_listings` AND `featured_banners` lifecycle in one transaction (approved → active → expired).
+- **Sponsored merge in Explore** — `useActiveSponsoredClassIds` (in `useSeeker.ts`) tags matching cards `isSponsored: true` and Explore sorts them to the top of organic results. `ClassCard.tsx` renders a "Sponsored" badge.
+- **Featured banner flow** — provider request via `useRequestFeaturedBanner` (image upload to dedicated `featured-banners` bucket, region + radius, target URL, linked class) → admin queue at `/platform/sponsored` → seeker render via `SeekerBanners.tsx` (auto-rotating carousel above `/explore`, up to 5 banners, distance-ranked).
+- **Impression / click instrumentation** for BOTH surfaces — banners via `useTrackBannerImpression` / `useTrackBannerClick` (wired in `SeekerBanners`); sponsored class cards via `useTrackSponsoredImpression` / `useTrackSponsoredClick` (wired in `ClassCard.tsx` via IntersectionObserver at 50% threshold; session-deduped). Counter writes go through `increment_*` RPCs that no-op on inactive rows so the client can fire optimistically.
+- **Banner moderation** — uploaded banner images are submitted to `ai-moderate-content` (`ref_type='banner'`) immediately after the row insert; moderation result mirrors back onto `featured_banners.moderation_status`. Best-effort: a moderation failure doesn't block the request, admin can still approve manually.
+
+**Design adjustments from the original plan:**
+- **`home_banner` surface dropped** (migration 033). All banners are explore-only now. The frontend's `FeaturedBannerSurface` union still names `home_banner` but the branch is dead code.
+- **`sponsored_listings` region columns removed** (migration 034). The slot is scoped to the class's own location; no separate region. The CLAUDE.md schema reflects this.
+- **`slot_position` not persisted by the cron** — instead computed at query time inside `sponsored_for_location` based on distance + per-category slot caps (see `platform_settings.sponsored.slots_per_category`, seeded by migration 032).
+- **Centralised lifecycle RPC** (`refresh_sponsored_lifecycle`) handles both tables in one round-trip.
+
+**Migrations applied:** `029_sponsored_listings_extend`, `030_featured_banners_extend`, `031_sponsored_rpcs`, `032_sponsored_settings_seed`, `033_drop_home_banner_surface`, `034_sponsored_drop_region_columns`, `035_sponsored_for_location_rewrite`.
+
+**Phase 8 audit (May 17, 2026):** initial review flagged two correctness gaps that have since been fixed:
+- Sponsored-card impression / click tracking — the hooks existed in `useSponsored.ts` but were unused; now wired in `ClassCard.tsx` via IntersectionObserver.
+- Banner image moderation — uploads now call `submitForModeration` immediately after the row insert in `BannerRequestSheet`.
+
+Both fixes shipped in the same PR as this docs update.
 
 ---
 
@@ -538,21 +551,19 @@ With a small team (2 frontend + 1 backend): **3–4 weeks**.
 
 > This section is the **single source of truth** for what's still pending. Update as items land. Items are roughly ordered by user-visible impact, not strict dependency.
 
-### A. Manual deploy / configuration on Supabase — *blocks new features from going live*
-1. **Apply migration `20260515150000_coaches.sql`** (Phase 11). Coaches feature is dead on prod until this runs.
-2. **Apply migration `20260516120000_coach_student_names.sql`** (Phase 11 companion).
-3. **Apply migration `20260517120000_subscription_plans.sql`** (Phase 12). Until this lands, the new upgrade sheet errors and the plan-validation RPC fails.
-4. **Deploy edge function `revert-expired-coach-assignments`** and schedule daily cron (suggested `0 2 * * *` IST).
-5. **Configure Monthly + Annual plans** at `/platform/settings` and flip Active. Without this, the upgrade picker shows the "Coming soon" card.
-6. **Configure platform UPI ID + bank details** at `/platform/settings`. Without this, the payment screen has nothing to render.
-7. **Regenerate Supabase types** (`supabase gen types typescript --linked > src/integrations/supabase/types.ts`) after the three migrations land. This removes the residual `any` shims in `useCoaches.ts`, `useSubscription.ts`, `usePlatformAdmin.ts`, `UserContext.tsx`.
+### A. Manual deploy / configuration on Supabase — *all done as of May 17, 2026*
+- ✅ Coaches migrations applied (`20260515150000`, `20260516120000`).
+- ✅ Subscription plans migration applied (`20260517120000`).
+- ✅ Phase 8 migrations applied (`029b`, `030`–`035`).
+- ✅ Edge functions deployed: `revert-expired-coach-assignments` (daily), `refresh-sponsored-slots` (15-min).
+- ✅ Monthly + Annual plans configured at `/platform/settings` and marked Active.
+- ✅ Platform UPI ID + bank details configured.
+- ⏳ **Regenerate Supabase types** — still pending. Run `supabase gen types typescript --linked > src/integrations/supabase/types.ts` to drop the residual `any` shims in `useCoaches.ts`, `useSubscription.ts`, `usePlatformAdmin.ts`, `UserContext.tsx`, `useSponsored.ts`.
 
-### B. Phase 8 — Sponsored & Featured (highest user-visible priority — blocks full Premium monetization)
-1. **`/provider/sponsored` page** — pick a class, pick region center + radius_km, valid_from/until, optional banner image upload (moderated). Status indicator + history table.
-2. **Explore top-3 merge** — `useActiveFeaturedListings({lat, lng})` results merged into the first 3 cards with a "Featured" badge. Tie-break by `slot_position`.
-3. **`refresh-sponsored-slots` cron edge function** — every 15 min: expire past `valid_until`, recompute `slot_position` per region (deterministic by `requested_at`).
-4. **`featured_banners` flow** — table already in schema spec; build the request UI + admin approval + rotating banner on home / explore (per region).
-5. **Impression / click instrumentation** — increment `sponsored_listings.impression_count` on card render and `click_count` on tap; debounced to avoid scroll spam.
+### B. Phase 8 sponsored / featured follow-ups (post-completion)
+1. **Remove the `home_banner` dead code path** from `useSponsored.ts` (`FeaturedBannerSurface` union, the `surface === "home_banner"` short-circuits in `useFeaturedBannersForLocation`, the explicit-null lat/lng handling). Migration 033 enforced the rule at the DB; the typed paths are now dead.
+2. **Delete the `@deprecated` legacy hooks** in `useFeatured.ts` (`useRequestSponsoredListing`, `useProviderFeaturedRequests`, `useRequestFeaturedListing`, `useAdminFeaturedRequests`, `useAdminRespondFeatured`, `useAdminRejectFeatured`, `useProviderRespondToFeaturedFee`, `useAdminDeactivateFeatured`, `useAdminReactivateFeatured`) once a grep confirms zero callers. `useFeaturedClasses` in `useSeeker.ts` is in the same boat.
+3. **A/B optimisation knobs** — surface `sponsored.slots_per_category` in `/platform/settings` as a structured editor instead of raw JSON. Same for the 5-banner cap (currently hardcoded `MAX_SLOTS` in `SeekerBanners.tsx`).
 
 ### C. Coaches — known follow-ups (post-Phase 11)
 1. **Drop the legacy `trainers` table** after one release of running on `coaches` in prod without issue. Pre-flight: ensure no app code reads `trainers`; the migration kept it as a safety fallback.
@@ -614,37 +625,12 @@ With a small team (2 frontend + 1 backend): **3–4 weeks**.
 
 > A pragmatic, sequenced picklist. Each sprint ends at a demoable / verifiable checkpoint. Calibrate to your team size — single-dev estimates in parentheses.
 
-### Sprint 0 — Unblock production (~half day, single dev) — *do this first*
-The features we've already coded are sitting on the branch but inert in prod until manual actions land.
+### Sprint 0 (~half day) — *complete as of May 17, 2026*
+- ✅ All migrations applied; edge functions deployed + cron-scheduled; admin configured plans + payment details.
+- ⏳ **One residual item:** regenerate Supabase types (`supabase gen types typescript --linked > src/integrations/supabase/types.ts`) and commit. Removes the `any` shims in `useCoaches.ts`, `useSubscription.ts`, `usePlatformAdmin.ts`, `UserContext.tsx`, `useSponsored.ts`.
 
-1. **Take a Supabase backup** (one click in the dashboard) before applying any migration.
-2. **Apply the three migrations in order, in the Supabase SQL editor:**
-   - `20260515150000_coaches.sql`
-   - `20260516120000_coach_student_names.sql`
-   - `20260517120000_subscription_plans.sql`
-3. **Regenerate types:** `supabase gen types typescript --linked > src/integrations/supabase/types.ts`, commit.
-4. **Deploy edge function** `revert-expired-coach-assignments` and schedule a daily cron (`0 2 * * *` IST suggested).
-5. **Configure pricing** at `/platform/settings` → Subscription Pricing: set MRP / Selling Price for Monthly and Annual; flip Active for at least one. Live discount % renders automatically.
-6. **Configure payment details** at `/platform/settings` → Payment Details: UPI ID (required), optional UPI QR upload, full bank section.
-7. **Smoke test:**
-   - Log in as an academy provider, invite a coach by email. Log in as that email; confirm Coach badge in header + scoped dashboard.
-   - Log in as a Basic provider; open the upgrade sheet from `/provider/dashboard`. Verify Benefits → Plan Picker → Payment flow renders end-to-end.
-   - Submit a test upgrade request, approve from `/platform/subscriptions` leaving the date blank. Confirm `subscription_valid_until` auto-derives to +30 / +365 days.
-
-**Exit:** Coaches + admin-configurable Premium are live; type-shims removed; one sample request flowed through.
-
----
-
-### Sprint 1 — Phase 8 sponsored & featured (~1 week, single dev)
-This is the biggest user-visible gap. The data path exists; the surfaces don't.
-
-1. **Build `/provider/sponsored` page** — class picker, region + radius + date inputs, optional banner upload (goes through the moderation pipeline), status / history table.
-2. **Wire Explore top-3 merge** — pull `useActiveFeaturedListings({lat, lng})`, merge ahead of organic results, render with gold "Featured" badge.
-3. **Build & deploy `refresh-sponsored-slots` cron** (every 15 min): expire past `valid_until`, recompute `slot_position` per region. Mirrors the `revert-expired-coach-assignments` shape.
-4. **Build `featured_banners` flow** — provider upload UI (moderated) → admin queue → rotating banner on Landing/Explore for seekers in the banner's region.
-5. **Add impression / click instrumentation** — increment `sponsored_listings.impression_count` on card render (IntersectionObserver), `click_count` on tap. Debounce both.
-
-**Exit:** Premium provider can request and run a sponsored campaign end-to-end; seekers see Featured cards; banner appears for in-region seekers.
+### Sprint 1 (~1 week) — *complete as of May 17, 2026*
+- ✅ Phase 8 surfaces all shipped: provider page, refresh cron, Explore sponsored merge, banner carousel, sponsored + banner instrumentation, banner moderation. See Phase 8 audit fixes ship together with this docs refresh.
 
 ---
 

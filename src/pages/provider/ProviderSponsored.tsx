@@ -3,11 +3,16 @@
  *
  * Two tabs:
  *   1. Sponsored Listings — class appears top-of-Explore in a region.
- *   2. Featured Banners   — image banner on Landing (home) or Explore (carousel).
+ *   2. Featured Banners   — image banner in the /explore page carousel
+ *      (home-banner surface discontinued in migration 033).
  *
  * Premium-only.  Basic providers see an upgrade upsell instead of forms.
  * Pricing is "Contact admin for pricing" per Phase 8 design — no fixed price
  * displayed.
+ *
+ * Uploaded banner images are pushed through `ai-moderate-content` immediately
+ * after the row insert so admin sees them in the moderation queue and the
+ * banner doesn't go live until approved.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -23,6 +28,7 @@ import {
   useCancelSponsored,
   useCancelFeaturedBanner,
 } from "@/hooks/useSponsored";
+import { useSubmitForModeration } from "@/hooks/useModeration";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/BottomNav";
 import MapplsPicker from "@/components/location/MapplsPicker";
@@ -82,8 +88,9 @@ function ctr(impressions: number, clicks: number) {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 const ProviderSponsored = () => {
-  const { providerProfile, isPremium } = useUser();
+  const { profile, providerProfile, isPremium } = useUser();
   const providerId = providerProfile?.id;
+  const ownerUserId = profile?.id;
   const [params] = useSearchParams();
   const prefillClassId = params.get("classId") ?? undefined;
 
@@ -121,7 +128,7 @@ const ProviderSponsored = () => {
             <SponsoredTab providerId={providerId!} prefillClassId={prefillClassId} />
           </TabsContent>
           <TabsContent value="banners">
-            <BannersTab providerId={providerId!} />
+            <BannersTab providerId={providerId!} ownerUserId={ownerUserId!} />
           </TabsContent>
         </Tabs>
       </main>
@@ -146,7 +153,7 @@ const PremiumUpsell = () => {
           <Crown size={32} className="text-amber-500" />
           <h2 className="mt-3 text-xl font-bold">Sponsored & Featured are Premium</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Upgrade to Premium to request top-3 Explore placements and home / explore banners.
+            Upgrade to Premium to request top-of-Explore sponsored placements and Explore-carousel banners.
           </p>
           <Button
             className="mt-5 w-full bg-amber-500 hover:bg-amber-600"
@@ -285,7 +292,7 @@ const SponsoredTab = ({
 // Banners tab
 // ────────────────────────────────────────────────────────────────────────────
 
-const BannersTab = ({ providerId }: { providerId: string }) => {
+const BannersTab = ({ providerId, ownerUserId }: { providerId: string; ownerUserId: string }) => {
   const [open, setOpen] = useState(false);
   const { data: rows, isLoading } = useMyFeaturedBanners(providerId);
   const cancel = useCancelFeaturedBanner();
@@ -310,7 +317,7 @@ const BannersTab = ({ providerId }: { providerId: string }) => {
         <EmptyState
           icon={Sparkles}
           title="No banners yet"
-          body="Request a banner placement on the home page (single rotating) or in Explore (carousel)."
+          body="Request a banner placement in the Explore page carousel."
         />
       ) : (
         <ul className="space-y-3">
@@ -374,6 +381,7 @@ const BannersTab = ({ providerId }: { providerId: string }) => {
       {open && (
         <BannerRequestSheet
           providerId={providerId}
+          ownerUserId={ownerUserId}
           open={open}
           onOpenChange={setOpen}
         />
@@ -493,15 +501,18 @@ const SponsoredRequestSheet = ({
 
 const BannerRequestSheet = ({
   providerId,
+  ownerUserId,
   open,
   onOpenChange,
 }: {
   providerId: string;
+  ownerUserId: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) => {
   const upload = useUploadFeaturedBannerImage();
   const request = useRequestFeaturedBanner();
+  const submitForModeration = useSubmitForModeration();
   const { data: classes } = useProviderClasses(providerId, "published");
 
   const [file, setFile] = useState<File | null>(null);
@@ -527,7 +538,7 @@ const BannerRequestSheet = ({
     if (!canSubmit || !file || !region) return;
     try {
       const imageUrl = await upload.mutateAsync({ providerId, file });
-      await request.mutateAsync({
+      const inserted = await request.mutateAsync({
         providerId,
         surface: "explore_banner",
         imageUrl,
@@ -541,6 +552,25 @@ const BannerRequestSheet = ({
         validUntil: new Date(validUntil).toISOString(),
         offAppPaymentRef: paymentRef || undefined,
       });
+
+      // Fire ai-moderate-content so the banner image gets scanned (Sightengine).
+      // The edge function mirrors the result back onto featured_banners.moderation_status.
+      // Best-effort: a moderation failure shouldn't block the request — admin can
+      // still approve manually from /platform/moderation.
+      const bannerId = (inserted as { id?: string } | null)?.id;
+      if (bannerId) {
+        try {
+          await submitForModeration.mutateAsync({
+            refType: "banner",
+            refId: bannerId,
+            ownerUserId,
+            imageUrl,
+          });
+        } catch (modErr) {
+          console.warn("[banner] moderation submit failed:", modErr);
+        }
+      }
+
       toast.success("Banner submitted for review.");
       onOpenChange(false);
     } catch (e) {

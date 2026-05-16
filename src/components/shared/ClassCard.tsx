@@ -1,9 +1,14 @@
 import * as React from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, Home, MapPin, Star } from "lucide-react";
 import { formatDistance } from "@/hooks/useLocation";
+import {
+  useTrackSponsoredImpression,
+  useTrackSponsoredClick,
+} from "@/hooks/useSponsored";
 
 type ClassCardProps = {
   cls: {
@@ -58,6 +63,32 @@ function shortAddress(address: string): string {
 const ClassCard = React.forwardRef<HTMLDivElement, ClassCardProps>(
   ({ cls, variant = "horizontal" }, ref) => {
   const navigate = useNavigate();
+  const trackSponsoredImpression = useTrackSponsoredImpression();
+  const trackSponsoredClick = useTrackSponsoredClick();
+
+  // Sponsored impression tracking — fires once per session when ≥50% of the
+  // sponsored card is in the viewport. Session-dedupe lives in the hook.
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!cls.isSponsored || !cardRef.current) return;
+    const node = cardRef.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          trackSponsoredImpression(cls.id);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [cls.id, cls.isSponsored, trackSponsoredImpression]);
+
+  const handleCardClick = () => {
+    if (cls.isSponsored) trackSponsoredClick(cls.id);
+    navigate(`/class/${cls.id}`);
+  };
 
   const provider = cls.service_providers;
   const providerName = provider?.business_name || provider?.users?.full_name || "Instructor";
@@ -75,11 +106,19 @@ const ClassCard = React.forwardRef<HTMLDivElement, ClassCardProps>(
   const distanceLabel = cls.distanceKm != null ? formatDistance(cls.distanceKm) : null;
   const addressLine = cls.address ? shortAddress(cls.address) : null;
 
+  // Combine the outer forwardRef with our internal IntersectionObserver ref.
+  const setCardNode = (node: HTMLDivElement | null) => {
+    cardRef.current = node;
+    if (typeof ref === "function") ref(node);
+    else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+  };
+
   if (variant === "vertical") {
     return (
       <Card
+        ref={setCardNode}
         className="w-44 flex-shrink-0 cursor-pointer overflow-hidden transition-all hover:shadow-md active:scale-[0.98]"
-        onClick={() => navigate(`/class/${cls.id}`)}
+        onClick={handleCardClick}
       >
         {cls.cover_image_url ? (
           <img src={cls.cover_image_url} alt="" className="h-24 w-full object-cover" />
@@ -123,8 +162,9 @@ const ClassCard = React.forwardRef<HTMLDivElement, ClassCardProps>(
 
   return (
     <Card
+      ref={setCardNode}
       className="flex gap-3 p-3 cursor-pointer transition-all hover:shadow-md active:scale-[0.99]"
-      onClick={() => navigate(`/class/${cls.id}`)}
+      onClick={handleCardClick}
     >
       {cls.cover_image_url ? (
         <img src={cls.cover_image_url} alt="" className="h-20 w-20 rounded-lg object-cover flex-shrink-0" />
