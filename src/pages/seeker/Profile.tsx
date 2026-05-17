@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import Header from "@/components/layout/Header";
-import BottomNav from "@/components/BottomNav";
 import MapplsPicker from "@/components/location/MapplsPicker";
 import type { LocationValue } from "@/hooks/useLocation";
 import {
@@ -839,15 +838,6 @@ const Profile = () => {
       {/* ── Support Request Sheet ────────────────────────────────────────── */}
       <SupportRequestSheet open={supportOpen} onOpenChange={setSupportOpen} />
 
-      <BottomNav
-        persona={
-          activePersona === "platform_admin"
-            ? "platform_admin"
-            : activePersona === "provider"
-              ? "provider"
-              : "seeker"
-        }
-      />
     </div>
   );
 };

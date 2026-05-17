@@ -8,7 +8,6 @@ import {
   useUploadMaterialFile,
 } from "@/hooks/useClassMaterials";
 import Header from "@/components/layout/Header";
-import BottomNav from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -269,7 +268,6 @@ const ProviderMaterials = () => {
         </SheetContent>
       </Sheet>
 
-      <BottomNav persona="provider" />
     </div>
   );
 };

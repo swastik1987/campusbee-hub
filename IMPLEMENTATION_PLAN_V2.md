@@ -4,12 +4,12 @@
 > Each phase ends in a deployable, demo-able state. Phases that can run in parallel are marked.
 
 > **Status snapshot — May 17, 2026 (updated):**
-> - ✅ Phases 0–7 complete.
-> - ✅ Phase 8 (**Sponsored & Featured**) complete on Supabase + frontend — provider page, banner carousel, refresh cron, impression / click instrumentation all live. See "Phase 8 — Audit" section below for the two correctness fixes layered in May 17.
+> - ✅ Phases 0–8 complete.
 > - ✅ Phase 11 (**Coaches for Premium academies**) complete; all migrations applied + edge fn deployed.
 > - ✅ Phase 12 (**Admin-configurable subscription pricing + payment details + plan-based upgrade flow**) complete; admin has configured Monthly + Annual plans.
-> - 🟡 Phase 9 (stabilization) — partially trimmed; several cleanup items resolved, others still open (see Backlog § E).
-> - ⛔ Phase 10 (cutover) blocked on remaining stabilization + cleanup items.
+> - ✅ **Sprint 2 (Stabilization sweep) complete.** v1 references stripped from `EnrollmentDetail.tsx`, `InviteAccept.tsx`; dead `types/database.ts` deleted; 13 deprecated stub hooks deleted across `useProvider.ts` (5) + `usePlatformAdmin.ts` (7) + `useFamily.ts` (1) + the no-op `BottomNav.tsx` stub + its 20 stale consumer imports; `npm run lint:fk-embeds` script added — caught one real silent-zero-row bug in `useProviderPayments` (useEngagement.ts:386) where a nested `batches(...)` embed parented by `enrollments` was missing the `!batch_id` qualifier; re-onboarding nudge banner added on `/explore` for signed-in users with NULL `seeker_home_lat`. Build green, FK guard green, v1-grep clean.
+> - 🟡 Phase 9 (stabilization) — most items done via Sprint 2. Playwright happy-path coverage deferred to Sprint 3 / post-cutover.
+> - ⛔ Phase 10 (cutover) blocked on Sprint 3 + trust/safety hardening.
 >
 > See "Recommended Next Steps" at the end of this file for the prioritised picklist.
 
@@ -581,15 +581,12 @@ With a small team (2 frontend + 1 backend): **3–4 weeks**.
 5. **Tax / GST line item** on the payment screen and admin approval card.
 
 ### E. Stabilization & polish (Phase 9 carryover)
-1. **Carryover-feature regression sweep** — Playwright happy-path coverage for: family CRUD, family linking invite/accept, demo sessions seeker→provider round trip, materials, waitlist auto-offer, chat realtime, reviews + provider reply, announcements, attendance (today + past), notifications bell badge, **Coach assign/reassign/temporary-swap**, **Upgrade-to-Premium plan-picker → admin approval round trip**.
-2. **Cleanup of remaining v1 references** *(still pending — verified May 17, 2026)*:
-   - `src/pages/seeker/EnrollmentDetail.tsx` lines 171, 257 — `cls.provider_apartment_registrations.service_providers` lookups.
-   - `src/pages/seeker/InviteAccept.tsx` line 98 — `invite.families.apartment_complexes.name`.
-   - `src/types/database.ts` — `is_apartment_admin` (line 16), `apartment_id` (lines 48, 60, 129, 406, 480).
-3. **Deprecated hook stubs** — `useProviderRegistrations`, `useProviderPendingTerms`, `useRespondToTerms`, `useProviderClassActionItems`, `useRespondToClassTerms` in `useProvider.ts` are no-op stubs for v1 callers. Delete after a final grep confirms no consumers.
-4. **`BottomNav` stub removal** — file is a no-op but still imported in several pages. Sweep + remove.
-5. **PostgREST FK disambiguation guardrail** — add an ESLint custom rule (or pre-commit grep) that flags `from("enrollments").select(...batches(...)` without a `!batch_id` hint. See CLAUDE.md § Data Fetching for the pattern.
-6. **Re-onboarding nudge for users with `seeker_home_location IS NULL`** — currently they can hit `/explore` with no nearby results.
+1. **Carryover-feature regression sweep** — Playwright happy-path coverage for: family CRUD, family linking invite/accept, demo sessions seeker→provider round trip, materials, waitlist auto-offer, chat realtime, reviews + provider reply, announcements, attendance (today + past), notifications bell badge, **Coach assign/reassign/temporary-swap**, **Upgrade-to-Premium plan-picker → admin approval round trip**. *(Deferred to Sprint 3 — the only Sprint-2 item not completed.)*
+2. ~~**Cleanup of remaining v1 references**~~ — ✅ done in Sprint 2. `EnrollmentDetail.tsx` lines 171 + 257 rewritten to use the v2 `cls?.service_providers` shape (and dead `provider`/`providerUser` locals removed); `InviteAccept.tsx` dropped the `aptName` variable + its three usages; `src/types/database.ts` deleted entirely (0 imports — was dead v1 schema).
+3. ~~**Deprecated hook stubs**~~ — ✅ done in Sprint 2. Deleted from `useProvider.ts` (5: `useProviderRegistrations`, `useProviderPendingTerms`, `useRespondToTerms`, `useProviderClassActionItems`, `useRespondToClassTerms`), `usePlatformAdmin.ts` (6: `usePlatformApartments`, `useApproveApartment`, `useRejectApartment`, `useCreateApartment`, `useAssignAdmin`, `useUnassignAdmin`), and `useFamily.ts` (1: `useCurrentApartment`). Also dropped the `_apartmentRegIds: string[]` no-op param from `useProviderStudentAnalytics` and `useProviderAttendanceAnalytics` since the only caller (`ProviderAnalytics.tsx`) was passing `[]` via the stub.
+4. ~~**`BottomNav` stub removal**~~ — ✅ done in Sprint 2. Removed `import BottomNav` + the JSX render from all 20 consumer files (16 pages + `PlaceholderPage.tsx` + `Profile.tsx`'s multi-line render + `ProviderSponsored.tsx`'s two renders + `CoachesManagement.tsx`'s two renders + `PlatformLayout.tsx`'s wrapping `<div className="md:hidden">`); deleted `src/components/BottomNav.tsx`.
+5. ~~**PostgREST FK disambiguation guardrail**~~ — ✅ done in Sprint 2 as `scripts/check-fk-embeds.mjs` + `npm run lint:fk-embeds` + `npm run validate`. Detects bare `batches(` parented by `enrollments` (direct `.from()` chain or nested embed). Caught one real silent-zero-row bug in `useProviderPayments` (`useEngagement.ts:386`) — `payments → enrollments(…batches(batch_name…))` was returning zero rows for all premium payment listings. Fixed by adding `batches!batch_id`. Extend `AMBIGUOUS_EMBEDS` in the script when new multi-FK targets land.
+6. ~~**Re-onboarding nudge for users with `seeker_home_location IS NULL`**~~ — ✅ done in Sprint 2. Inline amber banner above the explore class grid for signed-in users without lat/lng, CTA opens the existing `setShowLocationSheet(true)` (which already wraps `MapplsPicker` + `useUpdateSeekerLocation`). Anonymous users don't see it.
 7. **PostGIS RPC fallback path** — Explore currently filters client-side from denormalized lat/lng. Wire `nearby_classes` RPC as the canonical server-side path once dataset grows past a few hundred classes.
 
 ### F. Trust, safety, abuse handling
@@ -634,16 +631,16 @@ With a small team (2 frontend + 1 backend): **3–4 weeks**.
 
 ---
 
-### Sprint 2 — Stabilization sweep (~3–4 days)
+### Sprint 2 — Stabilization sweep — ✅ COMPLETE (May 17, 2026)
 Pay down accumulated tech debt before cutover so it doesn't bite during prod use.
 
-1. **Strip remaining v1 references** (backlog § E.2): rewrite `EnrollmentDetail.tsx`, `InviteAccept.tsx`, `types/database.ts` to use v2 schema only.
-2. **Delete deprecated stub hooks** (§ E.3) and `BottomNav.tsx` after a final grep.
-3. **Add the FK-disambiguation guard** (§ E.5) — ESLint rule or pre-commit grep that flags bare `batches(...)` embeds off `enrollments`. Documented but not enforced.
-4. **Re-onboarding nudge for users with NULL `seeker_home_location`** (§ E.6).
-5. **Playwright happy-path coverage** (§ E.1) — one e2e test per major flow including the new Coach assign + plan-picker flows.
+1. ✅ **Stripped remaining v1 references** (backlog § E.2). `EnrollmentDetail.tsx` + `InviteAccept.tsx` rewritten; dead `src/types/database.ts` deleted (0 imports).
+2. ✅ **Deleted deprecated stub hooks** (§ E.3) — 13 stubs across `useProvider.ts` / `usePlatformAdmin.ts` / `useFamily.ts`. Also stripped the no-op `_apartmentRegIds` param from the two analytics hooks. And the `BottomNav.tsx` stub + its 20 consumer imports (§ E.4).
+3. ✅ **Added the FK-disambiguation guard** (§ E.5) as `scripts/check-fk-embeds.mjs` + `npm run lint:fk-embeds` + `npm run validate`. Caught a real silent-zero-row bug in `useProviderPayments` (`useEngagement.ts:386`) that had been swallowing all `payments → enrollments → batches` reads.
+4. ✅ **Re-onboarding nudge for users with NULL `seeker_home_location`** (§ E.6) — amber banner above the Explore grid, opens the existing location picker sheet.
+5. ⏭️ **Playwright happy-path coverage** (§ E.1) — *deferred to Sprint 3 / post-cutover*. Coach-assign + plan-picker round-trip flows are the highest priority when picked up.
 
-**Exit:** `grep -r "provider_apartment_registrations\|is_apartment_admin\|apartment_id" src/` returns zero. CI Playwright green.
+**Exit verified:** `grep -r "provider_apartment_registrations\|is_apartment_admin\|apartment_id\|apartment_complexes\|apartment_admins" src/` returns zero matches. `npm run build` green. `npm run lint:fk-embeds` green. The remaining `/admin/` matches under `src/` are the intentional `<Navigate to="/" replace />` redirect in `App.tsx:150` plus three documentary comments.
 
 ---
 

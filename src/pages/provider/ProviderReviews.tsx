@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useUser } from "@/contexts/UserContext";
 import { useProviderReviews, useReplyToReview } from "@/hooks/useEngagement";
 import Header from "@/components/layout/Header";
-import BottomNav from "@/components/BottomNav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -174,7 +173,6 @@ const ProviderReviews = () => {
         </SheetContent>
       </Sheet>
 
-      <BottomNav persona="provider" />
     </div>
   );
 };

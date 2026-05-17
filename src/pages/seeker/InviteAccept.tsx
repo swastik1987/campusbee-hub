@@ -95,7 +95,6 @@ const InviteAccept = () => {
   }
 
   const inviter = invite.inviter as any;
-  const aptName = (invite.families as any)?.apartment_complexes?.name ?? "their apartment";
 
   // Check if user needs to merge
   const needsMerge = family && family.id !== invite.family_id;
@@ -168,10 +167,7 @@ const InviteAccept = () => {
             <div>
               <h2 className="text-base font-bold">{inviter?.full_name}</h2>
               <p className="text-sm text-muted-foreground">
-                invited you to join their family
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                at {aptName}
+                invited you to join their family on CampusBee
               </p>
             </div>
           </div>
@@ -215,7 +211,7 @@ const InviteAccept = () => {
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <p>
-                You already have a family set up in {aptName}. Joining {inviter?.full_name}'s
+                You already have a family set up. Joining {inviter?.full_name}'s
                 family will merge your family members and enrollments.
               </p>
               {familyMembers.length > 0 && (

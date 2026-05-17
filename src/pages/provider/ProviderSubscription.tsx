@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useUser } from "@/contexts/UserContext";
 import { useMySubscriptionRequests } from "@/hooks/useSubscription";
 import Header from "@/components/layout/Header";
-import BottomNav from "@/components/BottomNav";
 import UpgradeRequestSheet from "@/components/subscription/UpgradeRequestSheet";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -262,7 +261,6 @@ const ProviderSubscription = () => {
       </div>
 
       <UpgradeRequestSheet open={sheetOpen} onOpenChange={setSheetOpen} />
-      <BottomNav persona="provider" />
     </div>
   );
 };

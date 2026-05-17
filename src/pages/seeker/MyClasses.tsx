@@ -4,7 +4,6 @@ import { useUser } from "@/contexts/UserContext";
 import { useMyEnrollments } from "@/hooks/useSeeker";
 import { useLearnerDropEnrollment } from "@/hooks/useEngagement";
 import Header from "@/components/layout/Header";
-import BottomNav from "@/components/BottomNav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -259,7 +258,6 @@ const MyClasses = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <BottomNav persona="seeker" />
     </div>
   );
 };

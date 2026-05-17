@@ -1,6 +1,5 @@
 import { ArrowLeft, type LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import BottomNav from "./BottomNav";
 
 type PlaceholderPageProps = {
   title: string;
@@ -33,8 +32,6 @@ const PlaceholderPage = ({ title, icon: Icon, persona = "seeker" }: PlaceholderP
         </p>
       </main>
 
-      {/* Bottom Nav */}
-      {persona !== "admin" && <BottomNav persona={persona} />}
     </div>
   );
 };

@@ -6,7 +6,6 @@ import {
   useMarkAllNotificationsRead,
 } from "@/hooks/useNotifications";
 import Header from "@/components/layout/Header";
-import BottomNav from "@/components/BottomNav";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -186,7 +185,6 @@ const Notifications = () => {
         )}
       </div>
 
-      <BottomNav persona={activePersona === "provider" ? "provider" : "seeker"} />
     </div>
   );
 };

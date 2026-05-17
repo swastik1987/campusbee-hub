@@ -30,7 +30,6 @@ import {
 } from "@/hooks/useSponsored";
 import { useSubmitForModeration } from "@/hooks/useModeration";
 import Header from "@/components/layout/Header";
-import BottomNav from "@/components/BottomNav";
 import MapplsPicker from "@/components/location/MapplsPicker";
 import UpgradeRequestSheet from "@/components/subscription/UpgradeRequestSheet";
 import { Card } from "@/components/ui/card";
@@ -132,7 +131,6 @@ const ProviderSponsored = () => {
           </TabsContent>
         </Tabs>
       </main>
-      <BottomNav persona="provider" />
     </div>
   );
 };
@@ -164,7 +162,6 @@ const PremiumUpsell = () => {
         </Card>
       </main>
       <UpgradeRequestSheet open={showUpgrade} onOpenChange={setShowUpgrade} />
-      <BottomNav persona="provider" />
     </div>
   );
 };

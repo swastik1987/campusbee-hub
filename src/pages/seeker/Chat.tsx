@@ -10,7 +10,6 @@ import {
   useUnreadCountsByConversation,
 } from "@/hooks/useEngagement";
 import Header from "@/components/layout/Header";
-import BottomNav from "@/components/BottomNav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -268,7 +267,6 @@ const Chat = () => {
         )}
       </div>
 
-      <BottomNav persona={activePersona === "provider" ? "provider" : "seeker"} />
     </div>
   );
 };

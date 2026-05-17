@@ -18,7 +18,6 @@ import {
 } from "@/hooks/useCategoryRequests";
 import CategoryRequestSheet from "@/components/provider/CategoryRequestSheet";
 import { ICON_MAP } from "@/components/provider/IconPicker";
-import BottomNav from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -324,7 +323,6 @@ const ProviderCategories = () => {
         />
       )}
 
-      <BottomNav persona="provider" />
     </div>
   );
 };

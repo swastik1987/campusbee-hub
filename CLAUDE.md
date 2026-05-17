@@ -38,7 +38,7 @@
   - Edge function `ai-moderate-content` orchestrates both
 - **Auth:** Email + password (primary), Google OAuth, Apple OAuth (added May 2026). Magic links removed. Phone OTP planned for future. `public.users.auth_id` is the FK to `auth.users.id` — internal `users.id` is what every other table references.
 - **Payments:** **Track-only** for MVP (no real gateway). Premium grants and sponsored slots are manually toggled by platform admin via in-app workflows.
-- **Dev tools:** Vite dev server on port 8080, vitest, Playwright, ESLint 9, SWC.
+- **Dev tools:** Vite dev server on port 8080, vitest, Playwright, ESLint 9, SWC. `npm run validate` = `lint` + `lint:fk-embeds` (PostgREST FK-disambiguation guard, added Sprint 2).
 - **Deployment:** Lovable (frontend), Supabase (backend).
 
 ---
@@ -56,7 +56,7 @@
 9. **`auth.uid()` vs `users.id` discipline.** Every join from `auth.users` goes through `public.users.auth_id = auth.uid()`. RLS helpers (`current_user_id()`) return the *internal* `public.users.id`. Bugs caused by comparing `users.id` to `auth.uid()` are the single most common RLS mistake — multiple hotfix migrations (`011`, `018b`, `019b`, `20260512072126`, `20260513051521`, `20260513060707`) exist solely to repair this pattern.
 10. **Auth ↔ DB resolution in hooks.** Hooks that need provider context resolve `service_providers` via `users.auth_id = auth.uid()` instead of asserting a single row by `user_id = auth.uid()` (which produced 406 errors). See `useCategoryRequests`, `useCertifications`.
 11. **Single landing entry-point.** `/` is the only landing page. The old `/home` route was removed; all navigation lands on `/` (anonymous landing or signed-in seeker home) or `/explore`.
-12. **Top nav only — no bottom nav.** `BottomNav.tsx` is now a no-op stub (kept for import compatibility). The unified `Header` component with PersonaSwitcher + utility icons (Home, Chat, Notifications, Profile) handles all navigation.
+12. **Top nav only — no bottom nav.** All navigation is handled by the unified `Header` component (PersonaSwitcher + utility icons: Home, Chat, Notifications, Profile). The legacy `BottomNav.tsx` stub was deleted in Sprint 2 — every consumer page now imports nothing for bottom-nav. If you find a stale `<BottomNav>` reference, it's a leftover from a not-yet-rebased branch.
 
 ---
 
@@ -204,7 +204,6 @@ campusbee-hub/
 │   │   │   └── PersonaSwitcher.tsx    # Labels: Learner / Instructor / Platform Admin. Coaches also see the Instructor option even without is_provider.
 │   │   ├── AuthDrawer.tsx             # Google + Apple OAuth + email-password
 │   │   ├── AuthGuard.tsx
-│   │   ├── BottomNav.tsx              # NO-OP stub (kept for import compatibility — top nav only)
 │   │   ├── NavLink.tsx
 │   │   └── PlaceholderPage.tsx
 │   ├── pages/
@@ -253,7 +252,6 @@ campusbee-hub/
 │   │   ├── utils.ts
 │   │   ├── distance.ts                # NEW — haversine fallback, format helpers
 │   │   └── moderation.ts              # NEW — client-side optimistic UI helpers
-│   ├── types/database.ts
 │   ├── App.tsx
 │   ├── main.tsx
 │   └── vite-env.d.ts
@@ -545,7 +543,7 @@ v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **n
   ```ts
   .select(`id, batch_id, batches!batch_id(id, batch_name, ...)`)
   ```
-  Affected hooks (already fixed): `useProviderEnrollments`, `useRemovedEnrollments`, `useMyEnrollments`, `useEnrollmentDetail`, `useEnrollmentGrowth`, `useProviderRevenue`. Watch for this whenever a new FK to a "popular" table is added.
+  Affected hooks (already fixed): `useProviderEnrollments`, `useRemovedEnrollments`, `useMyEnrollments`, `useEnrollmentDetail`, `useEnrollmentGrowth`, `useProviderRevenue`, `useProviderPayments` (the last one was caught by the FK-embed lint in Sprint 2 — silently returning zero rows for months). Watch for this whenever a new FK to a "popular" table is added. **Run `npm run lint:fk-embeds`** (added Sprint 2) — fails the build / pre-commit if any bare `batches(...)` parented by an `enrollments` chain (either via `.from("enrollments")` or a nested `enrollments(...)` embed) is missing the `!batch_id` / `!pending_switch_to_batch_id` qualifier. Extend `AMBIGUOUS_EMBEDS` in `scripts/check-fk-embeds.mjs` when new multi-FK targets land.
 
 ### RLS (Row Level Security)
 - Every table has policies. Patterns:
@@ -852,5 +850,6 @@ Live tracking of items in flight or queued. Move to "done" when shipped + verifi
 
 ### Tech debt / cleanup
 - [ ] `useEngagement.ts`, `useSeeker.ts`, and a few provider pages still use `any` types around the `payment.users` / `enrollment.batches` PostgREST embeds. These can be tightened once Supabase types regenerate.
-- [ ] `BottomNav.tsx` is a no-op stub but still imported in several pages — can be removed after a sweep.
-- [ ] Several deprecated `useProvider.ts` exports (`useProviderRegistrations`, `useProviderPendingTerms`, etc.) return empty stubs for v1 compatibility — safe to delete after confirming no callers remain.
+- [x] `BottomNav.tsx` deleted in Sprint 2 (along with its 20 stale imports across pages).
+- [x] Deprecated stub hooks in `useProvider.ts` (5), `usePlatformAdmin.ts` (6), and `useFamily.ts` (1 — `useCurrentApartment`) deleted in Sprint 2.
+- [x] Dead `src/types/database.ts` (v1 schema interfaces, 0 imports) deleted in Sprint 2.

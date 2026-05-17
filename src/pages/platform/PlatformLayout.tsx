@@ -16,7 +16,6 @@ import {
 import { useUser } from "@/contexts/UserContext";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import BottomNav from "@/components/BottomNav";
 
 const navItems = [
   { path: "/platform",               icon: LayoutDashboard, label: "Dashboard"     },
@@ -122,10 +121,6 @@ const PlatformLayout = () => {
           <Outlet />
         </main>
 
-        {/* Mobile bottom nav */}
-        <div className="md:hidden">
-          <BottomNav persona="platform_admin" />
-        </div>
       </div>
     </div>
   );

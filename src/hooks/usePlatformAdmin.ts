@@ -739,38 +739,3 @@ export function usePlatformGrowth(months: number = 6) {
   });
 }
 
-// ---- Backward-compat stubs (v1 apartment admin hooks — removed in v2) ----
-
-/** @deprecated v2 has no apartment_complexes */
-export function usePlatformApartments() {
-  return useQuery({
-    queryKey: ["platform-apartments-stub"],
-    queryFn: async () => [] as any[],
-    staleTime: Infinity,
-  });
-}
-
-/** @deprecated v2 has no apartment_complexes */
-export function useApproveApartment() {
-  return useMutation({ mutationFn: async (_: any) => {} });
-}
-
-/** @deprecated v2 has no apartment_complexes */
-export function useRejectApartment() {
-  return useMutation({ mutationFn: async (_: any) => {} });
-}
-
-/** @deprecated v2 has no apartment_complexes */
-export function useCreateApartment() {
-  return useMutation({ mutationFn: async (_: any) => {} });
-}
-
-/** @deprecated v2 has no apartment_admins */
-export function useAssignAdmin() {
-  return useMutation({ mutationFn: async (_: any) => {} });
-}
-
-/** @deprecated v2 has no apartment_admins */
-export function useUnassignAdmin() {
-  return useMutation({ mutationFn: async (_: any) => {} });
-}

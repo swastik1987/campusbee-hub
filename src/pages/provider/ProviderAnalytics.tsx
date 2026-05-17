@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useUser } from "@/contexts/UserContext";
-import { useProviderRegistrations } from "@/hooks/useProvider";
 import {
   useProviderRevenue,
   useProviderStudentAnalytics,
@@ -10,7 +9,6 @@ import {
 import { useCompetitorClasses, useEnrollmentGrowth } from "@/hooks/useSubscription";
 import PremiumGate from "@/components/subscription/PremiumGate";
 import Header from "@/components/layout/Header";
-import BottomNav from "@/components/BottomNav";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,12 +46,9 @@ const ProviderAnalytics = () => {
   const { profile, providerProfile, isPremium } = useUser();
   const [tab, setTab] = useState("revenue");
 
-  const { data: registrations } = useProviderRegistrations(providerProfile?.id);
-  const regIds = registrations?.filter((r) => r.status === "approved").map((r) => r.id) ?? [];
-
   const { data: revenue, isLoading: revenueLoading } = useProviderRevenue(providerProfile?.id);
-  const { data: students, isLoading: studentsLoading } = useProviderStudentAnalytics(providerProfile?.id, regIds);
-  const { data: attendance, isLoading: attendanceLoading } = useProviderAttendanceAnalytics(providerProfile?.id, regIds);
+  const { data: students, isLoading: studentsLoading } = useProviderStudentAnalytics(providerProfile?.id);
+  const { data: attendance, isLoading: attendanceLoading } = useProviderAttendanceAnalytics(providerProfile?.id);
   const { data: collection, isLoading: collectionLoading } = useProviderCollectionAnalytics(providerProfile?.id);
 
   // Premium-only data
@@ -456,7 +451,6 @@ const ProviderAnalytics = () => {
         </Tabs>
       </div>
 
-      <BottomNav persona="provider" />
     </div>
   );
 };

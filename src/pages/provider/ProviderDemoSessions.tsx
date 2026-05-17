@@ -6,7 +6,6 @@ import {
   useCancelDemoSession,
 } from "@/hooks/useDemoSessions";
 import Header from "@/components/layout/Header";
-import BottomNav from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -246,7 +245,6 @@ const ProviderDemoSessions = () => {
         </SheetContent>
       </Sheet>
 
-      <BottomNav persona="provider" />
     </div>
   );
 };

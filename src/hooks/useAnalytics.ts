@@ -54,11 +54,7 @@ export function useProviderRevenue(providerId: string | undefined, months: numbe
 
 // ---- Student / Enrollment Analytics ----
 
-/**
- * v2: uses provider_id directly on classes (no apartment registration IDs needed).
- * The apartmentRegIds parameter is kept for API compat but ignored.
- */
-export function useProviderStudentAnalytics(providerId: string | undefined, _apartmentRegIds: string[], months: number = 6) {
+export function useProviderStudentAnalytics(providerId: string | undefined, months: number = 6) {
   return useQuery({
     queryKey: ["provider-student-analytics", providerId, months],
     enabled: !!providerId,
@@ -131,7 +127,7 @@ export function useProviderStudentAnalytics(providerId: string | undefined, _apa
  * v2: uses provider_id directly on classes.
  * The apartmentRegIds parameter is kept for API compat but ignored.
  */
-export function useProviderAttendanceAnalytics(providerId: string | undefined, _apartmentRegIds: string[]) {
+export function useProviderAttendanceAnalytics(providerId: string | undefined) {
   return useQuery({
     queryKey: ["provider-attendance-analytics", providerId],
     enabled: !!providerId,

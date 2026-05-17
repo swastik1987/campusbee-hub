@@ -383,7 +383,7 @@ export function useProviderPayments(providerId: string | undefined, status?: str
           notes, created_at,
           enrollments(id,
             family_members(full_name, relationship),
-            batches(batch_name, classes(title))
+            batches!batch_id(batch_name, classes(title))
           ),
           users!payments_payer_user_id_fkey(full_name, avatar_url)
         `)

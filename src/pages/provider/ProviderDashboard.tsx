@@ -23,7 +23,6 @@ import SwipeToDismiss from "@/components/provider/SwipeToDismiss";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CertificationManager from "@/components/provider/CertificationManager";
 import Header from "@/components/layout/Header";
-import BottomNav from "@/components/BottomNav";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -744,7 +743,6 @@ const ProviderDashboard = () => {
       </Sheet>
 
       <UpgradeRequestSheet open={showUpgrade} onOpenChange={setShowUpgrade} />
-      <BottomNav persona="provider" />
     </div>
   );
 };

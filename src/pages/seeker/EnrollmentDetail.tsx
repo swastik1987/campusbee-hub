@@ -168,8 +168,6 @@ const EnrollmentDetail = () => {
 
   if (!enrollment || !batch) return null;
 
-  const provider = cls?.provider_apartment_registrations?.service_providers;
-  const providerUser = provider?.users;
   const member = enrollment.family_members as any;
   const schedules = batch.batch_schedules ?? [];
 
@@ -254,7 +252,7 @@ const EnrollmentDetail = () => {
         {/* Quick actions grid */}
         <div className="grid grid-cols-2 gap-2">
           <button
-            onClick={() => navigate(`/chat?with=${cls?.service_providers?.user_id ?? cls?.provider_apartment_registrations?.service_providers?.user_id}`)}
+            onClick={() => navigate(`/chat?with=${cls?.service_providers?.user_id}`)}
             className="flex items-center gap-2 rounded-xl p-3 text-left transition-all active:scale-95"
             style={{ backgroundColor: "oklch(0.96 0.04 250)" }}
           >

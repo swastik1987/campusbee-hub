@@ -17,7 +17,6 @@ import { useQuery } from "@tanstack/react-query";
 import PremiumGate from "@/components/subscription/PremiumGate";
 import UpgradeRequestSheet from "@/components/subscription/UpgradeRequestSheet";
 import Header from "@/components/layout/Header";
-import BottomNav from "@/components/BottomNav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -140,7 +139,6 @@ const CoachesManagement = () => {
             Coaches are available for Academy providers only.
           </p>
         </div>
-        <BottomNav persona="provider" />
       </div>
     );
   }
@@ -588,7 +586,6 @@ const CoachesManagement = () => {
       </PremiumGate>
 
       <UpgradeRequestSheet open={upgradeOpen} onOpenChange={setUpgradeOpen} />
-      <BottomNav persona="provider" />
     </div>
   );
 };

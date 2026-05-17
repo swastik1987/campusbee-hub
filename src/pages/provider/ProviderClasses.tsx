@@ -12,7 +12,6 @@ import {
 } from "@/hooks/useClasses";
 import ModerationStatusBadge from "@/components/moderation/ModerationStatusBadge";
 import Header from "@/components/layout/Header";
-import BottomNav from "@/components/BottomNav";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -344,7 +343,6 @@ const ProviderClasses = React.forwardRef<HTMLDivElement, Record<string, never>>(
         </AlertDialogContent>
       </AlertDialog>
 
-      <BottomNav persona="provider" />
     </div>
   );
 });

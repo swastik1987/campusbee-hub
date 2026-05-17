@@ -37,14 +37,3 @@ export function useFamilyMembers(familyId: string | undefined) {
   });
 }
 
-/**
- * @deprecated v2 has no apartment_complexes table.
- * Returns null always; kept so existing callers don't break at compile time.
- */
-export function useCurrentApartment(_apartmentId: string | undefined) {
-  return useQuery({
-    queryKey: ["apartment-stub"],
-    queryFn: async () => null,
-    staleTime: Infinity,
-  });
-}

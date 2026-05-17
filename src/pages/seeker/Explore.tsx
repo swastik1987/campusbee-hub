@@ -16,7 +16,6 @@ import MapplsPicker from "@/components/location/MapplsPicker";
 import Header from "@/components/layout/Header";
 import ClassCard from "@/components/shared/ClassCard";
 import SeekerBanners from "@/components/shared/SeekerBanners";
-import BottomNav from "@/components/BottomNav";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -561,6 +560,29 @@ const Explore = () => {
         {/* ── Results: count + sort pills + class list ───────────────────── */}
         <div className="space-y-4 px-4 pb-8 pt-4">
 
+          {/* Re-onboarding nudge: signed-in users who never finished setting a home location.
+              Without seeker_home_lat/lng, distance + nearby filtering can't work, so we
+              prompt for it up-front rather than letting the empty state surface alone. */}
+          {profile && !hasLocation && (
+            <div className="flex items-start gap-3 rounded-2xl border border-primary/30 bg-primary/10 p-3.5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                <MapPin size={16} className="text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground">Set your home location</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  We'll show classes near you, ranked by distance. Takes 10 seconds.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowLocationSheet(true)}
+                className="shrink-0 self-center rounded-full bg-primary px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-all hover:bg-primary/90 active:scale-95"
+              >
+                Set location
+              </button>
+            </div>
+          )}
+
           {/* Count + sort pills */}
           <div className="flex items-center gap-2">
             <p className="flex-1 text-xs">
@@ -764,7 +786,6 @@ const Explore = () => {
         </SheetContent>
       </Sheet>
 
-      <BottomNav persona="seeker" />
     </div>
   );
 };

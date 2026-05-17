@@ -8,6 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "lint:fk-embeds": "node scripts/check-fk-embeds.mjs",
+    "validate": "npm run lint && npm run lint:fk-embeds",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
