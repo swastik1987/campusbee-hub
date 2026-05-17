@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { useCreateEnrollment, useCreateWaitlistEntry, useRecordPayment } from "@/hooks/useSeeker";
-import { useQuery } from "@tanstack/react-query";
+import { useLearnerDropEnrollment, useLearnerRequestBatchSwitch } from "@/hooks/useEngagement";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Calendar, CheckCircle, Clock, Copy, Loader2, UserPlus } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { ArrowLeft, ArrowRightLeft, AlertCircle, Calendar, CheckCircle, Clock, Copy, Loader2, UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -40,6 +47,26 @@ const EnrollFlow = () => {
   const createEnrollment = useCreateEnrollment();
   const createWaitlist = useCreateWaitlistEntry();
   const recordPayment = useRecordPayment();
+  const dropEnrollment = useLearnerDropEnrollment();
+  const requestBatchSwitch = useLearnerRequestBatchSwitch();
+  const qc = useQueryClient();
+
+  // ── Duplicate-enrollment prompt state ────────────────────────────────────
+  // A family member can only hold ONE active/pending/paused enrollment per class.
+  // When the user taps an already-enrolled member tile (or submit fails due to
+  // the DB trigger from migration 20260517140000), we open this prompt to let
+  // them DROP the existing enrollment or SWITCH it to the batch they're trying
+  // to join. See enforce_one_active_enrollment_per_class in the migration.
+  type DupContext = {
+    memberId: string;
+    memberName: string;
+    existingEnrollmentId: string;
+    existingBatchId: string;
+    existingBatchName: string;
+    existingStatus: string;
+    isSameBatch: boolean; // user tried to enroll in the SAME batch they're already in
+  };
+  const [dupContext, setDupContext] = useState<DupContext | null>(null);
 
   // Lazy ensure: existing users who completed onboarding before migration 026
   // won't have a self member row yet — create it silently on mount.
@@ -142,6 +169,116 @@ const EnrollFlow = () => {
     },
   });
 
+  // For the member picker: which family members already hold a BLOCKING
+  // enrollment (active / pending / paused — NOT completed/dropped) in any
+  // batch of this class? Returns a Map<memberId, existing-enrollment-info>.
+  //
+  // Drives the disabled tile + badge in step 0 and the duplicate prompt.
+  // Status set matches the DB trigger from migration 20260517140000.
+  const memberIdsKey = familyMembers
+    .map((m) => m.id)
+    .filter(Boolean)
+    .sort()
+    .join(",");
+  const { data: existingByMember } = useQuery({
+    queryKey: ["existing-active-enrollments-in-class", cls?.id, memberIdsKey],
+    enabled: !!cls?.id && !!memberIdsKey,
+    queryFn: async () => {
+      const { data: classBatches } = await supabase
+        .from("batches")
+        .select("id, batch_name")
+        .eq("class_id", cls.id);
+      if (!classBatches?.length) {
+        return new Map<string, { enrollmentId: string; batchId: string; batchName: string; status: string }>();
+      }
+      const batchIdsInClass = classBatches.map((b: any) => b.id);
+      const batchNameById = new Map<string, string>(
+        classBatches.map((b: any) => [b.id, b.batch_name]),
+      );
+      const memberIds = memberIdsKey.split(",").filter(Boolean);
+      const { data, error } = await supabase
+        .from("enrollments")
+        .select("id, batch_id, family_member_id, status")
+        .in("batch_id", batchIdsInClass)
+        .in("family_member_id", memberIds)
+        .in("status", ["active", "pending", "paused"]);
+      if (error) throw error;
+      const map = new Map<string, { enrollmentId: string; batchId: string; batchName: string; status: string }>();
+      for (const e of data ?? []) {
+        // Per the rule there should be at most one blocking row per member, but
+        // pre-trigger data could violate that — first wins.
+        if (!map.has(e.family_member_id)) {
+          map.set(e.family_member_id, {
+            enrollmentId: e.id,
+            batchId: e.batch_id,
+            batchName: batchNameById.get(e.batch_id) ?? "another batch",
+            status: e.status,
+          });
+        }
+      }
+      return map;
+    },
+  });
+
+  // Open the duplicate prompt for a given member (used by tile taps + by the
+  // handleEnroll fallback path when the DB trigger fires).
+  const openDupPromptFor = (
+    memberId: string,
+    memberName: string,
+    overrideExisting?: { enrollmentId: string; batchId?: string; batchName?: string; status?: string },
+  ) => {
+    const existing = overrideExisting ?? existingByMember?.get(memberId);
+    if (!existing || !batch) return;
+    setDupContext({
+      memberId,
+      memberName,
+      existingEnrollmentId: existing.enrollmentId,
+      existingBatchId: existing.batchId ?? "",
+      existingBatchName: existing.batchName ?? "another batch",
+      existingStatus: existing.status ?? "active",
+      isSameBatch: (existing.batchId ?? "") === batch.id,
+    });
+  };
+
+  const closeDupPrompt = () => setDupContext(null);
+
+  // CTA: drop the existing enrollment, then auto-continue the new flow.
+  const handleDropAndContinue = async () => {
+    if (!dupContext) return;
+    try {
+      await dropEnrollment.mutateAsync(dupContext.existingEnrollmentId);
+      toast.success(`Dropped from "${dupContext.existingBatchName}"`);
+      // Invalidate the picker query so the tile re-enables, then advance.
+      await qc.invalidateQueries({
+        queryKey: ["existing-active-enrollments-in-class", cls?.id],
+      });
+      setSelectedMemberId(dupContext.memberId);
+      closeDupPrompt();
+      setStep(1);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to drop the existing enrollment");
+    }
+  };
+
+  // CTA: switch the existing enrollment to the batch the user is trying to
+  // join. Provider-approval-gated — we navigate to the existing enrollment so
+  // they see the pending banner.
+  const handleSwitchAndGoToExisting = async () => {
+    if (!dupContext || !batch) return;
+    try {
+      await requestBatchSwitch.mutateAsync({
+        enrollmentId: dupContext.existingEnrollmentId,
+        toBatchId: batch.id,
+        reason: "Requested via EnrollFlow duplicate-enrollment prompt",
+      });
+      toast.success("Switch request sent — instructor will review it");
+      closeDupPrompt();
+      navigate(`/enrollment/${dupContext.existingEnrollmentId}`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to request batch switch");
+    }
+  };
+
   const isFirstTimeEnrollment = !existingEnrollment;
   const applicableRegFee = isFirstTimeEnrollment ? registrationFee : 0;
 
@@ -185,7 +322,25 @@ const EnrollFlow = () => {
       setEnrollmentId(result.id);
       setStep(2);
     } catch (err: any) {
-      toast.error(err?.message || "Enrollment failed");
+      // Defense-in-depth: if our DB trigger blocks the insert because the
+      // member is already enrolled in another batch of this class (e.g. racing
+      // tabs, the picker query was stale, the user bypassed the UI), surface
+      // the same drop/switch prompt instead of a plain error toast.
+      const msg = err?.message ?? String(err);
+      if (typeof msg === "string" && msg.includes("duplicate_class_enrollment")) {
+        const idMatch = msg.match(/existing_enrollment_id=([0-9a-f-]+)/i);
+        const batchMatch = msg.match(/existing_batch=([^)]+)\)/);
+        const memberName = selectedMember?.full_name ?? "this member";
+        if (idMatch) {
+          openDupPromptFor(selectedMemberId, memberName, {
+            enrollmentId: idMatch[1],
+            batchName: batchMatch ? batchMatch[1] : "another batch",
+          });
+          // Don't toast — the prompt is the better surface.
+          return;
+        }
+      }
+      toast.error(msg || "Enrollment failed");
     }
   };
 
@@ -213,11 +368,15 @@ const EnrollFlow = () => {
     }
   };
 
+  // The currently-selected family-member row (or null). Used by the duplicate-
+  // enrollment prompt and the review step.
+  const selectedMember = familyMembers.find((m) => m.id === selectedMemberId) ?? null;
+
   // Name of the selected member (for review step)
   const selectedMemberName =
     selectedMemberId === selfMember?.id
       ? profile?.full_name
-      : familyMembers.find((m) => m.id === selectedMemberId)?.full_name;
+      : selectedMember?.full_name;
 
   // ─── Loading state ────────────────────────────────────────────────────────
   if (batchLoading || !profile) {
@@ -352,40 +511,59 @@ const EnrollFlow = () => {
             <h2 className="text-xl font-bold">Who is enrolling?</h2>
 
             {/* Self member pinned at top */}
-            {selfMember && (
-              <Card
-                className={`flex items-center gap-3 p-4 cursor-pointer transition-all ${
-                  selectedMemberId === selfMember.id
-                    ? "border-2 bg-primary/5"
-                    : "hover:border-primary/40"
-                }`}
-                style={
-                  selectedMemberId === selfMember.id
-                    ? { borderColor: "oklch(0.62 0.20 250)" }
-                    : undefined
-                }
-                onClick={() => setSelectedMemberId(selfMember.id)}
-              >
-                <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                  <AvatarImage src={profile.avatar_url ?? undefined} />
-                  <AvatarFallback className="bg-primary/15 text-primary font-bold text-xs">
-                    {profile.full_name?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold truncate">{profile.full_name}</p>
-                    <span className="flex-shrink-0 text-[10px] font-semibold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">
-                      You
-                    </span>
+            {selfMember && (() => {
+              const dup = existingByMember?.get(selfMember.id);
+              const isDup = !!dup;
+              return (
+                <Card
+                  className={`flex items-center gap-3 p-4 transition-all ${
+                    isDup
+                      ? "border border-amber-300 bg-amber-50/50 cursor-pointer"
+                      : selectedMemberId === selfMember.id
+                        ? "border-2 bg-primary/5 cursor-pointer"
+                        : "hover:border-primary/40 cursor-pointer"
+                  }`}
+                  style={
+                    !isDup && selectedMemberId === selfMember.id
+                      ? { borderColor: "oklch(0.62 0.20 250)" }
+                      : undefined
+                  }
+                  onClick={() =>
+                    isDup
+                      ? openDupPromptFor(selfMember.id, profile.full_name)
+                      : setSelectedMemberId(selfMember.id)
+                  }
+                >
+                  <Avatar className={`h-10 w-10 ${isDup ? "opacity-60 ring-2 ring-amber-300" : "ring-2 ring-primary/20"}`}>
+                    <AvatarImage src={profile.avatar_url ?? undefined} />
+                    <AvatarFallback className="bg-primary/15 text-primary font-bold text-xs">
+                      {profile.full_name?.[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className={`text-sm font-semibold truncate ${isDup ? "text-foreground/70" : ""}`}>{profile.full_name}</p>
+                      <span className="flex-shrink-0 text-[10px] font-semibold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">
+                        You
+                      </span>
+                    </div>
+                    {isDup ? (
+                      <p className="text-[11px] font-semibold text-amber-700 mt-0.5">
+                        Already enrolled in {dup!.batchName} · Tap to switch or drop
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Myself</p>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground">Myself</p>
-                </div>
-                {selectedMemberId === selfMember.id && (
-                  <CheckCircle size={20} className="text-primary flex-shrink-0" />
-                )}
-              </Card>
-            )}
+                  {!isDup && selectedMemberId === selfMember.id && (
+                    <CheckCircle size={20} className="text-primary flex-shrink-0" />
+                  )}
+                  {isDup && (
+                    <AlertCircle size={18} className="text-amber-600 flex-shrink-0" />
+                  )}
+                </Card>
+              );
+            })()}
 
             {/* Divider before other members */}
             {otherMembers.length > 0 && (
@@ -395,38 +573,57 @@ const EnrollFlow = () => {
             )}
 
             {/* Other family members */}
-            {otherMembers.map((member) => (
-              <Card
-                key={member.id}
-                className={`flex items-center gap-3 p-4 cursor-pointer transition-all ${
-                  selectedMemberId === member.id
-                    ? "border-2"
-                    : "hover:border-primary/50"
-                }`}
-                style={
-                  selectedMemberId === member.id
-                    ? { borderColor: "oklch(0.62 0.20 250)", backgroundColor: "oklch(0.96 0.04 250)" }
-                    : undefined
-                }
-                onClick={() => setSelectedMemberId(member.id)}
-              >
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                    {member.full_name?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{member.full_name}</p>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    {member.relationship}
-                    {member.age_group && ` · ${member.age_group}`}
-                  </p>
-                </div>
-                {selectedMemberId === member.id && (
-                  <CheckCircle size={20} className="text-primary flex-shrink-0" />
-                )}
-              </Card>
-            ))}
+            {otherMembers.map((member) => {
+              const dup = existingByMember?.get(member.id);
+              const isDup = !!dup;
+              return (
+                <Card
+                  key={member.id}
+                  className={`flex items-center gap-3 p-4 cursor-pointer transition-all ${
+                    isDup
+                      ? "border border-amber-300 bg-amber-50/50"
+                      : selectedMemberId === member.id
+                        ? "border-2"
+                        : "hover:border-primary/50"
+                  }`}
+                  style={
+                    !isDup && selectedMemberId === member.id
+                      ? { borderColor: "oklch(0.62 0.20 250)", backgroundColor: "oklch(0.96 0.04 250)" }
+                      : undefined
+                  }
+                  onClick={() =>
+                    isDup
+                      ? openDupPromptFor(member.id, member.full_name)
+                      : setSelectedMemberId(member.id)
+                  }
+                >
+                  <Avatar className={`h-10 w-10 ${isDup ? "opacity-60 ring-2 ring-amber-300" : ""}`}>
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                      {member.full_name?.[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-semibold truncate ${isDup ? "text-foreground/70" : ""}`}>{member.full_name}</p>
+                    {isDup ? (
+                      <p className="text-[11px] font-semibold text-amber-700 mt-0.5">
+                        Already enrolled in {dup!.batchName} · Tap to switch or drop
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground capitalize">
+                        {member.relationship}
+                        {member.age_group && ` · ${member.age_group}`}
+                      </p>
+                    )}
+                  </div>
+                  {!isDup && selectedMemberId === member.id && (
+                    <CheckCircle size={20} className="text-primary flex-shrink-0" />
+                  )}
+                  {isDup && (
+                    <AlertCircle size={18} className="text-amber-600 flex-shrink-0" />
+                  )}
+                </Card>
+              );
+            })}
 
             {/* Empty state: no self member yet (lazy creation in progress) */}
             {!selfMember && otherMembers.length === 0 && (
@@ -631,6 +828,95 @@ const EnrollFlow = () => {
           </div>
         )}
       </div>
+
+      {/* ── Duplicate-enrollment prompt ──────────────────────────────────── */}
+      {/* One member can only hold one active/pending/paused enrollment per class.
+          Opens when the user taps an already-enrolled tile OR when the DB trigger
+          (migration 20260517140000) rejects an enrollment INSERT. */}
+      <Sheet open={!!dupContext} onOpenChange={(o) => (!o ? closeDupPrompt() : null)}>
+        <SheetContent side="bottom" className="rounded-t-2xl pb-6">
+          <SheetHeader className="text-left">
+            <SheetTitle className="flex items-center gap-2 text-base">
+              <AlertCircle size={18} className="text-amber-600" />
+              Already enrolled in this class
+            </SheetTitle>
+          </SheetHeader>
+
+          {dupContext && (
+            <div className="mt-3 space-y-4">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm text-amber-900">
+                  <span className="font-semibold">{dupContext.memberName}</span> is already enrolled in{" "}
+                  <span className="font-semibold">&ldquo;{dupContext.existingBatchName}&rdquo;</span>{" "}
+                  ({dupContext.existingStatus}) under{" "}
+                  <span className="font-semibold">{cls?.title}</span>.
+                </p>
+                <p className="text-xs text-amber-800 mt-2">
+                  A learner can only hold one active enrollment per class.{" "}
+                  {dupContext.isSameBatch
+                    ? "You're trying to enroll in the same batch you're already in."
+                    : `You can drop the existing enrollment, or request a switch to "${batch?.batch_name}" (subject to instructor approval).`}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                {/* Switch: only meaningful when target batch differs from existing */}
+                {!dupContext.isSameBatch && (
+                  <Button
+                    onClick={handleSwitchAndGoToExisting}
+                    disabled={requestBatchSwitch.isPending || dropEnrollment.isPending}
+                    className="w-full h-11 gap-2"
+                    style={{ background: "linear-gradient(135deg, oklch(0.78 0.18 250), oklch(0.62 0.20 250))" }}
+                  >
+                    {requestBatchSwitch.isPending ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <ArrowRightLeft size={16} />
+                    )}
+                    Switch to &ldquo;{batch?.batch_name}&rdquo;
+                  </Button>
+                )}
+
+                <Button
+                  onClick={handleDropAndContinue}
+                  disabled={dropEnrollment.isPending || requestBatchSwitch.isPending}
+                  variant="outline"
+                  className="w-full h-11 gap-2 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                >
+                  {dropEnrollment.isPending ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <UserMinus size={16} />
+                  )}
+                  Drop &ldquo;{dupContext.existingBatchName}&rdquo;
+                  {!dupContext.isSameBatch && " & enroll here"}
+                </Button>
+
+                <Button
+                  onClick={closeDupPrompt}
+                  variant="ghost"
+                  className="w-full h-10 text-muted-foreground"
+                  disabled={dropEnrollment.isPending || requestBatchSwitch.isPending}
+                >
+                  Cancel
+                </Button>
+
+                {!dupContext.isSameBatch && (
+                  <button
+                    onClick={() => {
+                      closeDupPrompt();
+                      navigate(`/enrollment/${dupContext.existingEnrollmentId}`);
+                    }}
+                    className="w-full text-center text-xs text-primary hover:underline pt-1"
+                  >
+                    Go to existing enrollment
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };

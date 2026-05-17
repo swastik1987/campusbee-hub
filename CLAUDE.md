@@ -498,6 +498,7 @@ v1 migrations (001–028) archived in `supabase/migrations/_archive_v1/` and **n
 | L7 | `20260515150000_coaches.sql` | **Coaches feature (mandatory for the Premium academy team workflow).** Creates `coaches`, `coach_assignments`, `payment_reminder_log`; copies legacy `trainers` rows into `coaches` (status='active', `linked_user_id=NULL` until invited); mirrors `certifications.trainer_id → coach_id`; adds SECURITY DEFINER helpers (`current_coach_ids`, `current_academy_provider_ids`, `is_coach_of_class`, `is_coach_of_batch`, `is_academy_member`); extends RLS on `classes`, `batches`, `attendance_records`, `payments`, `enrollments`, `class_materials`, `announcements` to include the coach branch; adds RPCs (`invite_coach`, `assign_coach`, `end_coach_assignment`, `remove_coach`, `accept_coach_invites`, `revert_expired_coach_assignments`, `send_payment_reminder`). Re-runnable. **Apply manually before testing.** |
 | L8 | `20260516120000_coach_student_names.sql` | Widens `get_provider_student_names` RPC's security guard so a coach assigned to a batch can read student + seeker names for it, not just the academy owner. **Defensively detects whether `is_coach_of_batch` exists** before referencing it, so it's safe to apply before or after L7. |
 | L9 | `20260517120000_subscription_plans.sql` | Creates `subscription_plans` (monthly + annual rows, seeded inactive) and `platform_payment_details` singleton. Adds `billing_period` + `amount_paid` to `provider_subscription_requests`. Rewrites `request_premium_upgrade` RPC to require/validate the plan + amount, and `approve_subscription_request` to derive `subscription_valid_until` from the request's billing period when admin doesn't override. Drops the legacy 3-arg `request_premium_upgrade` signature. |
+| L10 | `20260517140000_block_duplicate_class_enrollment.sql` | Adds `enforce_one_active_enrollment_per_class()` BEFORE INSERT/UPDATE trigger on `enrollments`. Resolves `batch_id → class_id` and raises `P0001` with a structured message (`duplicate_class_enrollment: ... existing_enrollment_id=<UUID> existing_batch=<name>`) when the same `family_member_id` already has another enrollment with status ∈ {active, pending, paused} in any batch of the same class. Frontend (`EnrollFlow.tsx`) gates the same rule with a Switch/Drop prompt; this is the DB-level safety net for racing tabs / direct API bypasses. **Re-runnable** (drops and recreates the trigger). **Apply manually before testing.** |
 
 ---
 
@@ -725,6 +726,16 @@ Multiple adults link to a single family. Primary member sends invite link. Linke
 ### Self-Enrollment
 Onboarding's `StepLocation` calls `ensure_self_family_member()` (SECURITY DEFINER RPC, migration 026) to guarantee the caller's family + `relationship='self'` family-member row exist before they can ever land on EnrollFlow. The RPC resolves internal `users.id` from `auth.uid()` first, then creates/returns idempotently.
 
+### Duplicate Same-Class Enrollment Block (May 2026)
+A family member can hold **at most one enrollment per class** with status ∈ {`active`, `pending`, `paused`}. Enforced at two layers:
+
+- **DB trigger** `enforce_one_active_enrollment_per_class()` (migration `20260517140000_block_duplicate_class_enrollment.sql`) — BEFORE INSERT/UPDATE on `enrollments`. Resolves `batch_id → class_id`, scans for any other enrollment row for the same `family_member_id` in any batch of that class with a blocking status, and raises `P0001` with the message `duplicate_class_enrollment: ... existing_enrollment_id=<UUID> existing_batch=<name>`. `completed`/`dropped`/`rejected` are not blocking — a learner who finished a previous term can legitimately re-enroll.
+- **Frontend prompt** in `EnrollFlow.tsx`. The member-picker query `existing-active-enrollments-in-class` fetches the blocking-status map for every family member up-front. Already-enrolled tiles render disabled with an amber "Already enrolled in {batchName} · Tap to switch or drop" badge. Tapping opens a bottom sheet with three CTAs:
+  - **Switch to "{new batch}"** — calls `learner_request_batch_switch(existingEnrollmentId, newBatchId)` (provider-approval-gated), toasts, navigates to `/enrollment/:existingId` so the user sees the pending banner.
+  - **Drop "{existing batch}" & enroll here** — calls `learner_drop_enrollment(existingEnrollmentId)`, invalidates the picker query, auto-selects the member, advances to the Review step.
+  - **Cancel** — closes the sheet.
+- **Defense-in-depth**: `handleEnroll`'s error catch parses the `duplicate_class_enrollment` message (regex on `existing_enrollment_id=` + `existing_batch=`) and opens the same prompt — so direct API calls / stale picker data / racing tabs still get a friendly UX instead of a raw error toast.
+
 ### Provider RLS Resolution Pattern
 Any policy or RPC that scopes by provider ownership **must** resolve `service_providers` via `users.auth_id = auth.uid()`, not by comparing `service_providers.user_id` directly to `auth.uid()`. The latter is the most common source of 403/406 errors. Reference shape:
 
@@ -823,6 +834,7 @@ Live tracking of items in flight or queued. Move to "done" when shipped + verifi
 - [ ] Apply migration `20260515150000_coaches.sql` (coaches + RLS + RPCs + payment_reminder_log).
 - [ ] Apply migration `20260516120000_coach_student_names.sql` (widens names RPC to include coaches).
 - [ ] Apply migration `20260517120000_subscription_plans.sql` (plans + payment_details + extended subscription_requests).
+- [ ] Apply migration `20260517140000_block_duplicate_class_enrollment.sql` (DB trigger blocking >1 active/pending/paused enrollment per (family_member, class) pair). Frontend prompt works without it; migration is the safety net for racing tabs / direct-API bypass.
 - [ ] Deploy edge function `revert-expired-coach-assignments` and schedule a daily cron (suggested `0 2 * * *` IST).
 - [ ] Configure Monthly + Annual plans at `/platform/settings` and flip them Active. Required before the upgrade sheet renders a plan-picker (otherwise the "Coming soon" state shows).
 - [ ] Configure platform UPI ID + bank details at `/platform/settings` so the payment screen has something to display.
