@@ -121,7 +121,15 @@ const ClassCard = React.forwardRef<HTMLDivElement, ClassCardProps>(
         onClick={handleCardClick}
       >
         {cls.cover_image_url ? (
-          <img src={cls.cover_image_url} alt="" className="h-24 w-full object-cover" />
+          <img
+            src={cls.cover_image_url}
+            alt={cls.title}
+            loading="lazy"
+            decoding="async"
+            width={176}
+            height={96}
+            className="h-24 w-full object-cover"
+          />
         ) : (
           <div className="flex h-24 w-full items-center justify-center bg-muted">
             <BookOpen size={24} className="text-muted-foreground" />
@@ -167,7 +175,15 @@ const ClassCard = React.forwardRef<HTMLDivElement, ClassCardProps>(
       onClick={handleCardClick}
     >
       {cls.cover_image_url ? (
-        <img src={cls.cover_image_url} alt="" className="h-20 w-20 rounded-lg object-cover flex-shrink-0" />
+        <img
+          src={cls.cover_image_url}
+          alt={cls.title}
+          loading="lazy"
+          decoding="async"
+          width={80}
+          height={80}
+          className="h-20 w-20 rounded-lg object-cover flex-shrink-0"
+        />
       ) : (
         <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-muted flex-shrink-0">
           <BookOpen size={24} className="text-muted-foreground" />

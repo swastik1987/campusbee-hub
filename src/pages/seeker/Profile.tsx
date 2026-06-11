@@ -46,6 +46,7 @@ import {
 import { toast } from "sonner";
 import SupportRequestSheet from "@/components/support/SupportRequestSheet";
 import SupportRequestList from "@/components/support/SupportRequestList";
+import InstallAppCard from "@/components/pwa/InstallAppCard";
 
 const Profile = () => {
   const {
@@ -430,6 +431,9 @@ const Profile = () => {
           </p>
           <SupportRequestList userId={profile?.id} />
         </Card>
+
+        {/* ── Install app (hidden when already installed / unsupported) ── */}
+        <InstallAppCard />
 
         {/* ── Account section ───────────────────────────────────────── */}
         <Card className="p-0 overflow-hidden">

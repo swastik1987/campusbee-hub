@@ -54,10 +54,23 @@ import {
 import { toast } from "sonner";
 
 const SORT_OPTIONS = [
+  { value: "nearest", label: "Nearest"   },
   { value: "newest",  label: "Newest"    },
   { value: "rating",  label: "Top Rated" },
   { value: "popular", label: "Popular"   },
 ];
+
+// Radius is a stable user preference, not a per-visit filter — persist it.
+const RADIUS_STORAGE_KEY = "campusbee.explore.radiusKm";
+
+function loadStoredRadius(): number {
+  try {
+    const v = parseInt(localStorage.getItem(RADIUS_STORAGE_KEY) ?? "", 10);
+    return Number.isFinite(v) && v >= 2 && v <= 50 ? v : 10;
+  } catch {
+    return 10;
+  }
+}
 
 const CATEGORY_ICONS: Record<string, typeof Trophy> = {
   Trophy, Swords, Music, Palette, GraduationCap, Guitar, Heart, Globe,
@@ -72,7 +85,7 @@ void formatDistance;
 
 const Explore = () => {
   const navigate = useNavigate();
-  const [params] = useSearchParams();
+  const [params, setSearchParams] = useSearchParams();
   const { profile, refreshProfile } = useUser();
   const queryClient = useQueryClient();
   const updateLocation = useUpdateSeekerLocation();
@@ -98,10 +111,35 @@ const Explore = () => {
   const [search, setSearch]               = useState(params.get("search")   ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [categorySlug, setCategorySlug]   = useState(params.get("category") ?? "");
-  const [sort, setSort]                   = useState(params.get("sort")      ?? "newest");
-  const [searchRadius, setSearchRadius]   = useState(10);
+  const [sort, setSort]                   = useState(params.get("sort")      ?? "nearest");
+  const [searchRadius, setSearchRadius]   = useState(loadStoredRadius);
   const [pillsExpanded, setPillsExpanded] = useState(true);
   const [radiusSheet, setRadiusSheet]     = useState(false);
+  // Staged slider value — committed to searchRadius on Apply so dragging
+  // doesn't refire the PostGIS RPC on every step.
+  const [pendingRadius, setPendingRadius] = useState(searchRadius);
+
+  // Mirror filters into the URL (replace, not push) so tapping into a class
+  // and coming back restores search/category/sort instead of resetting.
+  useEffect(() => {
+    const next = new URLSearchParams(params);
+    const sync = (key: string, value: string, defaultValue: string) => {
+      if (value && value !== defaultValue) next.set(key, value);
+      else next.delete(key);
+    };
+    sync("search", debouncedSearch, "");
+    sync("category", categorySlug, "");
+    sync("sort", sort, "nearest");
+    if (next.toString() !== params.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, categorySlug, sort]);
+
+  // Persist radius preference
+  useEffect(() => {
+    try { localStorage.setItem(RADIUS_STORAGE_KEY, String(searchRadius)); } catch { /* private mode */ }
+  }, [searchRadius]);
 
   const { data: allCategories } = useCategories();
   const parentCategories  = allCategories?.filter((c) => !c.parent_id) ?? [];
@@ -313,9 +351,19 @@ const Explore = () => {
     const withDist = (rawDisplayClasses as any[])
       .filter(withinRadius)
       .map((cls: any) => ({ ...cls, distanceKm: computeDistance(cls) }));
+    // "Nearest" is ordered client-side on the computed distance (the server
+    // falls back to newest for this value); unknown distances sink to the end.
+    // applyTrustMarkers then pins sponsored cards on top, preserving order
+    // within each group.
+    if (sort === "nearest" && hasLocation) {
+      withDist.sort(
+        (a: { distanceKm?: number | null }, b: { distanceKm?: number | null }) =>
+          (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity),
+      );
+    }
     return applyTrustMarkers(withDist);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawDisplayClasses, seekerLat, seekerLng, searchRadius, applyTrustMarkers, nearbyDistances]);
+  }, [rawDisplayClasses, seekerLat, seekerLng, searchRadius, sort, applyTrustMarkers, nearbyDistances]);
 
   const { data: incomingInvites }  = useIncomingInvites(
     profile?.id, profile?.email ?? null, profile?.mobile_number ?? null,
@@ -590,9 +638,12 @@ const Explore = () => {
                 <span className="text-muted-foreground">Loading…</span>
               ) : (
                 <>
-                  <span className="font-bold text-foreground">{activeList?.length ?? 0}</span>{" "}
+                  {/* "+" while more pages exist — the loaded count isn't the total */}
+                  <span className="font-bold text-foreground">
+                    {activeList?.length ?? 0}{hasNextPage ? "+" : ""}
+                  </span>{" "}
                   <span className="text-muted-foreground">
-                    {(activeList?.length ?? 0) === 1 ? "class" : "classes"}
+                    {(activeList?.length ?? 0) === 1 && !hasNextPage ? "class" : "classes"}
                     {hasLocation ? ` · within ${searchRadius} km` : ""}
                   </span>
                 </>
@@ -685,9 +736,9 @@ const Explore = () => {
                   Clear search
                 </button>
               )}
-              {!isSearching && hasLocation && (
+              {!isSearching && hasLocation && searchRadius < 50 && (
                 <button
-                  onClick={() => setRadiusSheet(true)}
+                  onClick={() => setSearchRadius((r) => Math.min(r + 10, 50))}
                   className="flex items-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/15 active:scale-95"
                 >
                   <Navigation2 size={12} />
@@ -740,7 +791,14 @@ const Explore = () => {
       </Sheet>
 
       {/* ── Radius Sheet ──────────────────────────────────────────────── */}
-      <Sheet open={radiusSheet} onOpenChange={setRadiusSheet}>
+      {/* Slider edits a staged value; the RPC only refires on Apply. */}
+      <Sheet
+        open={radiusSheet}
+        onOpenChange={(open) => {
+          if (open) setPendingRadius(searchRadius);
+          setRadiusSheet(open);
+        }}
+      >
         <SheetContent side="bottom" className="rounded-t-2xl pb-8">
           <SheetHeader className="mb-4">
             <SheetTitle>Search Radius</SheetTitle>
@@ -748,14 +806,14 @@ const Explore = () => {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">Show classes within</p>
-              <span className="text-2xl font-bold text-primary">{searchRadius} km</span>
+              <span className="text-2xl font-bold text-primary">{pendingRadius} km</span>
             </div>
             <Slider
               min={2}
               max={50}
               step={1}
-              value={[searchRadius]}
-              onValueChange={([v]) => setSearchRadius(v)}
+              value={[pendingRadius]}
+              onValueChange={([v]) => setPendingRadius(v)}
               className="w-full"
             />
             <div className="flex justify-between text-[10px] text-muted-foreground">
@@ -770,9 +828,9 @@ const Explore = () => {
               {[5, 10, 15, 25].map((r) => (
                 <button
                   key={r}
-                  onClick={() => setSearchRadius(r)}
+                  onClick={() => setPendingRadius(r)}
                   className={`flex-1 rounded-xl border py-2 text-xs font-semibold transition-all active:scale-95 ${
-                    searchRadius === r
+                    pendingRadius === r
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border text-muted-foreground hover:border-primary/50"
                   }`}
@@ -781,7 +839,15 @@ const Explore = () => {
                 </button>
               ))}
             </div>
-            <Button className="w-full" onClick={() => setRadiusSheet(false)}>Apply</Button>
+            <Button
+              className="w-full"
+              onClick={() => {
+                setSearchRadius(pendingRadius);
+                setRadiusSheet(false);
+              }}
+            >
+              Apply
+            </Button>
           </div>
         </SheetContent>
       </Sheet>

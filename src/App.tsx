@@ -8,6 +8,8 @@ import { UserProvider, useUser } from "@/contexts/UserContext";
 import AuthGuard from "@/components/AuthGuard";
 import { OAUTH_RETURN_KEY } from "@/components/AuthDrawer";
 import { useImplicitLegalAcceptance } from "@/hooks/useImplicitLegalAcceptance";
+import PwaUpdatePrompt from "@/components/pwa/PwaUpdatePrompt";
+import OfflineBanner from "@/components/pwa/OfflineBanner";
 
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
@@ -95,6 +97,9 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      {/* SW registration + "new version" toast (no-op outside production builds) */}
+      <PwaUpdatePrompt />
+      <OfflineBanner />
       <BrowserRouter>
         <UserProvider>
           {/* Handles post-OAuth redirect back to the originating page */}

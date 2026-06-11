@@ -38,6 +38,8 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import LegalDrawer from "@/components/legal/LegalDrawer";
+import type { LegalDocType } from "@/hooks/useLegalDocuments";
 
 // ── Design tokens (indigo accent, matching seeker-theme) ─────────────
 
@@ -61,13 +63,14 @@ function shortAddr(address: string): string {
 //  GUEST LANDING
 // ─────────────────────────────────────────────────────────────────────
 
+// No fabricated listing counts here — real numbers live behind sign-in.
 const CATEGORIES = [
-  { icon: Trophy,       name: "Sports",    count: 1840, hue: 16  },
-  { icon: Music,        name: "Music",     count: 980,  hue: 285 },
-  { icon: Sparkles,     name: "Dance",     count: 720,  hue: 330 },
-  { icon: Palette,      name: "Arts",      count: 540,  hue: 200 },
-  { icon: GraduationCap,name: "Academics", count: 2640, hue: 240 },
-  { icon: Code2,        name: "Coding",    count: 460,  hue: 220 },
+  { icon: Trophy,       name: "Sports",    hue: 16  },
+  { icon: Music,        name: "Music",     hue: 285 },
+  { icon: Sparkles,     name: "Dance",     hue: 330 },
+  { icon: Palette,      name: "Arts",      hue: 200 },
+  { icon: GraduationCap,name: "Academics", hue: 240 },
+  { icon: Code2,        name: "Coding",    hue: 220 },
 ];
 
 const HOW_IT_WORKS = [
@@ -97,11 +100,13 @@ const TRUST_BADGES = [
 
 const GuestLanding = () => {
   const navigate = useNavigate();
-  const [detectedLocation, setDetectedLocation] = useState("HSR Layout, Bengaluru");
-  const [locationLoading, setLocationLoading] = useState(true);
   const [demoUrl, setDemoUrl] = useState<string | null>(null);
   const [demoOpen, setDemoOpen] = useState(false);
+  const [legalDoc, setLegalDoc] = useState<LegalDocType | null>(null);
 
+  // No geolocation here: asking for a permission before the visitor has
+  // expressed any intent gets denied (stickily) far too often. Location is
+  // requested inside onboarding's picker, after sign-up, where it has context.
   useEffect(() => {
     // Fetch instructor demo video URL from platform settings
     supabase
@@ -113,37 +118,6 @@ const GuestLanding = () => {
         const v = data?.value;
         if (v && typeof v === "string" && v.trim()) setDemoUrl(v.trim());
       });
-
-    // Detect visitor location via browser geolocation + Nominatim reverse-geocode
-    if (!navigator.geolocation) {
-      setLocationLoading(false);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { latitude, longitude } = pos.coords;
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
-            { headers: { "User-Agent": "CampusBee/2.0 (campusbee.in)" } }
-          );
-          const json = await res.json();
-          const addr = json?.address ?? {};
-          const area = addr.suburb ?? addr.neighbourhood ?? addr.city_district ?? null;
-          const city = addr.city ?? addr.town ?? addr.village ?? null;
-          if (area) {
-            setDetectedLocation(city && city !== area ? `${area}, ${city}` : area);
-          } else if (city) {
-            setDetectedLocation(city);
-          }
-        } catch {
-          // keep default
-        }
-        setLocationLoading(false);
-      },
-      () => setLocationLoading(false),
-      { timeout: 6000, maximumAge: 300_000 }
-    );
   }, []);
 
   return (
@@ -175,7 +149,7 @@ const GuestLanding = () => {
           {/* Pill badge */}
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: A_SOFT, color: A_DEEP, borderRadius: 999, padding: "4px 10px", fontSize: 10, fontWeight: 700, letterSpacing: 0.3, marginBottom: 12 }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: A_TO, display: "inline-block" }} />
-            50,000+ learners · 1,800+ instructors
+            Your neighbourhood learning marketplace
           </div>
 
           <h1 style={{ fontSize: 35, fontWeight: 800, letterSpacing: -0.8, lineHeight: 1.07, margin: "0 0 10px" }}>
@@ -199,18 +173,22 @@ const GuestLanding = () => {
           Find a class you (or your family) will love.
         </h2>
         <p style={{ fontSize: 12.5, color: MUTED, margin: "0 0 14px", lineHeight: 1.5 }}>
-          12,000+ verified classes for every age. Free trials. Real local reviews.
+          Verified classes for every age. Free trials. Real local reviews.
         </p>
 
         {/* Location-first CTA block */}
         <div style={{ background: A_SOFT, border: `1px solid ${A_RING}`, borderRadius: 14, padding: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: `1px solid ${HAIR}`, borderRadius: 10, padding: "10px 12px" }}>
+          <button
+            onClick={() => navigate("/auth")}
+            aria-label="Set your home location"
+            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "#fff", border: `1px solid ${HAIR}`, borderRadius: 10, padding: "12px 12px", cursor: "pointer", textAlign: "left" }}
+          >
             <MapPin size={16} style={{ color: A_TO, flexShrink: 0 }} />
             <span style={{ fontSize: 12, color: MUTED, flex: 1 }}>
-              {locationLoading ? "Detecting location…" : detectedLocation}
+              Set your home location to see what's nearby
             </span>
-            <Pencil size={13} style={{ color: MUTED }} />
-          </div>
+            <Pencil size={13} style={{ color: MUTED, flexShrink: 0 }} />
+          </button>
           <button
             onClick={() => navigate("/auth")}
             style={{ marginTop: 8, width: "100%", background: `linear-gradient(135deg, ${A_FROM}, ${A_TO})`, color: "#fff", border: "none", borderRadius: 11, padding: "13px 14px", fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: `0 6px 14px -4px ${A_RING}`, cursor: "pointer" }}
@@ -244,9 +222,9 @@ const GuestLanding = () => {
             Reach learners of every age nearby. Run payments, attendance & messages in one app.
           </p>
 
-          {/* Proof stats */}
+          {/* Factual product props — no invented performance stats */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, padding: "12px 0", borderTop: "1px solid rgba(255,255,255,0.1)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-            {[{ v: "₹84k", l: "Avg / mo" }, { v: "3.2x", l: "Faster fill" }, { v: "0%", l: "Listing fee" }].map(s => (
+            {[{ v: "Free", l: "To list" }, { v: "0%", l: "Commission" }, { v: "1 app", l: "For everything" }].map(s => (
               <div key={s.l}>
                 <div style={{ fontSize: 18, fontWeight: 800, background: `linear-gradient(135deg, ${A_FROM}, ${A_TO})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{s.v}</div>
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", fontWeight: 700, letterSpacing: 0.4, marginTop: 2 }}>{s.l}</div>
@@ -310,7 +288,7 @@ const GuestLanding = () => {
                 <c.icon size={18} style={{ color: `oklch(0.45 0.15 ${c.hue})` }} />
               </div>
               <div style={{ fontSize: 12.5, fontWeight: 800, color: INK }}>{c.name}</div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: MUTED, marginTop: 1 }}>{c.count.toLocaleString("en-IN")}+ classes</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: MUTED, marginTop: 1 }}>Explore nearby</div>
             </button>
           ))}
         </div>
@@ -323,7 +301,7 @@ const GuestLanding = () => {
           Find your next favourite class.
         </h3>
         <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.85)", margin: "0 0 16px", lineHeight: 1.5 }}>
-          Free trials. Real reviews. Verified instructors. All within 5 km.
+          Free trials. Real reviews. Verified instructors. All near home.
         </p>
         <button
           onClick={() => navigate("/auth")}
@@ -336,10 +314,33 @@ const GuestLanding = () => {
       {/* ── Footer ───────────────────────────────────────────────── */}
       <div style={{ background: "#fff", borderTop: `1px solid ${HAIR}`, padding: "20px 20px 32px", textAlign: "center" }}>
         <div style={{ display: "flex", gap: 20, justifyContent: "center", marginBottom: 8, fontSize: 12, color: MUTED, fontWeight: 600 }}>
-          <span>About</span><span>Help</span><span>Privacy</span><span>Terms</span>
+          <button
+            onClick={() => setLegalDoc("privacy")}
+            style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer" }}
+          >
+            Privacy
+          </button>
+          <button
+            onClick={() => setLegalDoc("terms")}
+            style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer" }}
+          >
+            Terms
+          </button>
         </div>
         <div style={{ fontSize: 11, color: MUTED }}>© 2026 CampusBee · Built in Bengaluru 🇮🇳</div>
       </div>
+
+      {/* Legal documents (same drawer used on /auth) */}
+      <LegalDrawer
+        docType="privacy"
+        open={legalDoc === "privacy"}
+        onOpenChange={(v) => setLegalDoc(v ? "privacy" : null)}
+      />
+      <LegalDrawer
+        docType="terms"
+        open={legalDoc === "terms"}
+        onOpenChange={(v) => setLegalDoc(v ? "terms" : null)}
+      />
 
       {/* ── Demo video modal ─────────────────────────────────────── */}
       {demoOpen && demoUrl && (
@@ -432,19 +433,26 @@ const LoggedInLanding = () => {
           <div style={{ width: 32, height: 32, borderRadius: 9, background: `linear-gradient(135deg, ${A_FROM}, ${A_TO})`, color: "#fff", fontWeight: 800, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>C</div>
           <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: -0.3 }}>CampusBee</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <button
             onClick={() => navigate("/notifications")}
-            className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
+            className="flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-accent"
+            aria-label="Notifications"
           >
             <Bell size={18} className="text-muted-foreground" />
           </button>
-          <Avatar className="h-9 w-9 cursor-pointer" onClick={() => navigate("/profile")}>
-            <AvatarImage src={profile?.avatar_url ?? undefined} />
-            <AvatarFallback style={{ background: A_SOFT, color: A_DEEP, fontSize: 12, fontWeight: 800 }}>
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          <button
+            onClick={() => navigate("/profile")}
+            className="flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-accent"
+            aria-label="Profile"
+          >
+            <Avatar className="h-9 w-9">
+              <AvatarImage src={profile?.avatar_url ?? undefined} />
+              <AvatarFallback style={{ background: A_SOFT, color: A_DEEP, fontSize: 12, fontWeight: 800 }}>
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+          </button>
         </div>
       </header>
 

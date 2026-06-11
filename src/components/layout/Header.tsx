@@ -39,12 +39,16 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
       >
         <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4">
           <div className="flex items-center gap-2">
+            {/* 44px hit area around the 32px logo tile */}
             <button
               onClick={() => navigate("/")}
-              className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-[oklch(0.78_0.18_250)] to-[oklch(0.62_0.20_250)] text-base font-extrabold text-white transition-opacity active:opacity-70"
+              className="flex h-11 w-11 -ml-1.5 items-center justify-center transition-opacity active:opacity-70"
               title="CampusBee Home"
+              aria-label="CampusBee Home"
             >
-              C
+              <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-[oklch(0.78_0.18_250)] to-[oklch(0.62_0.20_250)] text-base font-extrabold text-white">
+                C
+              </span>
             </button>
             {shouldShowPersonaSwitcher && <PersonaSwitcher />}
             {isCoach && activePersona === "provider" && (
@@ -58,42 +62,55 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
             )}
           </div>
 
-          <div className="flex items-center gap-1">
+          {/* 44px touch targets (h-11 w-11) per mobile-first guideline */}
+          <div className="flex items-center">
             <button
               onClick={() => navigate("/")}
-              className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
+              className="flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-accent"
               title="Home"
+              aria-label="Home"
             >
               <Home size={18} className="text-muted-foreground" />
             </button>
             <button
               onClick={() => navigate("/chat")}
-              className="relative flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
+              className="relative flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-accent"
               title="Chat"
+              aria-label={
+                unreadChatCount && unreadChatCount > 0
+                  ? `Chat, ${unreadChatCount} unread`
+                  : "Chat"
+              }
             >
               <MessageCircle size={18} className="text-muted-foreground" />
               {unreadChatCount && unreadChatCount > 0 ? (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+                <span className="absolute top-1 right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
                   {unreadChatCount > 9 ? "9+" : unreadChatCount}
                 </span>
               ) : null}
             </button>
             <button
               onClick={() => navigate("/notifications")}
-              className="relative flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
+              className="relative flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-accent"
               title="Notifications"
+              aria-label={
+                unreadCount && unreadCount > 0
+                  ? `Notifications, ${unreadCount} unread`
+                  : "Notifications"
+              }
             >
               <Bell size={18} className="text-muted-foreground" />
               {unreadCount && unreadCount > 0 ? (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+                <span className="absolute top-1 right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               ) : null}
             </button>
             <button
               onClick={() => navigate("/profile")}
-              className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
+              className="flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-accent"
               title="Profile"
+              aria-label="Profile"
             >
               <User size={18} className="text-muted-foreground" />
             </button>
