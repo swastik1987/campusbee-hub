@@ -10,12 +10,14 @@ const ADMIN_ROUTES = ["/platform"];
 // Provider routes — require provider profile, not family setup
 const PROVIDER_ROUTES_PREFIX = "/provider/";
 
-// Routes that require a completed onboarding (family setup)
-// i.e., seeker routes that depend on family/location context
+// Routes that require a completed onboarding (family setup).
+// NOTE: /explore and /provider-profile/ are deliberately NOT here — browsing
+// classes must work for any signed-in user (family is only needed to enroll).
+// Requiring family on /explore made the landing's "Find Classes" button
+// silently bounce back to "/" for anyone whose family hadn't loaded/been set.
 const REQUIRES_FAMILY_PREFIXES = [
-  "/explore", "/my-classes", "/enroll/",
+  "/my-classes", "/enroll/",
   "/enrollment/", "/chat", "/family",
-  "/provider-profile/",
 ];
 
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
@@ -80,10 +82,12 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/" replace />;
   }
 
-  // For routes that require family context, redirect to landing hub
-  // (which shows the "Complete Your Setup" card) if onboarding isn't done
+  // Routes that genuinely need family context (enroll, my-classes, chat…):
+  // send the user to seeker onboarding to finish setup instead of silently
+  // bouncing to "/" (the landing no longer has a "Complete Your Setup" card,
+  // so that bounce looked like dead buttons).
   if (!family && REQUIRES_FAMILY_PREFIXES.some((r) => path.startsWith(r))) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/onboarding?role=seeker" replace />;
   }
 
   return <>{children}</>;

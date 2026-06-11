@@ -524,9 +524,12 @@ const LoggedInLanding = () => {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            {/* Find Classes — go to /explore if already a seeker, else start onboarding */}
+            {/* Find Classes — always /explore. Browsing never requires family
+                setup, and branching on hasFamily raced the family fetch
+                (profile resolves first), sending onboarded users back into
+                onboarding. Enrollment flows handle family setup lazily. */}
             <button
-              onClick={() => navigate(hasFamily ? "/explore" : "/onboarding?role=seeker")}
+              onClick={() => navigate("/explore")}
               style={{ background: A_SOFT, border: `2px solid ${A_RING}`, borderRadius: 18, padding: "18px 14px", textAlign: "left", cursor: "pointer", transition: "all 0.15s", display: "flex", flexDirection: "column", gap: 10 }}
             >
               <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${A_FROM}, ${A_TO})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
